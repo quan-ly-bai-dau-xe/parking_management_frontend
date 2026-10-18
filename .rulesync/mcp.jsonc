@@ -1,17 +1,17 @@
 {
   "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
   "mcpServers": {
-    // "figma": {
-    //   "type": "http",
-    //   "url": "https://mcp.figma.com/mcp",
-    //   "env": {}
-    // },
-    // "deepwiki": {
-    //   "type": "http",
-    //   "url": "https://mcp.deepwiki.com/mcp",
-    //   "env": {}
-    // },
-    // "rulesync": {
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp",
+      "env": {}
+    },
+    "deepwiki": {
+      "type": "http",
+      "url": "https://mcp.deepwiki.com/mcp",
+      "env": {}
+    }
+    //, "rulesync": {
     //   "type": "stdio",
     //   "command": "pnpm",
     //   "args": [

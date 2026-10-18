@@ -1,7 +1,9 @@
-import { useState } from "react"
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { authService } from "../features/login/authService";
 
 export default function Login() {
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         account: '',
         password: '',
@@ -33,8 +35,8 @@ export default function Login() {
             });
 
             setTimeout(() => {
-                setSubmittedStatus(null);
-            }, 4000)
+                navigate("/home");
+            }, 600);
         })
         .catch((err) => {
             setErrorMessage(err.message || "Đăng nhập thất bại. Vui lòng thử lại");

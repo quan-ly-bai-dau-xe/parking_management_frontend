@@ -1,13 +1,119 @@
-import React from "react";
-import HelloWorld from "./components/HelloWorld";
-import { mockHelloData } from "./mocks/helloData";
 
-function App() {
+import { useNavigate, Routes, Route, Navigate } from "react-router-dom";
+import VehicleManagement from "./pages/VehicleManagement";
+import ParkingHistory from "./pages/ParkingHistory";
+import Login from "./pages/login";
+const LEGACY_PATHS = {
+  "#vehicles": "/vehicles",
+  "#history": "/history",
+  "#home": "/home",
+  "#customers": "/customers",
+  "#parking-lot": "/parking-lot",
+  "#tickets": "/tickets",
+  "#employees": "/employees",
+};
+
+const PLACEHOLDER_PATHS = [
+  "/home",
+  "/customers",
+  "/parking-lot",
+  "/tickets",
+  "/employees",
+];
+
+function PlaceholderPage({ title = "Trang đang được phát triển" }) {
+  const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-slate-50 py-10">
-      <HelloWorld data={mockHelloData} />
+    <div className="min-h-screen bg-[#FAF8FF] flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-16 h-16 mb-4 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
+        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+      </div>
+      <h2 className="text-lg font-bold text-slate-800 mb-1">{title}</h2>
+      <p className="text-xs text-slate-500 max-w-sm mb-6">Tính năng đang trong lộ trình hoàn thiện và sẽ sớm ra mắt.</p>
+      <button
+        type="button"
+        onClick={() => navigate("/vehicles")}
+        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+      >
+        Về Quản lý xe
+      </button>
     </div>
   );
 }
 
-export default App;
+function NotFoundPage() {
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-screen bg-[#FAF8FF] flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-16 h-16 mb-4 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shadow-xs">
+        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <h2 className="text-lg font-bold text-slate-800 mb-1">404 - Không tìm thấy trang</h2>
+      <p className="text-xs text-slate-500 max-w-sm mb-6">Đường dẫn bạn truy cập không tồn tại hoặc đã được chuyển hướng.</p>
+      <button
+        type="button"
+        onClick={() => navigate("/vehicles")}
+        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+      >
+        Về Quản lý xe
+      </button>
+    </div>
+  );
+}
+
+export default function App() {
+  const navigate = useNavigate();
+
+  // Tương thích tạm thời với các page đang truyền hash cũ.
+  const handleNavigateTab = (href) => {
+    const path = LEGACY_PATHS[href] ?? href;
+    navigate(path);
+  };
+
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={<Login />}
+      />
+
+      <Route
+        path="/"
+        element={<Navigate to="/home" replace />}
+      />
+
+      <Route
+        path="/home"
+        element={<VehicleManagement onNavigateTab={handleNavigateTab} />}
+      />
+
+      <Route
+        path="/vehicles"
+        element={
+          <VehicleManagement onNavigateTab={handleNavigateTab} />
+        }
+      />
+
+      <Route
+        path="/history"
+        element={
+          <ParkingHistory onNavigateTab={handleNavigateTab} />
+        }
+      />
+
+      {PLACEHOLDER_PATHS.filter((p) => p !== "/home").map((path) => (
+        <Route
+          key={path}
+          path={path}
+          element={<PlaceholderPage />}
+        />
+      ))}
+
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  );
+}
