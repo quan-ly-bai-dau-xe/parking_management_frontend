@@ -14,13 +14,13 @@ globs: ["src/**/*.{js,jsx,css}"]
 
 ## 2. Readability & Self-Documenting Code
 - **Intent-Revealing Names**:
-  - Functions: Use clear verbs describing action (e.g., `filterContactsByKeyword`, `validateContactForm`).
-  - Variables: Use descriptive nouns (e.g., `activeContactId`, `isCreateModalOpen`).
+  - Functions: Use clear verbs describing action (e.g., `filterItemsByKeyword`, `validateForm`).
+  - Variables: Use descriptive nouns (e.g., `activeItemId`, `isCreateModalOpen`).
   - Avoid cryptic single-letter abbreviations except for standard loops or index mapping (`i`, `idx`).
 - **Meaningful Documentation**: Add clear comments explaining the rationale (*why*) for non-obvious business rules, regex patterns, or state synchronization workarounds.
 
 ## 3. DRY & Defensive Coding
 - **Single Source of Truth**: Centralize reusable logic (email validation regex, phone formatting, badge color lookup) in utility or service modules.
 - **Defensive Safeguards**:
-  - Always provide fallback defaults when destructuring props or accessing nested objects (e.g., `contact?.tags ?? []`).
+  - Always provide fallback defaults when destructuring props or accessing nested objects (e.g., `item?.tags ?? []`).
   - Ensure array methods (`map`, `filter`, `reduce`) are called only on valid array instances.

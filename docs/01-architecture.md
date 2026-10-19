@@ -1,49 +1,73 @@
 # Architecture - Parking Management Frontend
 
-## Overview
+## Tổng quan
 
-Dự án **Parking Management Frontend** được xây dựng dựa trên React 19 + Vite và Tailwind CSS, phục vụ quản lý và vận hành bãi đậu xe ô tô. Kiến trúc hệ thống áp dụng mô hình phân lớp rõ ràng (Layered Architecture) nhằm đảm bảo tính độc lập, dễ bảo trì, mở rộng và dễ dàng tích hợp với Backend REST API sau này.
+**Parking Management Frontend** là ứng dụng React 19 chạy trên Vite, sử dụng Tailwind CSS cho giao diện quản lý vận hành bãi đỗ xe. Mã nguồn được tổ chức theo kiến trúc phân lớp nhẹ: page điều phối luồng màn hình, component chịu trách nhiệm hiển thị và tương tác UI, còn feature/service đóng gói nghiệp vụ và điểm tích hợp dữ liệu.
 
----
+Mục tiêu của cách tổ chức này là giữ cho UI có thể tái sử dụng, nghiệp vụ không bị lặp giữa các trang, và việc thay dữ liệu mock bằng REST API không buộc phải viết lại giao diện.
 
-## Kiến trúc phân lớp (Layered Architecture)
+## Cấu trúc thư mục
 
 ```text
-Page Layer (src/pages/)
-  ↓
-Component Layer (src/components/)
-  ↓
-Feature Service Layer (src/features/)
-  ↓
-Mock Data / REST API Layer (src/features/**/api.js)
+public/                         # Tệp tĩnh được web server phục vụ trực tiếp
+src/
+├── App.jsx                    # Vỏ ứng dụng và cấu hình route/điều hướng
+├── main.jsx                   # Điểm khởi động React và mount root
+├── index.css                  # CSS nền/tokens và cấu hình kiểu dùng chung
+├── assets/                    # Ảnh, SVG và tài nguyên được Vite import/bundle
+├── components/                # Component UI dùng lại, giao tiếp qua props
+├── config/                    # Cấu hình ứng dụng, hiện có navigation.js
+├── features/                  # Nghiệp vụ theo domain và lớp tích hợp dữ liệu
+│   └── login/                 # Nghiệp vụ xác thực, hiện có authService.js
+├── mocks/                     # Dữ liệu mẫu phục vụ phát triển giao diện
+└── pages/                     # Thành phần cấp trang và điểm đến điều hướng
 ```
 
-### 1. Page Layer (`src/pages/`)
-Đóng vai trò điều phối trang (Page Orchestrator):
-- Quản lý trạng thái cấp trang (danh sách bản ghi, bộ lọc, từ khóa tìm kiếm, trạng thái phân trang, mở modal).
-- Gọi các Feature Service để xử lý dữ liệu và truyền xuống các presentational component qua props.
-- Các trang chính:
-  - `ParkingSlotsPage`: Quản lý danh sách và trạng thái vị trí đỗ xe trong bãi.
-  - `VehicleEntryExitPage`: Quản lý giám sát luồng xe vào / xe ra.
-  - `TicketManagementPage`: Quản lý vé lượt và vé tháng của khách hàng.
-  - `CustomerManagementPage`: Quản lý thông tin khách hàng và thông tin phương tiện.
-  - `StaffManagementPage`: Quản lý thông tin và ca làm việc của nhân viên.
+### `src/pages/` — Page layer
 
-### 2. Component Layer (`src/components/`)
-Tập hợp các UI Component thuần túy (Presentational & Reusable):
-- `SearchBar.jsx`: Thanh tìm kiếm theo từ khóa (biển số, tên khách hàng, mã vị trí).
-- `Pagination.jsx`: Phân trang dữ liệu.
-- `ParkingSlotList.jsx` / `ParkingSlotCard.jsx`: Hiển thị danh sách hoặc lưới bản đồ vị trí đỗ.
-- `ParkingSlotForm.jsx`: Modal thêm/sửa thông tin vị trí đỗ xe.
-- Giữ component thuần túy: Không gọi trực tiếp API hay mock services bên trong component UI.
+Page là nơi lắp ghép một màn hình hoàn chỉnh và điều phối trạng thái cấp trang. Page có thể quản lý tìm kiếm, phân trang, modal, loading/error state và kết nối dữ liệu với component qua props.
 
-### 3. Feature Service Layer (`src/features/`)
-Đóng gói toàn bộ logic nghiệp vụ, xử lý dữ liệu và giao tiếp API:
-- `features/parkingSlots/parkingSlotsService.js`: Nghiệp vụ quản lý vị trí đỗ xe (thêm, cập nhật, xóa, lọc theo tầng/loại xe).
-- `features/vehicles/vehiclesService.js`: Nghiệp vụ xe vào/ra bãi.
-- `features/tickets/ticketsService.js`: Nghiệp vụ phát hành, gia hạn, kiểm tra vé.
-- `features/customers/customersService.js`: Nghiệp vụ khách hàng và xe đăng ký.
+Các page hiện có gồm `Login.jsx`, `ParkingHistory.jsx` và `VehicleManagement.jsx`. Khi thêm page mới, chỉ đặt logic điều phối ở đây; quy tắc nghiệp vụ có thể dùng lại nên được đưa xuống feature/service thay vì sao chép giữa các page.
 
-### 4. Data / API Layer
-- Cung cấp dữ liệu mẫu (In-memory mock data) mô phỏng chính xác hợp đồng dữ liệu bất đồng bộ (`Promise`, `async/await`).
-- Sẵn sàng chuyển đổi sang REST API thật bằng `fetch` hoặc `axios` mà không cần thay đổi tầng giao diện người dùng.
+### `src/components/` — UI component layer
+
+Đây là các component presentational hoặc component tương tác dùng lại, ví dụ `SearchBar`, `Pagination`, `PageSectionHeader`, `ScanPlateModal` và `EditVehicleModal`. Component nhận dữ liệu, callback và trạng thái từ page hoặc feature UI thông qua props.
+
+Component không được phụ thuộc trực tiếp vào API, storage, transport hoặc dữ liệu mock. Nếu một component cần hành động nghiệp vụ, nó chỉ phát callback; page/feature sở hữu callback đó và quyết định cách xử lý.
+
+### `src/features/` — Feature/domain layer
+
+Mỗi thư mục con đại diện cho một domain có ranh giới riêng. Feature có thể chứa service, API client, validation, mapper và state logic liên quan đến domain. Hiện tại `features/login/authService.js` là điểm đóng gói nghiệp vụ xác thực.
+
+Feature không nên chứa JSX trình bày chung. Ngoại lệ là khi một domain thực sự sở hữu một composed UI module; khi đó UI vẫn phải giữ phạm vi trong feature và không làm rò rỉ chi tiết transport ra component dùng chung.
+
+Khi bổ sung domain như vehicles, tickets hoặc parking slots, tạo thư mục feature tương ứng và đặt service/API client ở đó thay vì tạo các lời gọi API rải rác trong page.
+
+### `src/mocks/` — Dữ liệu phát triển
+
+`mocks/` chứa dữ liệu in-memory hiện dùng cho các luồng giao diện, gồm dữ liệu lịch sử đỗ xe, phương tiện và dữ liệu mẫu chung. Mock chỉ là nguồn dữ liệu thay thế trong giai đoạn phát triển; không đặt quy tắc nghiệp vụ quan trọng chỉ có thể chạy với mock.
+
+### `src/config/`, `src/assets/` và `public/`
+
+- `config/` chứa cấu hình tĩnh của ứng dụng, chẳng hạn định nghĩa navigation; không chứa state nghiệp vụ cấp trang.
+- `assets/` chứa tài nguyên được import từ mã nguồn và được Vite xử lý khi build.
+- `public/` chứa tệp cần giữ nguyên URL và được phục vụ trực tiếp, như favicon hoặc sprite icon; chỉ dùng cho tài nguyên không cần bundling.
+
+## Luồng phụ thuộc
+
+```text
+main.jsx → App.jsx → pages/
+                       ├── components/   (props + callbacks)
+                       └── features/     (nghiệp vụ + dữ liệu)
+                                           └── mocks/ hoặc API client
+```
+
+Page có thể phối hợp component và feature service, nhưng component dùng chung không được đi ngược xuống API hoặc storage. Feature service là lớp phù hợp để chuyển từ mock sang REST API; hợp đồng dữ liệu và mapping nên được giữ ổn định ở phía page/component.
+
+## Nguyên tắc mở rộng
+
+1. Đặt code theo nơi sở hữu trách nhiệm: UI dùng lại vào `components`, màn hình vào `pages`, nghiệp vụ theo domain vào `features`.
+2. Không đưa logic nghiệp vụ vào component chỉ để tiện sử dụng tại một page; hãy đặt ở feature hoặc helper của domain.
+3. Mọi backend integration mới phải đi qua feature service hoặc API client của feature đó.
+4. Giữ API của component ở mức dữ liệu và callback; không truyền chi tiết request, response transport hoặc storage xuống UI.
+5. Khi thay mock bằng backend thật, ưu tiên thay implementation của data/API layer và mapper, giữ nguyên page/component nếu hợp đồng dữ liệu không đổi.

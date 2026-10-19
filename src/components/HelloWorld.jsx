@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 /**
  * HelloWorld Component
@@ -6,7 +6,7 @@ import React, { useState } from 'react';
  */
 const HelloWorld = ({ data }) => {
   const [likes, setLikes] = useState(0);
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState("all");
 
   if (!data) {
     return (
@@ -16,7 +16,8 @@ const HelloWorld = ({ data }) => {
     );
   }
 
-  const { title, subtitle, welcomeMessage, status, features, stats, author } = data;
+  const { title, subtitle, welcomeMessage, status, features, stats, author } =
+    data;
 
   return (
     <div className="max-w-4xl mx-auto my-8 px-4 sm:px-6">
@@ -57,7 +58,11 @@ const HelloWorld = ({ data }) => {
             </button>
             <button
               type="button"
-              onClick={() => alert('Hệ thống HelloWorld với Tailwind CSS hoạt động hoàn hảo!')}
+              onClick={() =>
+                alert(
+                  "Hệ thống HelloWorld với Tailwind CSS hoạt động hoàn hảo!",
+                )
+              }
               className="inline-flex items-center gap-2 rounded-lg bg-blue-700/60 border border-white/20 px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700/80 active:scale-95"
             >
               <span>🔔 Kiểm tra thông báo</span>
@@ -78,9 +83,15 @@ const HelloWorld = ({ data }) => {
               key={idx}
               className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
             >
-              <div className="text-sm font-medium text-slate-500">{stat.label}</div>
-              <div className="mt-2 text-2xl font-bold text-slate-900">{stat.value}</div>
-              <div className="mt-1 text-xs text-emerald-600 font-medium">{stat.change}</div>
+              <div className="text-sm font-medium text-slate-500">
+                {stat.label}
+              </div>
+              <div className="mt-2 text-2xl font-bold text-slate-900">
+                {stat.value}
+              </div>
+              <div className="mt-1 text-xs text-emerald-600 font-medium">
+                {stat.change}
+              </div>
             </div>
           ))}
         </div>
@@ -90,15 +101,17 @@ const HelloWorld = ({ data }) => {
       {features && features.length > 0 && (
         <div className="mt-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-slate-800">Tính năng nổi bật</h2>
+            <h2 className="text-xl font-bold text-slate-800">
+              Tính năng nổi bật
+            </h2>
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setActiveTab('all')}
+                onClick={() => setActiveTab("all")}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition ${
-                  activeTab === 'all'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  activeTab === "all"
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 Tất cả ({features.length})
@@ -140,7 +153,9 @@ const HelloWorld = ({ data }) => {
 
       {/* Footer Info */}
       <footer className="mt-8 text-center text-xs text-slate-400 border-t border-slate-200 pt-4">
-        Được phát triển bởi <span className="font-semibold text-slate-600">{author?.name}</span> • Tailwind CSS v4 & React
+        Được phát triển bởi{" "}
+        <span className="font-semibold text-slate-600">{author?.name}</span> •
+        Tailwind CSS v4 & React
       </footer>
     </div>
   );

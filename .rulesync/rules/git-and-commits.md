@@ -17,8 +17,8 @@ Follow the **Conventional Commits** specification with clear, concise English co
 ```
 
 ### Standard Commit Types:
-- `feat`: A new feature (e.g., `feat(contacts): add pagination component to contact list`).
-- `fix`: A bug fix (e.g., `fix(validation): handle invalid email format in contact form`).
+- `feat`: A new feature (e.g., `feat(vehicle): add pagination to vehicle list`).
+- `fix`: A bug fix (e.g., `fix(validation): handle invalid form input`).
 - `refactor`: Code changes that neither fix bugs nor add features (e.g., `refactor(service): extract search filter helper`).
 - `style`: Formatting, missing semicolons, or CSS adjustments without logic changes.
 - `docs`: Documentation updates or rule changes (e.g., `docs(rules): update project structure rules`).

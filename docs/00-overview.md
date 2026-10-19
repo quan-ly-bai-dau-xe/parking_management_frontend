@@ -74,14 +74,3 @@ Phần mềm **Hệ thống Quản lý Bãi đậu xe Ô tô (Parking Management
 - **Package Manager**: npm
 - **Version Control**: Git
 
----
-
-## 7. Related Documents
-
-| Document | Path |
-|---|---|
-| Software Requirements Specification | `/docs/02-srs.md` |
-| System Architecture | `/docs/01-architecture.md` |
-| UI Rules | `/docs/03-ui-rules.md` |
-| Coding Convention | `/docs/04-coding-convention.md` |
-| Implementation Plan | `/docs/plan.md` |
