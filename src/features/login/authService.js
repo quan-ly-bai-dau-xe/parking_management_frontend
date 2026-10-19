@@ -63,13 +63,32 @@ export const authService = {
     });
   },
 
-  logout: () => {
-    return new Promise((resolve) => {
-      localStorage.removeItem("sp_auth_token");
-      localStorage.removeItem("sp_user");
-      sessionStorage.removeItem("sp_auth_token");
-      sessionStorage.removeItem("sp_user");
-      resolve(true);
-    });
-  },
+    verifyOtp: async ({account, otp}) => {
+        return new Promise((resolve, reject) => {
+            if (otp.trim() === '123456') {
+                resolve({success: true, message: "Xác thực OTP thành công"});
+            } else {
+                reject(new Error("Mã OTP không chính xác hoăc hết hạn"));
+            }
+        })
+    },
+
+    resetPassword: async ({account, otp, newPassword}) => {
+        return new Promise((resolve, reject) => {
+            if (!newPassword || newPassword.length < 6) {
+                return reject(new Error("Mật khẩu mởi phải có ít nhất 6 ký tự"));
+            }
+            resolve({success: true, message: "Đổi mật khẩu thành công"});
+        })
+    },
+
+    logout: () => {
+        return new Promise((resolve) => {
+            localStorage.removeItem('sp_auth_token');
+            localStorage.removeItem('sp_user');
+            sessionStorage.removeItem('sp_auth_token');
+            sessionStorage.removeItem('sp_user');
+            resolve(true);
+        });
+    }
 };

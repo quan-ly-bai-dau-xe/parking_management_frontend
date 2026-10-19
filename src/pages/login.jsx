@@ -1,18 +1,25 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authService } from "../features/login/authService";
+import OtpModal from "../components/OTPModal";
+import ResetPasswordModal from "../components/ResetPasswordModal";
 
 export default function Login() {
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    account: "",
-    password: "",
-    rememberMe: false,
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [submittedStatus, setSubmittedStatus] = useState(null);
+    const navigate = useNavigate();
+    const [formData, setFormData] = useState({
+        account: '',
+        password: '',
+        rememberMe: false,
+    })
+    const [showPassword, setShowPassword] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
+    const [submittedStatus, setSubmittedStatus] = useState(null);
+    const [notice, setNotice] = useState(null);
+
+    // Quản lý modal
+    const [modal, setModal] = useState(null);
+    const [verifiedOtp, setVerifiedOtp] = useState("");
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -47,33 +54,31 @@ export default function Login() {
       });
   };
 
-  return (
-    <main
-      className="min-h-screen w-full bg-slate-100/90 flex items-center justify-center p-4 sm:p-6
-        lg:p-10 font-inter text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
-    >
-      {/* Thông báo đăng nhập */}
-      {submittedStatus && (
-        <div
-          className="fixed top-5 right-5 z-50 flex items-center gap-3 bg-emerald-600 text-white
-                px-5 py-3.5 rounded-xl shadow-lg shadow-emerald-600/20 text-sm font-medium animate-bounce"
-        >
-          <svg
-            className="w-5 h-5 text-emerald-200 shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2.5"
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
-          <span>Đăng nhập thành công với: {submittedStatus.account}</span>
-        </div>
-      )}
+    const handleOpenForgotPassword = (e) => {
+        e.preventDefault();
+        if (!formData.account.trim()) {
+            setErrorMessage("Vui lòng nhập Email hoặc số điện thoại");
+            return;
+        }
+        setErrorMessage("");
+        setModal("OTP");
+    }
+
+    return (
+        <main className="min-h-screen w-full bg-slate-100/90 flex items-center justify-center p-4 sm:p-6
+        lg:p-10 font-inter text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
+            {/* Thông báo đăng nhập */}
+            {(submittedStatus || notice) && (
+                <div className="fixed top-5 right-5 z-50 flex items-center gap-3 bg-emerald-600 text-white
+                px-5 py-3.5 rounded-xl shadow-lg shadow-emerald-600/20 text-sm font-medium animate-bounce">
+                    <svg className="w-5 h-5 text-emerald-200 shrink-0" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                    </svg>
+                    {submittedStatus && <span>Đăng nhập thành công với: {submittedStatus.account}</span>}
+                    {notice && <span>{notice}</span>}
+                </div>
+            )}
 
       {/* Thẻ Container Chính */}
       <div
@@ -103,55 +108,36 @@ export default function Login() {
             </span>
           </header>
 
-          {/* Nội dung chính */}
-          <div className="mt-auto relative z-10">
-            <h1
-              className="text-2xl sm:text-3xl font-bold
-                            leading-tight tracking-tight mb-5"
-            >
-              Quản lý bãi đỗ xe
-              <br />
-              thông minh
-            </h1>
-            <p
-              className="text-slate-300 text-sm sm:text-[0.95rem] leading-relaxed
-                            mb-8 max-w-sm font-normal"
-            >
-              Hệ thống quản lý bãi đỗ xe hiện đại, giúp bạn theo dõi và tối ưu
-              hóa không gian đỗ xe một cách hiệu quả.
-            </p>
-            {/* Danh sách tính năng */}
-            <ul className="space-y-4 text-sm sm:text-[0.95rem]">
-              <li className="flex items-center gap-3">
-                <span
-                  className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0
-                                    shadow-blue-500"
-                />
-                <span className="text-slate-200 font-thin text-white">
-                  Theo dõi real-time số chỗ trống
-                </span>
-              </li>
-              <li className="flex items-center gap-3">
-                <span
-                  className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0
-                                    shadow-bluw-500"
-                />
-                <span className="text-slate-200 font-thin text-white">
-                  Quản lý xe vào ra tự động
-                </span>
-              </li>
-              <li className="flex items-center gap-3">
-                <span
-                  className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0
-                                    shadow-bluw-500"
-                />
-                <span className="text-slate-200 font-thin text-white">
-                  Báo cáo và thống kê chi tiết
-                </span>
-              </li>
-            </ul>
-          </div>
-        </section>
+                        {/* Nội dung chính */}
+                        <div className="mt-auto relative z-10">
+                            <h1 className="text-2xl sm:text-3xl font-bold
+                            leading-tight tracking-tight mb-5">
+                                Quản lý bãi đỗ xe<br />thông minh
+                            </h1>
+                            <p className="text-slate-300 text-sm sm:text-[0.95rem] leading-relaxed
+                            mb-8 max-w-sm font-normal">
+                                Hệ thống quản lý bãi đỗ xe hiện đại, giúp bạn theo dõi và tối ưu hóa không gian đỗ xe một cách hiệu quả.
+                            </p>
+                            {/* Danh sách tính năng */}
+                            <ul className="space-y-4 text-sm sm:text-[0.95rem]">
+                                <li className="flex items-center gap-3">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0
+                                    shadow-blue-500" />
+                                    <span className="text-slate-200 font-thin text-white">Theo dõi real-time số chỗ trống</span>
+                                </li>
+                                <li className="flex items-center gap-3">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0
+                                    shadow-blur-500" />
+                                    <span className="text-slate-200 font-thin text-white">Quản lý xe vào ra tự động</span>
+                                </li>
+                                <li className="flex items-center gap-3">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0
+                                    shadow-bluw-500" />
+                                    <span className="text-slate-200 font-thin text-white">Báo cáo và thống kê chi tiết</span>
+                                </li>
+                            </ul>
+                        </div>
+                </section>
 
         {/* Thẻ bên phải */}
         <section className="bg-white p-8 sm:p-12 lg:p-14 flex flex-col justify-center">
@@ -226,52 +212,41 @@ export default function Login() {
                 </div>
               </div>
 
-              {/* Ghi nhớ và Quên mật khẩu */}
-              <div className="flex items-center justify-between text-sm pt-0.5">
-                <div className="flex items-center gap-2 select-none">
-                  <input
-                    type="checkbox"
-                    id="rememberMe"
-                    name="rememberMe"
-                    checked={formData.rememberMe}
-                    onChange={handleInputChange}
-                    className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500/40 cursor-pointer transition-colors"
-                  />
-                  <label
-                    htmlFor="rememberMe"
-                    className="text-slate-600 font-normal cursor-pointer"
-                  >
-                    Ghi nhớ đăng nhập
-                  </label>
-                </div>
-                <a
-                  href="#forgot"
-                  onClick={(e) => e.preventDefault()}
-                  className="font-medium text-blue-600 hover:text-blue-700 hover:underline transition-colors"
-                >
-                  Quên mật khẩu?
-                </a>
-              </div>
+                            {/* Ghi nhớ và Quên mật khẩu */}
+                            <div className="flex items-center justify-between text-sm pt-0.5">
+                                <div className="flex items-center gap-2 select-none">
+                                    <input type="checkbox"
+                                    id="rememberMe"
+                                    name="rememberMe"
+                                    checked={formData.rememberMe}
+                                    onChange={handleInputChange}
+                                    className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500/40 cursor-pointer transition-colors"
+                                    />
+                                    <label
+                                    htmlFor="rememberMe"
+                                    className="text-slate-600 font-normal cursor-pointer">
+                                        Ghi nhớ đăng nhập
+                                    </label>
+                                </div>
+                                <a href="#forgot"
+                                onClick={handleOpenForgotPassword}
+                                className="font-medium text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+                                >Quên mật khẩu?</a>
+                            </div>
 
-              {/* Thông báo lỗi nếu có */}
-              {errorMessage && (
-                <div className="mb-5 p-3.5 bg-red-50 border border-red-200 round-xl text-red-600 text-sm flex items-center gap-2">
-                  <svg
-                    className="w-4 h-4 shrink-0 text-red-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span>{errorMessage}</span>
-                </div>
-              )}
+                            {/* Thông báo lỗi nếu có */}
+                            {errorMessage && (
+                                <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-center gap-2">
+                                    <svg className="w-4 h-4 shrink-0 text-red-500"
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    <span>{errorMessage}</span>
+                                </div>
+                            )}
 
               {/* Nút Submit */}
               <div className="pt-2">
@@ -311,9 +286,29 @@ export default function Login() {
                 Đăng ký ngay
               </a>
             </div>
-          </div>
-        </section>
-      </div>
-    </main>
-  );
+
+            {/* Quản lý 2 modal */}
+            <OtpModal 
+            isOpen={modal === "OTP"}
+            account={formData.account}
+            onClose={() => setModal(null)}
+            onSuccess={(otpCode) => {
+                setVerifiedOtp(otpCode);
+                setModal("RESET");
+            }}
+            />
+
+            <ResetPasswordModal 
+            isOpen={modal === "RESET"}
+            account={formData.account}
+            otp={verifiedOtp}
+            onClose={() => setModal(null)}
+            onSuccess={() => {
+                setModal(null);
+                setNotice("Đổi mật khẩu thành công! Vui lòng hãy đăng nhập lại.");
+                setTimeout(() => setNotice(null), 4000);
+            }}
+            />
+        </main>
+    )
 }
