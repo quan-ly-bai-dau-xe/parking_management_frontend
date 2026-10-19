@@ -1,23 +1,16 @@
 ---
 root: false
 targets: ["*"]
-description: "Secrets management, environment variables protection, API key safety, and client-side sensitive data handling"
+description: "Frontend secrets, API boundaries, and client-side data safety"
 globs: ["**/*", ".env*"]
 ---
 
-# Security & Secrets Management
+# Security & Secrets
 
-## 1. Zero Secrets in Client Code (Zero Leaks Policy)
-- **Frontend Public Nature**: Remember that all code, bundled assets, and environment variables with `VITE_` prefix shipped in Vite are publicly readable in the client's browser.
-- **Forbidden in Frontend**:
-  - ❌ Never hardcode secret API keys, private tokens, OAuth client secrets, or private credentials inside JavaScript/JSX files.
-  - ❌ Never store unencrypted passwords or highly sensitive personal identifiable information (PII) in browser `localStorage` or `sessionStorage`.
-
-## 2. Environment Variables & `.env` Protection
-- Always declare secret configurations in `.env.local` or environment secrets, and ensure `.env.local`, `.env.*.local` are listed in `.gitignore`.
-- Only expose variables prefixed with `VITE_` if they are non-sensitive public endpoints (e.g. `VITE_API_BASE_URL`).
-- Provide `.env.example` with dummy/placeholder values as a template for other developers.
-
-## 3. Client-Side Data Safety & Input Sanitization
-- **XSS Prevention**: Rely on React's built-in JSX escaping for rendering strings. Avoid `dangerouslySetInnerHTML` unless explicitly sanitized.
-- **Input Sanitization**: Trim and sanitize all text input before saving to in-memory state or transmitting over mock services.
+- Never place private API keys, tokens, credentials, or server-only secrets in frontend source, committed files, or `VITE_` variables.
+- Treat every `VITE_` variable and bundled asset as publicly readable in the browser.
+- Keep local secrets in ignored `.env.*.local` files and provide only safe placeholders in `.env.example` when needed.
+- Centralize API calls in feature services or API client modules; do not scatter transport logic across presentational components.
+- Do not store passwords or highly sensitive personal data in `localStorage` or `sessionStorage`.
+- Rely on React's escaping for normal text rendering; avoid `dangerouslySetInnerHTML` unless content is explicitly sanitized.
+- Trim and validate user input before submission, and handle server errors without exposing sensitive details.

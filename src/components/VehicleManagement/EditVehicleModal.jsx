@@ -56,8 +56,12 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
       <div className="relative z-10 w-full max-w-2xl rounded-xl bg-white border border-slate-200 shadow-xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <div>
-            <h2 className="text-sm font-bold text-slate-900">Chỉnh sửa phương tiện</h2>
-            <p className="text-2xs text-slate-500 mt-0.5">Mã xe: {vehicle.id}</p>
+            <h2 className="text-sm font-bold text-slate-900">
+              Chỉnh sửa phương tiện
+            </h2>
+            <p className="text-2xs text-slate-500 mt-0.5">
+              Mã xe: {vehicle.id}
+            </p>
           </div>
           <button
             type="button"
@@ -71,7 +75,9 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-2xs font-semibold text-slate-500 mb-1">Biển số xe</label>
+              <label className="block text-2xs font-semibold text-slate-500 mb-1">
+                Biển số xe
+              </label>
               <input
                 type="text"
                 value={formData.licensePlate}
@@ -82,7 +88,9 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
             </div>
 
             <div>
-              <label className="block text-2xs font-semibold text-slate-500 mb-1">Loại xe</label>
+              <label className="block text-2xs font-semibold text-slate-500 mb-1">
+                Loại xe
+              </label>
               <select
                 value={formData.vehicleType}
                 onChange={(e) => handleChange("vehicleType", e.target.value)}
@@ -96,7 +104,9 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
             </div>
 
             <div>
-              <label className="block text-2xs font-semibold text-slate-500 mb-1">Tên khách hàng</label>
+              <label className="block text-2xs font-semibold text-slate-500 mb-1">
+                Tên khách hàng
+              </label>
               <input
                 type="text"
                 value={formData.customerName}
@@ -107,7 +117,9 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
             </div>
 
             <div>
-              <label className="block text-2xs font-semibold text-slate-500 mb-1">Số điện thoại</label>
+              <label className="block text-2xs font-semibold text-slate-500 mb-1">
+                Số điện thoại
+              </label>
               <input
                 type="text"
                 value={formData.customerPhone}
@@ -117,7 +129,9 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
             </div>
 
             <div>
-              <label className="block text-2xs font-semibold text-slate-500 mb-1">Vị trí đỗ</label>
+              <label className="block text-2xs font-semibold text-slate-500 mb-1">
+                Vị trí đỗ
+              </label>
               <input
                 type="text"
                 value={formData.parkingDisplay}
@@ -127,7 +141,9 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
             </div>
 
             <div>
-              <label className="block text-2xs font-semibold text-slate-500 mb-1">Trạng thái</label>
+              <label className="block text-2xs font-semibold text-slate-500 mb-1">
+                Trạng thái
+              </label>
               <select
                 value={formData.status}
                 onChange={(e) => handleChange("status", e.target.value)}

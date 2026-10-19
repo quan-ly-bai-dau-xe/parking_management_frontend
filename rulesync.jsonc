@@ -3,8 +3,8 @@
   "targets": [
     // "codexcli",
     // "claudecode",
-    "opencode",
-    "cline",
+    // "opencode",
+    // "cline",
     "antigravity-ide"
   ],
   "features": [
