@@ -59,9 +59,7 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
             <h2 className="text-sm font-bold text-slate-900">
               Chỉnh sửa phương tiện
             </h2>
-            <p className="text-2xs text-slate-500 mt-0.5">
-              Mã xe: {vehicle.id}
-            </p>
+
           </div>
           <button
             type="button"
