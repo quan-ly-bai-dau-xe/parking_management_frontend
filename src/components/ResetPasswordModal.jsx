@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { authService } from "../features/login/authService";
+import { authService } from "../features/authService";
 
 export default function ResetPasswordModal({ isOpen, onClose, account, otp, onSuccess }) {
     const [newPassword, setNewPassword] = useState("");

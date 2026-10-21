@@ -2,6 +2,7 @@ import { useNavigate, Routes, Route, Navigate } from "react-router-dom";
 import VehicleManagement from "./pages/VehicleManagement";
 import ParkingHistory from "./pages/ParkingHistory";
 import Login from "./pages/Login";
+import Homepage from "./pages/homepage";
 const LEGACY_PATHS = {
   "#vehicles": "/vehicles",
   "#history": "/history",
@@ -107,7 +108,7 @@ export default function App() {
 
       <Route
         path="/home"
-        element={<VehicleManagement onNavigateTab={handleNavigateTab} />}
+        element={<Homepage onNavigateTab={handleNavigateTab} />}
       />
 
       <Route
