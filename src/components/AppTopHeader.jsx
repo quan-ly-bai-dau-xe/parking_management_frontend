@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { APP_NAVIGATION_TABS } from "../config/navigation";
-import { authService } from "../features/login/authService";
+import { authService } from "../features/authService";
 
 export default function AppTopHeader({
   onOpenScanModal = () => {},
