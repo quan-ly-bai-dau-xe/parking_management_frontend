@@ -1,8 +1,9 @@
 // src/pages/Home.jsx
 import { useEffect, useState } from "react";
 import { dashboardService } from "../features/dashboardService";
+import AppTopHeader from "../components/AppTopHeader";
 
-export default function Home() {
+export default function Home({ onNavigateTab }) {
   const [loading, setLoading] = useState(true);
   const [activeFloor, setActiveFloor] = useState("B1");
   const [selectedImage, setSelectedImage] = useState(null); // Modal phóng to ảnh camera
@@ -57,7 +58,13 @@ export default function Home() {
   const { stats, alerts, history, currentFloor } = dashboardData;
 
   return (
-    <main className="min-h-screen bg-slate-50/70 p-4 sm:p-6 lg:p-8 font-inter text-slate-800 antialiased">
+    <main className="min-h-screen bg-[#FAF8FF] text-slate-800 font-sans flex flex-col justify-between">
+        <AppTopHeader
+          activeTabHref="#homepage"
+          brandName="LOGO"
+          adminName="Admin"
+          onTabClick={onNavigateTab}
+        />
       <div className="max-w-7xl mx-auto space-y-10">
 
         {/* ========================================================= */}
