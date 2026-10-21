@@ -65,7 +65,7 @@ export default function Home({ onNavigateTab }) {
           adminName="Admin"
           onTabClick={onNavigateTab}
         />
-      <div className="max-w-7xl mx-auto space-y-10">
+      <div className="w-full px-4 sm:px-6 lg:px-10 py-6 space-y-10">
 
         {/* ========================================================= */}
         {/* BANNER GIỚI THIỆU CÔNG NGHỆ TỰ ĐỘNG                       */}
@@ -98,10 +98,6 @@ export default function Home({ onNavigateTab }) {
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-950/70 border border-amber-500/30 text-amber-400 text-xs font-medium">
               <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
               Đã đặt trước (Reserved)
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-950/70 border border-cyan-500/30 text-cyan-400 text-xs font-medium">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
-              Sạc xe điện (EV Charging)
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-600/40 text-slate-300 text-xs font-medium">
               <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
