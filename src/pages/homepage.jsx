@@ -1,8 +1,9 @@
 // src/pages/Home.jsx
 import { useEffect, useState } from "react";
 import { dashboardService } from "../features/dashboardService";
+import AppTopHeader from "../components/AppTopHeader";
 
-export default function Home() {
+export default function Home({ onNavigateTab }) {
   const [loading, setLoading] = useState(true);
   const [activeFloor, setActiveFloor] = useState("B1");
   const [selectedImage, setSelectedImage] = useState(null); // Modal phóng to ảnh camera
@@ -57,8 +58,14 @@ export default function Home() {
   const { stats, alerts, history, currentFloor } = dashboardData;
 
   return (
-    <main className="min-h-screen bg-slate-50/70 p-4 sm:p-6 lg:p-8 font-inter text-slate-800 antialiased">
-      <div className="max-w-7xl mx-auto space-y-10">
+    <main className="min-h-screen bg-[#FAF8FF] text-slate-800 font-sans flex flex-col justify-between">
+        <AppTopHeader
+          activeTabHref="#homepage"
+          brandName="LOGO"
+          adminName="Admin"
+          onTabClick={onNavigateTab}
+        />
+      <div className="w-full px-4 sm:px-6 lg:px-10 py-6 space-y-10">
 
         {/* ========================================================= */}
         {/* BANNER GIỚI THIỆU CÔNG NGHỆ TỰ ĐỘNG                       */}
@@ -91,10 +98,6 @@ export default function Home() {
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-950/70 border border-amber-500/30 text-amber-400 text-xs font-medium">
               <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
               Đã đặt trước (Reserved)
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-950/70 border border-cyan-500/30 text-cyan-400 text-xs font-medium">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
-              Sạc xe điện (EV Charging)
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-600/40 text-slate-300 text-xs font-medium">
               <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
