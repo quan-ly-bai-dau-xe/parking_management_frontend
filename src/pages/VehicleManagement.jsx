@@ -36,10 +36,9 @@ export default function VehicleManagement({ onNavigateTab }) {
       if (filters.search) {
         const s = filters.search.toLowerCase();
         if (
-          !item.id.toLowerCase().includes(s) &&
           !item.licensePlate.toLowerCase().includes(s) &&
           !item.customer.name.toLowerCase().includes(s) &&
-          !item.customer.id.toLowerCase().includes(s)
+          !item.customer.phone.toLowerCase().includes(s)
         ) {
           return false;
         }
@@ -212,7 +211,7 @@ export default function VehicleManagement({ onNavigateTab }) {
               </label>
               <input
                 type="text"
-                placeholder="Nhập mã xe, biển số hoặc tên khách hàng..."
+                placeholder="Tìm biển số, tên hoặc SĐT khách hàng..."
                 value={filters.search}
                 onChange={(e) =>
                   setFilters({ ...filters, search: e.target.value })
@@ -500,9 +499,9 @@ export default function VehicleManagement({ onNavigateTab }) {
               <thead className="bg-slate-50/75 border-b border-slate-200 text-2xs font-semibold text-slate-700 uppercase tracking-wider">
                 <tr>
                   <th className="py-3 px-3.5 text-center w-12">STT</th>
-                  <th className="py-3 px-3.5">Mã xe</th>
                   <th className="py-3 px-3.5">Biển số xe</th>
                   <th className="py-3 px-3.5">Khách hàng</th>
+                  <th className="py-3 px-3.5">SĐT</th>
                   <th className="py-3 px-3.5">Loại xe</th>
                   <th className="py-3 px-3.5">Loại vé</th>
                   <th className="py-3 px-3.5">Ngày hết hạn vé</th>
@@ -528,10 +527,7 @@ export default function VehicleManagement({ onNavigateTab }) {
                           {(currentPage - 1) * itemsPerPage + index + 1}
                         </td>
 
-                        {/* Mã xe */}
-                        <td className="py-3.5 px-3.5 font-semibold text-blue-600">
-                          {vehicle.id}
-                        </td>
+                   
 
                         {/* Biển số xe */}
                         <td className="py-3.5 px-3.5 font-bold font-mono text-slate-900 tracking-wider">
@@ -547,7 +543,10 @@ export default function VehicleManagement({ onNavigateTab }) {
                             {vehicle.customer.id}
                           </div>
                         </td>
-
+                      {/* SĐT */}
+                        <td className="py-3.5 px-3.5 font-semibold text-blue-600">
+                          {vehicle.customer.phone}
+                        </td>
                         {/* Loại xe */}
                         <td className="py-3.5 px-3.5 text-slate-700">
                           {vehicle.vehicleType}
