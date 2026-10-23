@@ -18,6 +18,8 @@ export default function VehicleManagement({ onNavigateTab }) {
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingVehicleId, setEditingVehicleId] = useState(null);
+  const [newVehicleDraft, setNewVehicleDraft] = useState(null);
+  const [selectedTicket, setSelectedTicket] = useState(null);
 
   // Filter and form state
   const [filters, setFilters] = useState({
@@ -94,28 +96,82 @@ export default function VehicleManagement({ onNavigateTab }) {
   };
 
   const editingVehicle = useMemo(() => {
+    if (newVehicleDraft) return newVehicleDraft;
     if (!editingVehicleId) return null;
     return vehicles.find((vehicle) => vehicle.id === editingVehicleId) || null;
-  }, [vehicles, editingVehicleId]);
+  }, [vehicles, editingVehicleId, newVehicleDraft]);
 
   const handleOpenEditModal = (vehicleId) => {
+    setNewVehicleDraft(null);
     setEditingVehicleId(vehicleId);
+    setIsEditModalOpen(true);
+  };
+
+  const handleOpenAddModal = () => {
+    setEditingVehicleId(null);
+    setNewVehicleDraft({
+      id: "NEW",
+      licensePlate: "",
+      vehicleType: "Ô tô",
+      brand: "",
+      model: "",
+      customer: { id: "KH-MOI", name: "", phone: "", email: "", totalVehicles: 1 },
+      ticket: { type: "Vé tháng", expiresAt: "", registeredAt: "", remainingDays: 0, status: "active", note: "" },
+      parkingSlot: { display: "", zone: "", floor: "", slot: "", type: "car" },
+      status: "active",
+      note: "",
+    });
     setIsEditModalOpen(true);
   };
 
   const handleCloseEditModal = () => {
     setIsEditModalOpen(false);
     setEditingVehicleId(null);
+    setNewVehicleDraft(null);
   };
 
   const handleSaveEditedVehicle = (updatedVehicle) => {
-    setVehicles((prevVehicles) =>
-      prevVehicles.map((vehicle) =>
-        vehicle.id === updatedVehicle.id ? updatedVehicle : vehicle,
-      ),
-    );
-    setSelectedVehicleId(updatedVehicle.id);
+    if (newVehicleDraft) {
+      const newVehicle = {
+        ...updatedVehicle,
+        id: `XE${String(vehicles.length + 1).padStart(4, "0")}`,
+      };
+      setVehicles((prevVehicles) => [...prevVehicles, newVehicle]);
+      setSelectedVehicleId(newVehicle.id);
+    } else {
+      setVehicles((prevVehicles) =>
+        prevVehicles.map((vehicle) =>
+          vehicle.id === updatedVehicle.id ? updatedVehicle : vehicle,
+        ),
+      );
+      setSelectedVehicleId(updatedVehicle.id);
+    }
     handleCloseEditModal();
+  };
+
+  const handleDeleteVehicle = (vehicle) => {
+    const confirmed = window.confirm(
+      `Bạn có chắc muốn xóa phương tiện ${vehicle.licensePlate} không?`,
+    );
+    if (!confirmed) return;
+
+    setVehicles((prevVehicles) => {
+      const nextVehicles = prevVehicles.filter(
+        (item) => item.id !== vehicle.id,
+      );
+
+      if (vehicle.id === selectedVehicleId) {
+        setSelectedVehicleId(nextVehicles[0]?.id || null);
+      }
+
+      return nextVehicles;
+    });
+
+    setCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil((filteredVehicles.length - 1) / itemsPerPage))));
+  };
+
+  const handleViewTicket = (vehicle) => {
+    setSelectedTicket({ vehicle, ...vehicle.ticket });
   };
 
   // Helper for status badge rendering
@@ -175,6 +231,7 @@ export default function VehicleManagement({ onNavigateTab }) {
           title="Quản lý xe"
           description="Quản lý phương tiện, chủ xe và tình trạng sử dụng vé"
           onOpenScanModal={() => setIsScanModalOpen(true)}
+          onAdd={handleOpenAddModal}
           addButtonLabel="Thêm xe"
         />
 
@@ -495,7 +552,7 @@ export default function VehicleManagement({ onNavigateTab }) {
 
                             <button
                               type="button"
-                              onClick={() => {}}
+                              onClick={() => handleDeleteVehicle(vehicle)}
                               className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
                             >
                               <svg
@@ -852,6 +909,7 @@ export default function VehicleManagement({ onNavigateTab }) {
             <div className="mt-5">
               <button
                 type="button"
+                onClick={() => handleViewTicket(selectedVehicle)}
                 className="w-full py-2 px-3 border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs rounded-lg shadow-2xs transition-colors cursor-pointer text-center"
               >
                 Xem thông tin vé
@@ -876,6 +934,52 @@ export default function VehicleManagement({ onNavigateTab }) {
         vehicle={editingVehicle}
         onSave={handleSaveEditedVehicle}
       />
+
+      {selectedTicket && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ticket-detail-title"
+          onClick={() => setSelectedTicket(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between border-b border-slate-100 p-5">
+              <div>
+                <h2 id="ticket-detail-title" className="text-base font-bold text-slate-900">
+                  Thông tin vé
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  {selectedTicket.vehicle.licensePlate} · {selectedTicket.vehicle.customer.name}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Đóng thông tin vé"
+                onClick={() => setSelectedTicket(null)}
+                className="rounded-lg p-1 text-xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                ×
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-4 p-5 text-xs">
+              <div><span className="block text-slate-400">Loại vé</span><strong>{selectedTicket.type}</strong></div>
+              <div><span className="block text-slate-400">Trạng thái</span><strong>{selectedTicket.status === "active" ? "Còn hạn" : selectedTicket.status === "warning" ? "Sắp hết hạn" : "Đã hết hạn"}</strong></div>
+              <div><span className="block text-slate-400">Ngày đăng ký</span><strong>{selectedTicket.registeredAt}</strong></div>
+              <div><span className="block text-slate-400">Ngày hết hạn</span><strong>{selectedTicket.expiresAt}</strong></div>
+              <div><span className="block text-slate-400">Thời gian còn lại</span><strong>{selectedTicket.remainingDays} ngày</strong></div>
+              <div><span className="block text-slate-400">Vị trí đỗ</span><strong>{selectedTicket.vehicle.parkingSlot.display}</strong></div>
+              <div className="col-span-2 rounded-lg bg-slate-50 p-3 text-slate-600">{selectedTicket.note}</div>
+            </div>
+            <div className="flex justify-end border-t border-slate-100 p-4">
+              <button type="button" onClick={() => setSelectedTicket(null)} className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700">Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
