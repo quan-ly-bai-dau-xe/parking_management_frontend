@@ -13,6 +13,8 @@ import { Fragment } from "react";
  * @param {(page: number) => void} props.onPageChange - Called with the target page
  * @param {number} [props.totalItems] - Total record count, enables the summary line
  * @param {number} [props.itemsPerPage] - Records per page, used to compute the displayed range
+ * @param {(itemsPerPage: number) => void} [props.onItemsPerPageChange] - Called when page size changes
+ * @param {number[]} [props.itemsPerPageOptions=[5, 10, 20]] - Page size options
  * @param {number} [props.maxVisiblePages=5] - Max numeric page buttons rendered
  * @param {'sm'|'md'} [props.size='md'] - Control size
  * @param {string} [props.className=''] - Extra classes for the wrapper
@@ -23,6 +25,8 @@ export default function Pagination({
   onPageChange,
   totalItems,
   itemsPerPage,
+  onItemsPerPageChange,
+  itemsPerPageOptions = [5, 10, 20],
   maxVisiblePages = 5,
   size = "md",
   className = "",
@@ -122,11 +126,30 @@ export default function Pagination({
 
   return (
     <nav
-      className={`flex flex-col items-center gap-2 ${className}`}
+      className={`flex w-auto max-w-full min-w-0 flex-col items-center justify-between gap-3 sm:flex-row ${className}`}
       aria-label="Phân trang"
     >
-      {total > 1 && (
-        <div className="flex items-center gap-1">
+      {onItemsPerPageChange && (
+        <label className="flex items-center gap-2 text-xs text-slate-500" htmlFor="items-per-page">
+          Số bản ghi/trang
+          <select
+            id="items-per-page"
+            value={itemsPerPage}
+            onChange={(event) => onItemsPerPageChange(Number(event.target.value))}
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none"
+          >
+            {itemsPerPageOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      <div className="flex flex-col items-center gap-2">
+        {total > 1 && (
+          <div className="flex items-center gap-1">
           {prevButton}
 
           {visiblePages.map((page, index) => {
@@ -156,14 +179,15 @@ export default function Pagination({
           })}
 
           {nextButton}
-        </div>
-      )}
+          </div>
+        )}
 
-      {hasSummary && (
-        <p className="text-xs text-slate-500">
-          Hiển thị {rangeStart}–{rangeEnd} / {totalItems} bản ghi
-        </p>
-      )}
+        {hasSummary && (
+          <p className="text-xs text-slate-500">
+            Hiển thị {rangeStart}–{rangeEnd} / {totalItems} bản ghi
+          </p>
+        )}
+      </div>
     </nav>
   );
 }

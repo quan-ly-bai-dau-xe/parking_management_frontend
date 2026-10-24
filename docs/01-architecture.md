@@ -17,6 +17,7 @@ src/
 ├── assets/                    # Ảnh, SVG và tài nguyên được Vite import/bundle
 ├── components/                # Component UI dùng lại, giao tiếp qua props
 │   ├── common/                # Shared UI primitives dùng chung toàn dự án
+│   ├── layout/                # Route layouts, hiện có AppLayout dùng Outlet
 │   └── VehicleManagement/     # Component UI gắn với nghiệp vụ quản lý xe
 ├── config/                    # Cấu hình ứng dụng, hiện có navigation.js
 ├── features/                  # Nghiệp vụ theo domain và lớp tích hợp dữ liệu
@@ -50,7 +51,7 @@ Các page hiện có gồm `Login.jsx`, `ParkingHistory.jsx` và `VehicleManagem
    Các component giao diện gắn liền với nghiệp vụ hoặc luồng tương tác của một chức năng cụ thể (ví dụ: `ScanPlateModal`, `EditVehicleModal`, `PageSectionHeader`).
 
 3. **Layout & High-level Widgets**:
-   Các khối giao diện cấp cao như `AppTopHeader`, `SearchBar`, `StatCard`.
+   `layout/AppLayout.jsx` là route layout dùng `Outlet` để render page con và chứa `AppTopHeader`. Các page không nên tự render lại `AppTopHeader` khi đã nằm dưới layout. Những widget cấp cao khác gồm `SearchBar`, `StatCard`.
 
 > **Nguyên tắc phân định**: Component không được phụ thuộc trực tiếp vào API, storage, transport hoặc dữ liệu mock. Nếu một component cần hành động nghiệp vụ, nó chỉ phát callback; page/feature sở hữu callback đó và quyết định cách xử lý.
 
@@ -75,10 +76,10 @@ Khi bổ sung domain như vehicles, tickets hoặc parking slots, tạo thư m�
 ## Luồng phụ thuộc
 
 ```text
-main.jsx → App.jsx → pages/
-                       ├── components/   (props + callbacks)
-                       └── features/     (nghiệp vụ + dữ liệu)
-                                           └── mocks/ hoặc API client
+main.jsx → App.jsx → route layout → Outlet → pages/
+                              ├── components/   (props + callbacks)
+                              └── features/     (nghiệp vụ + dữ liệu)
+                                                  └── mocks/ hoặc API client
 ```
 
 Page có thể phối hợp component và feature service, nhưng component dùng chung không được đi ngược xuống API hoặc storage. Feature service là lớp phù hợp để chuyển từ mock sang REST API; hợp đồng dữ liệu và mapping nên được giữ ổn định ở phía page/component.

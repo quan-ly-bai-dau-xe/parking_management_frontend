@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { mockVehicles, mockStats } from "../mocks/vehicleData";
+import usePagination from "../hooks/usePagination";
 import ScanPlateModal from "../components/VehicleManagement/ScanPlateModal";
-import AppTopHeader from "../components/AppTopHeader";
 import PageSectionHeader from "../components/VehicleManagement/PageSectionHeader";
 import EditVehicleModal from "../components/VehicleManagement/EditVehicleModal";
 import {
@@ -12,7 +12,7 @@ import {
   Pagination,
 } from "../components/common";
 
-export default function VehicleManagement({ onNavigateTab }) {
+export default function VehicleManagement() {
   const [vehicles, setVehicles] = useState(mockVehicles);
   const [selectedVehicleId, setSelectedVehicleId] = useState("XE0001");
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
@@ -69,11 +69,11 @@ export default function VehicleManagement({ onNavigateTab }) {
   }, [vehicles, filters]);
 
   // Paginated vehicles
-  const totalPages = Math.ceil(filteredVehicles.length / itemsPerPage) || 1;
-  const paginatedVehicles = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredVehicles.slice(start, start + itemsPerPage);
-  }, [filteredVehicles, currentPage, itemsPerPage]);
+  const { totalPages, paginatedList: paginatedVehicles } = usePagination(
+    filteredVehicles,
+    currentPage,
+    itemsPerPage,
+  );
 
   const handleResetFilters = () => {
     setFilters({
@@ -219,14 +219,8 @@ export default function VehicleManagement({ onNavigateTab }) {
 
   return (
     <div className="min-h-screen bg-[#FAF8FF] text-[#0F172A] font-sans">
-      <AppTopHeader
-        onOpenScanModal={() => setIsScanModalOpen(true)}
-        activeTabHref="#vehicles"
-        onTabClick={onNavigateTab}
-      />
-
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="w-full px-4 sm:px-6 lg:px-10 py-6 space-y-6">
         <PageSectionHeader
           title="Quản lý xe"
           description="Quản lý phương tiện, chủ xe và tình trạng sử dụng vé"
@@ -619,10 +613,11 @@ export default function VehicleManagement({ onNavigateTab }) {
               totalItems={filteredVehicles.length}
               itemsPerPage={itemsPerPage}
               size="sm"
+              className="!w-auto shrink-0 justify-end"
             />
           </div>
         </div>
-
+  
         {/* 3 Detail Panels at Bottom: Chi tiết xe | Thông tin chủ xe | Trạng thái vé */}
         <div
           id="vehicle-detail-section"

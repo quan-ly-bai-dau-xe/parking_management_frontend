@@ -97,11 +97,16 @@ src/
 ├── index.css        # CSS nền/tokens và kiểu dùng chung
 ├── assets/          # Ảnh, SVG và tài nguyên_static
 ├── components/      # Component UI dùng lại (giao tiếp qua props)
+│   └── layout/      # Layout route dùng Outlet (AppLayout)
 ├── config/          # Cấu hình ứng dụng (ví dụ: navigation.js)
 ├── features/        # Nghiệp vụ theo domain (ví dụ: login/authService.js)
 ├── mocks/           # Dữ liệu mẫu phục vụ phát triển giao diện
 └── pages/           # Thành phần cấp trang (Login, ParkingHistory, VehicleManagement...)
 ```
+
+### Routing và layout
+
+`App.jsx` quản lý route bằng React Router. Các màn hình cần dùng layout chung được đặt dưới một route layout và render qua `Outlet`; page chỉ tập trung vào nội dung màn hình. `/login` nằm ngoài layout.
 
 ---
 

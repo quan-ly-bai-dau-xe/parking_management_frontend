@@ -5,8 +5,9 @@ import {
   FilterSelect,
   Pagination,
 } from "../components/common";
-import AppTopHeader from "../components/AppTopHeader";
+import AppTopHeader from "../components/layout/AppTopHeader";
 import { mockParkingHistory } from "../mocks/parkingHistoryData";
+import usePagination from "../hooks/usePagination";
 
 export default function ParkingHistory({ onNavigateTab }) {
   // Filter form states matching UI: Mã phiên đỗ, Biển số xe, Thời gian vào đậu, Thời gian ra bãi, Cước phí
@@ -19,7 +20,7 @@ export default function ParkingHistory({ onNavigateTab }) {
   // History list state, preloaded with mock data so the table is populated on first render
   const [historyList, setHistoryList] = useState(mockParkingHistory);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const [itemsPerPage, setItemsPerPage] = useState(5);
 
   // Selected image preview modal
   const [previewImage, setPreviewImage] = useState(null);
@@ -56,11 +57,11 @@ export default function ParkingHistory({ onNavigateTab }) {
     });
   }, [historyList, sessionCode, licensePlate, entryTime, exitTime, feeFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredList.length / itemsPerPage));
-  const paginatedList = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredList.slice(start, start + itemsPerPage);
-  }, [filteredList, currentPage, itemsPerPage]);
+  const { totalPages, paginatedList } = usePagination(
+    filteredList,
+    currentPage,
+    itemsPerPage,
+  );
 
   const handleResetFilters = () => {
     setSessionCode("");
@@ -93,7 +94,7 @@ export default function ParkingHistory({ onNavigateTab }) {
         />
 
         {/* Main Content Area */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
+        <main className="w-full px-4 sm:px-6 lg:px-10 py-6">
           {/* Page Title */}
           <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
@@ -341,6 +342,10 @@ export default function ParkingHistory({ onNavigateTab }) {
               onPageChange={setCurrentPage}
               totalItems={filteredList.length}
               itemsPerPage={itemsPerPage}
+              onItemsPerPageChange={(value) => {
+                setItemsPerPage(value);
+                setCurrentPage(1);
+              }}
               className="mt-auto pt-8"
             />
           </section>
@@ -348,7 +353,7 @@ export default function ParkingHistory({ onNavigateTab }) {
       </div>
 
       {/* Footer Branding from Design System */}
-      <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 w-full">
+      <footer className="w-full px-4 sm:px-6 lg:px-10 py-4">
         <p className="text-sm font-semibold text-slate-400 tracking-tight">
           Sơ đồ bãi đậu xe — Smart Mobility
         </p>
