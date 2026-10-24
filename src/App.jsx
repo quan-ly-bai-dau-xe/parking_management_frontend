@@ -1,8 +1,12 @@
 import { useNavigate, Routes, Route, Navigate } from "react-router-dom";
+import AppLayout from "./components/layout/AppLayout";
 import VehicleManagement from "./pages/VehicleManagement";
 import ParkingHistory from "./pages/ParkingHistory";
 import Login from "./pages/Login";
 import Homepage from "./pages/homepage";
+import CustomerManagement from "./pages/CustomerManagement";
+import NotificationsPage from "./pages/NotificationsPage";
+import EmployeeManagement from "./pages/EmployeeManagement";
 const LEGACY_PATHS = {
   "#vehicles": "/vehicles",
   "#history": "/history",
@@ -15,10 +19,8 @@ const LEGACY_PATHS = {
 
 const PLACEHOLDER_PATHS = [
   "/home",
-  "/customers",
   "/parking-lot",
   "/tickets",
-  "/employees",
 ];
 
 function PlaceholderPage({ title = "Trang đang được phát triển" }) {
@@ -106,26 +108,38 @@ export default function App() {
 
       <Route path="/" element={<Navigate to="/home" replace />} />
 
-      <Route
-        path="/home"
-        element={<Homepage onNavigateTab={handleNavigateTab} />}
-      />
+        <Route
+          path="/home"
+          element={<Homepage onNavigateTab={handleNavigateTab} />}
+        />
 
-      <Route
-        path="/vehicles"
-        element={<VehicleManagement onNavigateTab={handleNavigateTab} />}
-      />
+        <Route path="/customers" element={<AppLayout />}>
+          <Route index element={<CustomerManagement />} />
+        </Route>
 
-      <Route
-        path="/history"
-        element={<ParkingHistory onNavigateTab={handleNavigateTab} />}
-      />
+      <Route path="/notifications" element={<NotificationsPage />} />
 
-      {PLACEHOLDER_PATHS.filter((p) => p !== "/home").map((path) => (
-        <Route key={path} path={path} element={<PlaceholderPage />} />
-      ))}
+      <Route path="/employees" element={<AppLayout />}>
+        <Route index element={<EmployeeManagement />} />
+      </Route>
 
-      <Route path="*" element={<NotFoundPage />} />
+        <Route path="/vehicles" element={<AppLayout />}>
+          <Route
+            index
+            element={<VehicleManagement />}
+          />
+        </Route>
+
+        <Route
+          path="/history"
+          element={<ParkingHistory onNavigateTab={handleNavigateTab} />}
+        />
+
+        {PLACEHOLDER_PATHS.filter((p) => p !== "/home").map((path) => (
+          <Route key={path} path={path} element={<PlaceholderPage />} />
+        ))}
+
+        <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

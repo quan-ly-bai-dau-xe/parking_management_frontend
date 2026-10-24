@@ -57,7 +57,7 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
-              Chỉnh sửa phương tiện
+              {vehicle?.id === "NEW" ? "Thêm phương tiện" : "Chỉnh sửa phương tiện"}
             </h2>
 
           </div>
@@ -167,7 +167,7 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
               type="submit"
               className="px-3.5 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold"
             >
-              Lưu thay đổi
+              {vehicle?.id === "NEW" ? "Thêm xe" : "Lưu thay đổi"}
             </button>
           </div>
         </form>

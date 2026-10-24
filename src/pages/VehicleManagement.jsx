@@ -1,16 +1,25 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { mockVehicles, mockStats } from "../mocks/vehicleData";
+import usePagination from "../hooks/usePagination";
 import ScanPlateModal from "../components/VehicleManagement/ScanPlateModal";
-import AppTopHeader from "../components/AppTopHeader";
 import PageSectionHeader from "../components/VehicleManagement/PageSectionHeader";
 import EditVehicleModal from "../components/VehicleManagement/EditVehicleModal";
+import {
+  StatusBadge,
+  PageToolbar,
+  FilterSelect,
+  EmptyState,
+  Pagination,
+} from "../components/common";
 
-export default function VehicleManagement({ onNavigateTab }) {
+export default function VehicleManagement() {
   const [vehicles, setVehicles] = useState(mockVehicles);
   const [selectedVehicleId, setSelectedVehicleId] = useState("XE0001");
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingVehicleId, setEditingVehicleId] = useState(null);
+  const [newVehicleDraft, setNewVehicleDraft] = useState(null);
+  const [selectedTicket, setSelectedTicket] = useState(null);
 
   // Filter and form state
   const [filters, setFilters] = useState({
@@ -60,11 +69,11 @@ export default function VehicleManagement({ onNavigateTab }) {
   }, [vehicles, filters]);
 
   // Paginated vehicles
-  const totalPages = Math.ceil(filteredVehicles.length / itemsPerPage) || 1;
-  const paginatedVehicles = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredVehicles.slice(start, start + itemsPerPage);
-  }, [filteredVehicles, currentPage, itemsPerPage]);
+  const { totalPages, paginatedList: paginatedVehicles } = usePagination(
+    filteredVehicles,
+    currentPage,
+    itemsPerPage,
+  );
 
   const handleResetFilters = () => {
     setFilters({
@@ -87,62 +96,86 @@ export default function VehicleManagement({ onNavigateTab }) {
   };
 
   const editingVehicle = useMemo(() => {
+    if (newVehicleDraft) return newVehicleDraft;
     if (!editingVehicleId) return null;
     return vehicles.find((vehicle) => vehicle.id === editingVehicleId) || null;
-  }, [vehicles, editingVehicleId]);
+  }, [vehicles, editingVehicleId, newVehicleDraft]);
 
   const handleOpenEditModal = (vehicleId) => {
+    setNewVehicleDraft(null);
     setEditingVehicleId(vehicleId);
+    setIsEditModalOpen(true);
+  };
+
+  const handleOpenAddModal = () => {
+    setEditingVehicleId(null);
+    setNewVehicleDraft({
+      id: "NEW",
+      licensePlate: "",
+      vehicleType: "Ô tô",
+      brand: "",
+      model: "",
+      customer: { id: "KH-MOI", name: "", phone: "", email: "", totalVehicles: 1 },
+      ticket: { type: "Vé tháng", expiresAt: "", registeredAt: "", remainingDays: 0, status: "active", note: "" },
+      parkingSlot: { display: "", zone: "", floor: "", slot: "", type: "car" },
+      status: "active",
+      note: "",
+    });
     setIsEditModalOpen(true);
   };
 
   const handleCloseEditModal = () => {
     setIsEditModalOpen(false);
     setEditingVehicleId(null);
+    setNewVehicleDraft(null);
   };
 
   const handleSaveEditedVehicle = (updatedVehicle) => {
-    setVehicles((prevVehicles) =>
-      prevVehicles.map((vehicle) =>
-        vehicle.id === updatedVehicle.id ? updatedVehicle : vehicle,
-      ),
-    );
-    setSelectedVehicleId(updatedVehicle.id);
+    if (newVehicleDraft) {
+      const newVehicle = {
+        ...updatedVehicle,
+        id: `XE${String(vehicles.length + 1).padStart(4, "0")}`,
+      };
+      setVehicles((prevVehicles) => [...prevVehicles, newVehicle]);
+      setSelectedVehicleId(newVehicle.id);
+    } else {
+      setVehicles((prevVehicles) =>
+        prevVehicles.map((vehicle) =>
+          vehicle.id === updatedVehicle.id ? updatedVehicle : vehicle,
+        ),
+      );
+      setSelectedVehicleId(updatedVehicle.id);
+    }
     handleCloseEditModal();
   };
 
-  // Helper for status badge rendering
-  const renderStatusBadge = (status) => {
-    switch (status) {
-      case "parked":
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            Đang đỗ
-          </span>
-        );
-      case "active":
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-            Đang hoạt động
-          </span>
-        );
-      case "in_transit":
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-300">
-            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-            Đang di chuyển
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
-            {status}
-          </span>
-        );
-    }
+  const handleDeleteVehicle = (vehicle) => {
+    const confirmed = window.confirm(
+      `Bạn có chắc muốn xóa phương tiện ${vehicle.licensePlate} không?`,
+    );
+    if (!confirmed) return;
+
+    setVehicles((prevVehicles) => {
+      const nextVehicles = prevVehicles.filter(
+        (item) => item.id !== vehicle.id,
+      );
+
+      if (vehicle.id === selectedVehicleId) {
+        setSelectedVehicleId(nextVehicles[0]?.id || null);
+      }
+
+      return nextVehicles;
+    });
+
+    setCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil((filteredVehicles.length - 1) / itemsPerPage))));
   };
+
+  const handleViewTicket = (vehicle) => {
+    setSelectedTicket({ vehicle, ...vehicle.ticket });
+  };
+
+  // Helper for status badge rendering
+  const renderStatusBadge = (status) => <StatusBadge status={status} />;
 
   const renderTicketBadge = (ticket) => {
     if (ticket.status === "warning") {
@@ -186,163 +219,78 @@ export default function VehicleManagement({ onNavigateTab }) {
 
   return (
     <div className="min-h-screen bg-[#FAF8FF] text-[#0F172A] font-sans">
-      <AppTopHeader
-        onOpenScanModal={() => setIsScanModalOpen(true)}
-        activeTabHref="#vehicles"
-        onTabClick={onNavigateTab}
-      />
-
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="w-full px-4 sm:px-6 lg:px-10 py-6 space-y-6">
         <PageSectionHeader
           title="Quản lý xe"
           description="Quản lý phương tiện, chủ xe và tình trạng sử dụng vé"
           onOpenScanModal={() => setIsScanModalOpen(true)}
+          onAdd={handleOpenAddModal}
           addButtonLabel="Thêm xe"
         />
 
         {/* Filter Toolbar Card */}
-        <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-4 sm:p-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
-            {/* Tìm kiếm chung */}
-            <div className="md:col-span-4">
-              <label className="block text-2xs font-semibold text-slate-500 mb-1">
-                Tìm kiếm
-              </label>
-              <input
-                type="text"
-                placeholder="Tìm biển số, tên hoặc SĐT khách hàng..."
-                value={filters.search}
-                onChange={(e) =>
-                  setFilters({ ...filters, search: e.target.value })
-                }
-                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              />
-            </div>
-
-            {/* Loại xe */}
-            <div>
-              <label className="block text-2xs font-semibold text-slate-500 mb-1">
-                Loại xe
-              </label>
-              <select
-                value={filters.vehicleType}
-                onChange={(e) =>
-                  setFilters({ ...filters, vehicleType: e.target.value })
-                }
-                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-700"
-              >
-                <option value="">Tất cả loại xe</option>
-                <option value="Ô tô">Ô tô</option>
-                <option value="Xe máy">Xe máy</option>
-                <option value="Xe điện">Xe điện</option>
-                <option value="Xe tải">Xe tải</option>
-              </select>
-            </div>
-
-            {/* Loại vé */}
-            <div>
-              <label className="block text-2xs font-semibold text-slate-500 mb-1">
-                Loại vé
-              </label>
-              <select
-                value={filters.ticketType}
-                onChange={(e) =>
-                  setFilters({ ...filters, ticketType: e.target.value })
-                }
-                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-700"
-              >
-                <option value="">Tất cả loại vé</option>
-                <option value="Vé tháng">Vé tháng</option>
-                <option value="Vé ngày">Vé ngày</option>
-                <option value="Vé quý">Vé quý</option>
-                <option value="Vé năm">Vé năm</option>
-              </select>
-            </div>
-
-            {/* Trạng thái */}
-            <div>
-              <label className="block text-2xs font-semibold text-slate-500 mb-1">
-                Trạng thái
-              </label>
-              <select
-                value={filters.status}
-                onChange={(e) =>
-                  setFilters({ ...filters, status: e.target.value })
-                }
-                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-700"
-              >
-                <option value="">Tất cả trạng thái</option>
-                <option value="parked">Đang đỗ</option>
-                <option value="active">Đang hoạt động</option>
-                <option value="in_transit">Đang di chuyển</option>
-              </select>
-            </div>
-
-            {/* Tình trạng vé */}
-            <div>
-              <label className="block text-2xs font-semibold text-slate-500 mb-1">
-                Tình trạng vé
-              </label>
-              <select
-                value={filters.ticketStatus}
-                onChange={(e) =>
-                  setFilters({ ...filters, ticketStatus: e.target.value })
-                }
-                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-700"
-              >
-                <option value="">Tất cả</option>
-                <option value="active">Còn hạn</option>
-                <option value="warning">Sắp hết hạn</option>
-                <option value="expired">Đã hết hạn</option>
-              </select>
-            </div>
-
-            {/* Action Buttons: Tìm kiếm & Làm mới */}
-            <div className="flex items-end gap-2">
-              <button
-                type="button"
-                onClick={() => setCurrentPage(1)}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-              >
-                <svg
-                  className="w-3.5 h-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                <span>Tìm kiếm</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-              >
-                <svg
-                  className="w-3.5 h-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-                <span>Làm mới</span>
-              </button>
-            </div>
+        <PageToolbar
+          onSearch={() => setCurrentPage(1)}
+          onReset={handleResetFilters}
+        >
+          {/* Tìm kiếm chung */}
+          <div className="md:col-span-4">
+            <label className="block text-2xs font-semibold text-slate-500 mb-1">
+              Tìm kiếm
+            </label>
+            <input
+              type="text"
+              placeholder="Tìm biển số, tên hoặc SĐT khách hàng..."
+              value={filters.search}
+              onChange={(e) =>
+                setFilters({ ...filters, search: e.target.value })
+              }
+              className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            />
           </div>
-        </div>
+
+          {/* Loại vé */}
+          <FilterSelect
+            label="Loại vé"
+            value={filters.ticketType}
+            onChange={(e) =>
+              setFilters({ ...filters, ticketType: e.target.value })
+            }
+            placeholder="Tất cả loại vé"
+            options={["Vé tháng", "Vé ngày", "Vé quý", "Vé năm"]}
+          />
+
+          {/* Trạng thái */}
+          <FilterSelect
+            label="Trạng thái"
+            value={filters.status}
+            onChange={(e) =>
+              setFilters({ ...filters, status: e.target.value })
+            }
+            placeholder="Tất cả trạng thái"
+            options={[
+              { value: "parked", label: "Đang đỗ" },
+              { value: "active", label: "Đang hoạt động" },
+              { value: "in_transit", label: "Đang di chuyển" },
+            ]}
+          />
+
+          {/* Tình trạng vé */}
+          <FilterSelect
+            label="Tình trạng vé"
+            value={filters.ticketStatus}
+            onChange={(e) =>
+              setFilters({ ...filters, ticketStatus: e.target.value })
+            }
+            placeholder="Tất cả"
+            options={[
+              { value: "active", label: "Còn hạn" },
+              { value: "warning", label: "Sắp hết hạn" },
+              { value: "expired", label: "Đã hết hạn" },
+            ]}
+          />
+        </PageToolbar>
 
         {/* 4 Stat KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -502,7 +450,6 @@ export default function VehicleManagement({ onNavigateTab }) {
                   <th className="py-3 px-3.5">Biển số xe</th>
                   <th className="py-3 px-3.5">Khách hàng</th>
                   <th className="py-3 px-3.5">SĐT</th>
-                  <th className="py-3 px-3.5">Loại xe</th>
                   <th className="py-3 px-3.5">Loại vé</th>
                   <th className="py-3 px-3.5">Ngày hết hạn vé</th>
                   <th className="py-3 px-3.5">Vị trí đỗ</th>
@@ -547,10 +494,7 @@ export default function VehicleManagement({ onNavigateTab }) {
                         <td className="py-3.5 px-3.5 font-semibold text-blue-600">
                           {vehicle.customer.phone}
                         </td>
-                        {/* Loại xe */}
-                        <td className="py-3.5 px-3.5 text-slate-700">
-                          {vehicle.vehicleType}
-                        </td>
+              
 
                         {/* Loại vé */}
                         <td className="py-3.5 px-3.5 text-slate-700">
@@ -602,7 +546,7 @@ export default function VehicleManagement({ onNavigateTab }) {
 
                             <button
                               type="button"
-                              onClick={() => {}}
+                              onClick={() => handleDeleteVehicle(vehicle)}
                               className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
                             >
                               <svg
@@ -629,9 +573,12 @@ export default function VehicleManagement({ onNavigateTab }) {
                   <tr>
                     <td
                       colSpan="11"
-                      className="py-8 text-center text-slate-400 text-xs"
+                      className="py-4 text-center text-slate-400 text-xs"
                     >
-                      Không tìm thấy phương tiện nào phù hợp với bộ lọc.
+                      <EmptyState
+                        title="Không tìm thấy phương tiện nào phù hợp với bộ lọc."
+                        className="py-10"
+                      />
                     </td>
                   </tr>
                 )}
@@ -642,8 +589,9 @@ export default function VehicleManagement({ onNavigateTab }) {
           {/* Table Footer & Pagination */}
           <div className="px-4 py-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
             <div className="flex items-center gap-2">
-              <span>Hiển thị:</span>
+              <label htmlFor="items-per-page">Số bản ghi/trang</label>
               <select
+                id="items-per-page"
                 value={itemsPerPage}
                 onChange={(e) => {
                   setItemsPerPage(Number(e.target.value));
@@ -655,49 +603,21 @@ export default function VehicleManagement({ onNavigateTab }) {
                 <option value={10}>10</option>
                 <option value={20}>20</option>
               </select>
-              <span>/ dòng/trang</span>
             </div>
 
             {/* Pagination Controls */}
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                &lt;
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                (pageNum) => (
-                  <button
-                    key={pageNum}
-                    type="button"
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`w-7 h-7 flex items-center justify-center rounded font-medium ${
-                      currentPage === pageNum
-                        ? "bg-blue-600 text-white"
-                        : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                ),
-              )}
-              <button
-                type="button"
-                disabled={currentPage === totalPages}
-                onClick={() =>
-                  setCurrentPage((p) => Math.min(p + 1, totalPages))
-                }
-                className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                &gt;
-              </button>
-            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={filteredVehicles.length}
+              itemsPerPage={itemsPerPage}
+              size="sm"
+              className="!w-auto shrink-0 justify-end"
+            />
           </div>
         </div>
-
+  
         {/* 3 Detail Panels at Bottom: Chi tiết xe | Thông tin chủ xe | Trạng thái vé */}
         <div
           id="vehicle-detail-section"
@@ -984,6 +904,7 @@ export default function VehicleManagement({ onNavigateTab }) {
             <div className="mt-5">
               <button
                 type="button"
+                onClick={() => handleViewTicket(selectedVehicle)}
                 className="w-full py-2 px-3 border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs rounded-lg shadow-2xs transition-colors cursor-pointer text-center"
               >
                 Xem thông tin vé
@@ -1008,6 +929,52 @@ export default function VehicleManagement({ onNavigateTab }) {
         vehicle={editingVehicle}
         onSave={handleSaveEditedVehicle}
       />
+
+      {selectedTicket && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ticket-detail-title"
+          onClick={() => setSelectedTicket(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between border-b border-slate-100 p-5">
+              <div>
+                <h2 id="ticket-detail-title" className="text-base font-bold text-slate-900">
+                  Thông tin vé
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  {selectedTicket.vehicle.licensePlate} · {selectedTicket.vehicle.customer.name}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Đóng thông tin vé"
+                onClick={() => setSelectedTicket(null)}
+                className="rounded-lg p-1 text-xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                ×
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-4 p-5 text-xs">
+              <div><span className="block text-slate-400">Loại vé</span><strong>{selectedTicket.type}</strong></div>
+              <div><span className="block text-slate-400">Trạng thái</span><strong>{selectedTicket.status === "active" ? "Còn hạn" : selectedTicket.status === "warning" ? "Sắp hết hạn" : "Đã hết hạn"}</strong></div>
+              <div><span className="block text-slate-400">Ngày đăng ký</span><strong>{selectedTicket.registeredAt}</strong></div>
+              <div><span className="block text-slate-400">Ngày hết hạn</span><strong>{selectedTicket.expiresAt}</strong></div>
+              <div><span className="block text-slate-400">Thời gian còn lại</span><strong>{selectedTicket.remainingDays} ngày</strong></div>
+              <div><span className="block text-slate-400">Vị trí đỗ</span><strong>{selectedTicket.vehicle.parkingSlot.display}</strong></div>
+              <div className="col-span-2 rounded-lg bg-slate-50 p-3 text-slate-600">{selectedTicket.note}</div>
+            </div>
+            <div className="flex justify-end border-t border-slate-100 p-4">
+              <button type="button" onClick={() => setSelectedTicket(null)} className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700">Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

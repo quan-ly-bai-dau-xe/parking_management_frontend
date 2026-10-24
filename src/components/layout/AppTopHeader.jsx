@@ -1,7 +1,20 @@
 import React from "react";
+import { APP_NAVIGATION_TABS } from "../../config/navigation";
+import { authService } from "../../features/authService";
 import { useNavigate } from "react-router-dom";
-import { APP_NAVIGATION_TABS } from "../config/navigation";
-import { authService } from "../features/authService";
+
+const INITIAL_NOTIFICATIONS = [
+  { id: 1, tone: "red", title: "Xe 51A-12345 đỗ quá giờ tại B1-A12", detail: "10:15 - 31/10/2024", unread: true },
+  { id: 2, tone: "amber", title: "Camera làn vào số 2 mất kết nối", detail: "09:45 - 31/10/2024", unread: true },
+  { id: 3, tone: "blue", title: "Biển số 51A-67890 không nhận diện được", detail: "09:30 - 31/10/2024", unread: true },
+  { id: 4, tone: "green", title: "Đã xử lý xong cảnh báo tại B2-A05", detail: "09:00 - 31/10/2024", unread: false },
+];
+const NOTIFICATION_DOT_CLASSES = {
+  red: "bg-red-500",
+  amber: "bg-amber-500",
+  blue: "bg-blue-500",
+  green: "bg-emerald-500",
+};
 
 export default function AppTopHeader({
   onOpenScanModal = () => {},
@@ -13,12 +26,18 @@ export default function AppTopHeader({
 }) {
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = React.useState(false);
+  const [notifications, setNotifications] = React.useState(INITIAL_NOTIFICATIONS);
   const dropdownRef = React.useRef(null);
+  const notificationRef = React.useRef(null);
 
   React.useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
+      }
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setIsNotificationOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -41,9 +60,11 @@ export default function AppTopHeader({
     navigate("/login");
   };
 
+  const unreadCount = notifications.filter((notification) => notification.unread).length;
+
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-4 sm:px-6 lg:px-10">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
@@ -94,6 +115,43 @@ export default function AppTopHeader({
               </svg>
               <span>Camera</span>
             </button>
+
+            <div className="relative" ref={notificationRef}>
+              <button
+                type="button"
+                onClick={() => setIsNotificationOpen((current) => !current)}
+                aria-label="Thông báo"
+                aria-expanded={isNotificationOpen}
+                className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M15 17h5l-1.5-2.25A2 2 0 0118 13.64V10a6 6 0 10-12 0v3.64a2 2 0 01-.5 1.11L4 17h5m6 0a3 3 0 01-6 0m6 0H9" />
+                </svg>
+                {unreadCount > 0 && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white">{unreadCount}</span>}
+              </button>
+
+              {isNotificationOpen && (
+                <div className="absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xl" role="dialog" aria-label="Thông báo">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                    <h2 className="text-xs font-bold text-slate-800">Thông báo ({unreadCount})</h2>
+                    <button type="button" onClick={() => setNotifications((items) => items.map((item) => ({ ...item, unread: false })))} className="text-[10px] font-medium text-blue-600 hover:text-blue-700">Đánh dấu tất cả đã đọc</button>
+                  </div>
+                  <div>
+                    {notifications.map((notification) => (
+                      <button key={notification.id} type="button" onClick={() => setNotifications((items) => items.map((item) => item.id === notification.id ? { ...item, unread: false } : item))} className={`flex w-full items-start gap-2.5 border-b border-slate-100 px-4 py-3 text-left transition-colors hover:bg-slate-50 ${notification.unread ? "bg-blue-50/60" : "bg-white"}`}>
+                        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${NOTIFICATION_DOT_CLASSES[notification.tone]}`} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[11px] font-semibold text-slate-700">{notification.title}</span>
+                          <span className="mt-0.5 block text-[10px] text-slate-400">{notification.detail}</span>
+                        </span>
+                        {notification.unread && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />}
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => { setIsNotificationOpen(false); navigate("/notifications"); }} className="w-full px-4 py-3 text-center text-[10px] font-semibold text-blue-600 hover:bg-blue-50">Xem tất cả thông báo →</button>
+                </div>
+              )}
+            </div>
 
             {/* Admin Profile Dropdown */}
             <div
@@ -212,7 +270,7 @@ export default function AppTopHeader({
       </div>
 
       <div className="border-t border-slate-100 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-10">
           <nav className="flex space-x-6 overflow-x-auto text-xs font-medium">
             {tabs.map((tab) => {
               const isActive = tab.href === activeTabHref;
