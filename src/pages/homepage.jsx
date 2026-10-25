@@ -1,7 +1,7 @@
 // src/pages/Home.jsx
 import { useEffect, useState } from "react";
 import { dashboardService } from "../features/dashboardService";
-import AppTopHeader from "../components/AppTopHeader";
+import AppTopHeader from "../components/layout/AppTopHeader";
 
 export default function Home({ onNavigateTab }) {
   const [loading, setLoading] = useState(true);
