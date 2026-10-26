@@ -1,31 +1,24 @@
+import { apiClient, fetchCsrfToken } from "../services/apiClient";
+
 export const authService = {
   login: async ({ account, password, rememberMe }) => {
-    return new Promise((resolve, reject) => {
-      if (!account || !password) {
-        return reject(new Error("Vui lòng nhập đầy đủ tài khoản và mật khẩu"));
-      }
+    if (!account || !password) {
+      throw new Error("Vui lòng nhập đầy đủ tài khoản và mật khẩu");
+    }
 
-      if (account.trim() === "admin" && password.trim() === "admin") {
-        const fakeResponse = {
-          status: 200,
-          token: "jwt-smart-parking-token-xyz790",
-          user: {
-            id: "USR-01",
-            name: "Huy",
-            account: account.trim(),
-            role: "ADMIN",
-          },
-        };
-
-        const storage = rememberMe ? localStorage : sessionStorage;
-        storage.setItem("sp_auth_token", fakeResponse.token);
-        storage.setItem("sp_user", JSON.stringify(fakeResponse.user));
-
-        resolve(fakeResponse);
-      } else {
-        reject(new Error("Email, số điện thoại hoặc mật khẩu không chính xác"));
-      }
+    await fetchCsrfToken();
+    const user = await apiClient("/api/v1/auth/login/", {
+      method: "POST",
+      body: JSON.stringify({
+        identifier: account.trim(),
+        password,
+        remember: rememberMe,
+      }),
     });
+
+    const storage = rememberMe ? localStorage : sessionStorage;
+    storage.setItem("sp_user", JSON.stringify(user));
+    return { status: 200, user };
   },
 
   loginWithFetch: async ({ account, password, rememberMe }) => {

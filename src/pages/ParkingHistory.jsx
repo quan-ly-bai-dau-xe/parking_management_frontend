@@ -16,6 +16,33 @@ export default function ParkingHistory({ onNavigateTab }) {
   const [entryTime, setEntryTime] = useState("");
   const [exitTime, setExitTime] = useState("");
   const [feeFilter, setFeeFilter] = useState("");
+  // Date range filters for Vietnamese format (dd/mm/yyyy)
+  const [entryDateFrom, setEntryDateFrom] = useState("");
+  const [entryDateTo, setEntryDateTo] = useState("");
+  const [exitDateFrom, setExitDateFrom] = useState("");
+  const [exitDateTo, setExitDateTo] = useState("");
+
+  // Format a Date object into Vietnamese dd/mm/yyyy for the date-range filters
+  const formatDateVN = (date) => {
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    return `${day}/${month}/${date.getFullYear()}`;
+  };
+
+  // Apply a preset date range to the entry date filters (quick filters)
+  const handleQuickFilter = (fromDate, toDate) => {
+    setEntryDateFrom(formatDateVN(fromDate));
+    setEntryDateTo(formatDateVN(toDate));
+    setCurrentPage(1);
+  };
+
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const last7Days = new Date(today);
+  last7Days.setDate(today.getDate() - 6);
+  const last30Days = new Date(today);
+  last30Days.setDate(today.getDate() - 29);
 
   // History list state, preloaded with mock data so the table is populated on first render
   const [historyList, setHistoryList] = useState(mockParkingHistory);
@@ -53,9 +80,48 @@ export default function ParkingHistory({ onNavigateTab }) {
       if (feeFilter && item.fee !== feeFilter) {
         return false;
       }
+      
+      // Date range filtering for entry date (Vietnamese format dd/mm/yyyy)
+      if (entryDateFrom || entryDateTo) {
+        const entryDateParts = item.entryTime.split(' ')[0].split('/'); // Extract date part from "dd/mm/yyyy hh:mm"
+        const entryDateStr = `${entryDateParts[2]}-${entryDateParts[1]}-${entryDateParts[0]}`; // Convert to yyyy-mm-dd for comparison
+        const entryDate = new Date(entryDateStr);
+        
+        if (entryDateFrom) {
+          const [fromDay, fromMonth, fromYear] = entryDateFrom.split('/');
+          const fromDate = new Date(`${fromYear}-${fromMonth}-${fromDay}`);
+          if (entryDate < fromDate) return false;
+        }
+        
+        if (entryDateTo) {
+          const [toDay, toMonth, toYear] = entryDateTo.split('/');
+          const toDate = new Date(`${toYear}-${toMonth}-${toDay} 23:59:59`); // End of day
+          if (entryDate > toDate) return false;
+        }
+      }
+      
+      // Date range filtering for exit date (Vietnamese format dd/mm/yyyy)
+      if (exitDateFrom || exitDateTo) {
+        const exitDateParts = item.exitTime.split(' ')[0].split('/'); // Extract date part from "dd/mm/yyyy hh:mm"
+        const exitDateStr = `${exitDateParts[2]}-${exitDateParts[1]}-${exitDateParts[0]}`; // Convert to yyyy-mm-dd for comparison
+        const exitDate = new Date(exitDateStr);
+        
+        if (exitDateFrom) {
+          const [fromDay, fromMonth, fromYear] = exitDateFrom.split('/');
+          const fromDate = new Date(`${fromYear}-${fromMonth}-${fromDay}`);
+          if (exitDate < fromDate) return false;
+        }
+        
+        if (exitDateTo) {
+          const [toDay, toMonth, toYear] = exitDateTo.split('/');
+          const toDate = new Date(`${toYear}-${toMonth}-${toDay} 23:59:59`); // End of day
+          if (exitDate > toDate) return false;
+        }
+      }
+      
       return true;
     });
-  }, [historyList, sessionCode, licensePlate, entryTime, exitTime, feeFilter]);
+  }, [historyList, sessionCode, licensePlate, entryTime, exitTime, feeFilter, entryDateFrom, entryDateTo, exitDateFrom, exitDateTo]);
 
   const { totalPages, paginatedList } = usePagination(
     filteredList,
@@ -232,6 +298,37 @@ export default function ParkingHistory({ onNavigateTab }) {
                 className="rounded-xl border-slate-200"
                 containerClassName="flex flex-col gap-1.5"
               />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleQuickFilter(today, today)}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 text-blue-600 bg-blue-50/50 hover:bg-blue-100/70 transition-colors cursor-pointer"
+              >
+                Hôm nay
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFilter(yesterday, yesterday)}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 text-blue-600 bg-blue-50/50 hover:bg-blue-100/70 transition-colors cursor-pointer"
+              >
+                Hôm qua
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFilter(last7Days, today)}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 text-blue-600 bg-blue-50/50 hover:bg-blue-100/70 transition-colors cursor-pointer"
+              >
+                7 ngày qua
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFilter(last30Days, today)}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 text-blue-600 bg-blue-50/50 hover:bg-blue-100/70 transition-colors cursor-pointer"
+              >
+                30 ngày qua
+              </button>
             </div>
 
             {(sessionCode ||

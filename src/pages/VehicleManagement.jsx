@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { mockVehicles, mockStats } from "../mocks/vehicleData";
+import { mapVehicleSearchItem, searchVehicles } from "../features/vehicleService";
 import usePagination from "../hooks/usePagination";
 import ScanPlateModal from "../components/VehicleManagement/ScanPlateModal";
 import PageSectionHeader from "../components/VehicleManagement/PageSectionHeader";
@@ -20,6 +21,8 @@ export default function VehicleManagement() {
   const [editingVehicleId, setEditingVehicleId] = useState(null);
   const [newVehicleDraft, setNewVehicleDraft] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [isUsingBackendData, setIsUsingBackendData] = useState(false);
+  const [backendError, setBackendError] = useState("");
 
   // Filter and form state
   const [filters, setFilters] = useState({
@@ -33,6 +36,33 @@ export default function VehicleManagement() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+
+  useEffect(() => {
+    const query = filters.search.trim();
+    if (query.length < 2) {
+      setVehicles(mockVehicles);
+      setIsUsingBackendData(false);
+      setBackendError("");
+      return;
+    }
+
+    let cancelled = false;
+    searchVehicles(query)
+      .then((payload) => {
+        if (cancelled) return;
+        setVehicles((payload.results || []).map(mapVehicleSearchItem));
+        setIsUsingBackendData(true);
+        setBackendError("");
+        setCurrentPage(1);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setIsUsingBackendData(false);
+        setBackendError("Không kết nối được backend, đang hiển thị mockdata.");
+      });
+
+    return () => { cancelled = true; };
+  }, [filters.search]);
 
   // Active selected vehicle for detail bottom panels
   const selectedVehicle = useMemo(() => {
@@ -414,6 +444,8 @@ export default function VehicleManagement() {
               <p className="text-2xs text-slate-500">
                 Thông tin xe và tình trạng sử dụng
               </p>
+              {backendError && <p className="mt-1 text-2xs text-amber-600">{backendError}</p>}
+              {isUsingBackendData && <p className="mt-1 text-2xs text-emerald-600">Đang dùng dữ liệu backend</p>}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -542,7 +574,7 @@ export default function VehicleManagement() {
                               </svg>
                               <span>Sửa</span>
                             </button>
-                            <span className="text-slate-300">|</span>
+                            <span className="text-blue-300">|</span>
 
                             <button
                               type="button"
