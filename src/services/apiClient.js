@@ -10,8 +10,6 @@ function getCookie(name) {
   return null;
 }
 
-
-
 export async function fetchCsrfToken() {
   // Call backend CSRF initialization endpoint to ensure csrftoken cookie is set
   try {
