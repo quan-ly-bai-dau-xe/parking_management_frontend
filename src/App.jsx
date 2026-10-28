@@ -2,11 +2,12 @@ import { useNavigate, Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./components/layout/AppLayout";
 import VehicleManagement from "./pages/VehicleManagement";
 import ParkingHistory from "./pages/ParkingHistory";
-import Login from "./pages/login";
+import Login from "./pages/LoginPage";
 import Homepage from "./pages/homepage";
 import CustomerManagement from "./pages/CustomerManagement";
 import NotificationsPage from "./pages/NotificationsPage";
 import EmployeeManagement from "./pages/EmployeeManagement";
+import ParkingLot from "./pages/ParkingLotManagement";
 const LEGACY_PATHS = {
   "#vehicles": "/vehicles",
   "#history": "/history",
@@ -134,6 +135,11 @@ export default function App() {
           path="/history"
           element={<ParkingHistory onNavigateTab={handleNavigateTab} />}
         />
+
+      <Route
+        path="/parking-lot"
+        element={<ParkingLot onNavigateTab={handleNavigateTab} />}
+      />
 
         {PLACEHOLDER_PATHS.filter((p) => p !== "/home").map((path) => (
           <Route key={path} path={path} element={<PlaceholderPage />} />
