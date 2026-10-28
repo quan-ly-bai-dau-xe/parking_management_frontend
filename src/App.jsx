@@ -8,6 +8,9 @@ import CustomerManagement from "./pages/CustomerManagement";
 import NotificationsPage from "./pages/NotificationsPage";
 import EmployeeManagement from "./pages/EmployeeManagement";
 import { ROUTES, PLACEHOLDER_PATHS, resolveNavigationPath } from "./config/navigation";
+import Home from "./pages/homepage";
+import ParkingLot from "./pages/ParkingLotManagement";
+import Ticket from "./pages/TicketManagement";
 
 // Cấu hình các route có giao diện dạng Layout chuẩn
 const LAYOUT_ROUTES = [
@@ -101,12 +104,22 @@ export default function App() {
 
       <Route
         path={ROUTES.HOME}
-        element={<Homepage onNavigateTab={handleNavigateTab} />}
+        element={<Home onNavigateTab={handleNavigateTab} />}
       />
 
       <Route
         path={ROUTES.HISTORY}
         element={<ParkingHistory onNavigateTab={handleNavigateTab} />}
+      />
+
+      <Route
+        path={ROUTES.PARKING_LOT}
+        element={<ParkingLot onNavigateTab={handleNavigateTab} />}
+      />
+
+      <Route
+        path={ROUTES.TICKETS}
+        element={<Ticket onNavigateTab={handleNavigateTab} />}
       />
 
       <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
