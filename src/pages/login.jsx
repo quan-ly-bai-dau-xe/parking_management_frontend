@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authService } from "../features/authService";
+import { ROUTES } from "../config/navigation";
 import OtpModal from "../components/OTPModal";
 import ResetPasswordModal from "../components/ResetPasswordModal";
 
@@ -42,7 +43,7 @@ export default function Login() {
         });
 
         setTimeout(() => {
-          navigate("/home");
+          navigate(ROUTES.HOME);
         }, 600);
       })
       .catch((err) => {

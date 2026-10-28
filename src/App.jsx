@@ -7,20 +7,13 @@ import Homepage from "./pages/homepage";
 import CustomerManagement from "./pages/CustomerManagement";
 import NotificationsPage from "./pages/NotificationsPage";
 import EmployeeManagement from "./pages/EmployeeManagement";
-const LEGACY_PATHS = {
-  "#vehicles": "/vehicles",
-  "#history": "/history",
-  "#home": "/home",
-  "#customers": "/customers",
-  "#parking-lot": "/parking-lot",
-  "#tickets": "/tickets",
-  "#employees": "/employees",
-};
+import { ROUTES, PLACEHOLDER_PATHS, resolveNavigationPath } from "./config/navigation";
 
-const PLACEHOLDER_PATHS = [
-  "/home",
-  "/parking-lot",
-  "/tickets",
+// Cấu hình các route có giao diện dạng Layout chuẩn
+const LAYOUT_ROUTES = [
+  { path: ROUTES.CUSTOMERS, component: <CustomerManagement /> },
+  { path: ROUTES.EMPLOYEES, component: <EmployeeManagement /> },
+  { path: ROUTES.VEHICLES, component: <VehicleManagement /> },
 ];
 
 function PlaceholderPage({ title = "Trang đang được phát triển" }) {
@@ -48,7 +41,7 @@ function PlaceholderPage({ title = "Trang đang được phát triển" }) {
       </p>
       <button
         type="button"
-        onClick={() => navigate("/vehicles")}
+        onClick={() => navigate(ROUTES.VEHICLES)}
         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
       >
         Về Quản lý xe
@@ -84,7 +77,7 @@ function NotFoundPage() {
       </p>
       <button
         type="button"
-        onClick={() => navigate("/vehicles")}
+        onClick={() => navigate(ROUTES.VEHICLES)}
         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
       >
         Về Quản lý xe
@@ -96,50 +89,41 @@ function NotFoundPage() {
 export default function App() {
   const navigate = useNavigate();
 
-  // Tương thích tạm thời với các page đang truyền hash cũ.
-  const handleNavigateTab = (href) => {
-    const path = LEGACY_PATHS[href] ?? href;
-    navigate(path);
+  const handleNavigateTab = (target) => {
+    navigate(resolveNavigationPath(target));
   };
 
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path={ROUTES.LOGIN} element={<Login />} />
 
-      <Route path="/" element={<Navigate to="/home" replace />} />
+      <Route path="/" element={<Navigate to={ROUTES.HOME} replace />} />
 
-        <Route
-          path="/home"
-          element={<Homepage onNavigateTab={handleNavigateTab} />}
-        />
+      <Route
+        path={ROUTES.HOME}
+        element={<Homepage onNavigateTab={handleNavigateTab} />}
+      />
 
-        <Route path="/customers" element={<AppLayout />}>
-          <Route index element={<CustomerManagement />} />
+      <Route
+        path={ROUTES.HISTORY}
+        element={<ParkingHistory onNavigateTab={handleNavigateTab} />}
+      />
+
+      <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
+
+      {/* Tự động render các trang sử dụng AppLayout */}
+      {LAYOUT_ROUTES.map(({ path, component }) => (
+        <Route key={path} path={path} element={<AppLayout />}>
+          <Route index element={component} />
         </Route>
+      ))}
 
-      <Route path="/notifications" element={<NotificationsPage />} />
+      {/* Tự động render các trang placeholder từ config navigation */}
+      {PLACEHOLDER_PATHS.map((path) => (
+        <Route key={path} path={path} element={<PlaceholderPage />} />
+      ))}
 
-      <Route path="/employees" element={<AppLayout />}>
-        <Route index element={<EmployeeManagement />} />
-      </Route>
-
-        <Route path="/vehicles" element={<AppLayout />}>
-          <Route
-            index
-            element={<VehicleManagement />}
-          />
-        </Route>
-
-        <Route
-          path="/history"
-          element={<ParkingHistory onNavigateTab={handleNavigateTab} />}
-        />
-
-        {PLACEHOLDER_PATHS.filter((p) => p !== "/home").map((path) => (
-          <Route key={path} path={path} element={<PlaceholderPage />} />
-        ))}
-
-        <Route path="*" element={<NotFoundPage />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

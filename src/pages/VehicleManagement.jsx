@@ -1,5 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
-import { mockVehicles, mockStats } from "../mocks/vehicleData";
+﻿import { useState, useMemo, useEffect } from "react";
 import { mapVehicleSearchItem, searchVehicles } from "../features/vehicleService";
 import usePagination from "../hooks/usePagination";
 import ScanPlateModal from "../components/VehicleManagement/ScanPlateModal";
@@ -11,11 +10,12 @@ import {
   FilterSelect,
   EmptyState,
   Pagination,
+  LoadingSpinner,
 } from "../components/common";
 
 export default function VehicleManagement() {
-  const [vehicles, setVehicles] = useState(mockVehicles);
-  const [selectedVehicleId, setSelectedVehicleId] = useState("XE0001");
+  const [vehicles, setVehicles] = useState([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState(null);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingVehicleId, setEditingVehicleId] = useState(null);
@@ -23,6 +23,8 @@ export default function VehicleManagement() {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isUsingBackendData, setIsUsingBackendData] = useState(false);
   const [backendError, setBackendError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [vehicleStats, setVehicleStats] = useState(null);
 
   // Filter and form state
   const [filters, setFilters] = useState({
@@ -40,25 +42,34 @@ export default function VehicleManagement() {
   useEffect(() => {
     const query = filters.search.trim();
     if (query.length < 2) {
-      setVehicles(mockVehicles);
+      setVehicles([]);
+      setVehicleStats(null);
       setIsUsingBackendData(false);
       setBackendError("");
+      setIsLoading(false);
       return;
     }
 
     let cancelled = false;
+    setBackendError("");
+    setIsLoading(true);
     searchVehicles(query)
       .then((payload) => {
         if (cancelled) return;
-        setVehicles((payload.results || []).map(mapVehicleSearchItem));
+        const results = Array.isArray(payload) ? payload : payload.results || [];
+        setVehicles(results.filter(Boolean).map(mapVehicleSearchItem));
         setIsUsingBackendData(true);
-        setBackendError("");
         setCurrentPage(1);
       })
       .catch(() => {
         if (cancelled) return;
+        setVehicles([]);
+        setVehicleStats(null);
         setIsUsingBackendData(false);
-        setBackendError("Không kết nối được backend, đang hiển thị mockdata.");
+        setBackendError("Không thể tải dữ liệu phương tiện từ backend.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
       });
 
     return () => { cancelled = true; };
@@ -75,9 +86,9 @@ export default function VehicleManagement() {
       if (filters.search) {
         const s = filters.search.toLowerCase();
         if (
-          !item.licensePlate.toLowerCase().includes(s) &&
-          !item.customer.name.toLowerCase().includes(s) &&
-          !item.customer.phone.toLowerCase().includes(s)
+          !(item.licensePlate || "").toLowerCase().includes(s) &&
+          !(item.customer?.name || "").toLowerCase().includes(s) &&
+          !(item.customer?.phone || "").toLowerCase().includes(s)
         ) {
           return false;
         }
@@ -346,7 +357,7 @@ export default function VehicleManagement() {
                 Tổng phương tiện
               </p>
               <p className="text-2xl font-bold text-slate-900 mt-0.5">
-                {mockStats.totalVehicles}
+                {vehicleStats?.total_vehicles ?? vehicleStats?.totalVehicles ?? 0}
               </p>
             </div>
           </div>
@@ -373,7 +384,7 @@ export default function VehicleManagement() {
                 Đang hoạt động
               </p>
               <p className="text-2xl font-bold text-slate-900 mt-0.5">
-                {mockStats.activeVehicles}
+                {vehicleStats?.active_vehicles ?? vehicleStats?.activeVehicles ?? 0}
               </p>
             </div>
           </div>
@@ -400,7 +411,7 @@ export default function VehicleManagement() {
                 Vé sắp hết hạn
               </p>
               <p className="text-2xl font-bold text-slate-900 mt-0.5">
-                {mockStats.expiringTickets}
+                {vehicleStats?.expiring_tickets ?? vehicleStats?.expiringTickets ?? 0}
               </p>
             </div>
           </div>
@@ -427,7 +438,7 @@ export default function VehicleManagement() {
                 Vé đã hết hạn
               </p>
               <p className="text-2xl font-bold text-slate-900 mt-0.5">
-                {mockStats.expiredTickets}
+                {vehicleStats?.expired_tickets ?? vehicleStats?.expiredTickets ?? 0}
               </p>
             </div>
           </div>
@@ -490,7 +501,9 @@ export default function VehicleManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-normal">
-                {paginatedVehicles.length > 0 ? (
+                {isLoading ? (
+                  <tr><td colSpan="11" className="py-10 text-center"><LoadingSpinner label="Đang tải dữ liệu phương tiện..." /></td></tr>
+                ) : paginatedVehicles.length > 0 ? (
                   paginatedVehicles.map((vehicle, index) => {
                     const isSelected = vehicle.id === selectedVehicleId;
                     return (
@@ -651,6 +664,7 @@ export default function VehicleManagement() {
         </div>
   
         {/* 3 Detail Panels at Bottom: Chi tiết xe | Thông tin chủ xe | Trạng thái vé */}
+        {selectedVehicle && (
         <div
           id="vehicle-detail-section"
           className="grid grid-cols-1 lg:grid-cols-3 gap-5"
@@ -944,6 +958,7 @@ export default function VehicleManagement() {
             </div>
           </div>
         </div>
+        )}
       </main>
 
       {/* OCR License Plate Scan Modal */}
