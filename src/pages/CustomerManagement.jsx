@@ -215,11 +215,15 @@ export default function CustomerManagement() {
     );
     if (!confirmed) return;
 
-    setCustomerData((current) => current.filter((c) => c.id !== customer.id));
-    setCurrentPage((page) =>
-      Math.min(page, Math.max(1, Math.ceil((customers.length - 1) / itemsPerPage))),
-    );
-  }, [customers.length, itemsPerPage]);
+    setCustomerData((current) => {
+      const newData = current.filter((c) => c.id !== customer.id);
+      // Calculate new page after deletion
+      setCurrentPage((page) =>
+        Math.min(page, Math.max(1, Math.ceil((newData.length - 1) / itemsPerPage))),
+      );
+      return newData;
+    });
+  }, [itemsPerPage]);
 
   const handleRowClick = (customer) => {
     setExpandedRowId((prev) => (prev === customer.id ? null : customer.id));

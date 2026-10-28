@@ -1,13 +1,6 @@
 import AppTopHeader from "./AppTopHeader";
 import { useLocation, useNavigate, useOutlet } from "react-router-dom";
-
-const ROUTE_TO_TAB = {
-  "/home": "#home",
-  "/vehicles": "#vehicles",
-  "/history": "#history",
-  "/customers": "#customers",
-  "/employees": "#employees",
-};
+import { resolveNavigationPath } from "../../config/navigation";
 
 /**
  * Layout chung cho các trang trong ứng dụng.
@@ -21,23 +14,12 @@ export default function AppLayout({
   const navigate = useNavigate();
   const outlet = useOutlet();
 
-  const routes = {
-    "#home": "/home",
-    "#vehicles": "/vehicles",
-    "#history": "/history",
-    "#customers": "/customers",
-    "#employees": "/employees",
-  };
-
   return (
     <div className="min-h-screen w-full bg-slate-50">
       <AppTopHeader
         {...headerProps}
-        activeTabHref={
-          ROUTE_TO_TAB[location.pathname] ?? "#home"
-        }
-        onTabClick={(href) => {
-          navigate(routes[href] ?? href);
+        onTabClick={(path) => {
+          navigate(resolveNavigationPath(path));
         }}
       />
 
@@ -47,3 +29,4 @@ export default function AppLayout({
     </div>
   );
 }
+

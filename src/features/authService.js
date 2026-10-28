@@ -1,4 +1,4 @@
-import { apiClient, fetchCsrfToken } from "../services/apiClient";
+import { apiClient, fetchCsrfToken } from "../services/apiClient.js";
 
 export const authService = {
   login: async ({ account, password, rememberMe }) => {

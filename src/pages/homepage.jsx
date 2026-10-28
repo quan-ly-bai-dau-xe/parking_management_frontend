@@ -1,4 +1,4 @@
-// src/pages/Home.jsx
+﻿// src/pages/Home.jsx
 import { useEffect, useState } from "react";
 import { dashboardService } from "../features/dashboardService";
 import AppTopHeader from "../components/layout/AppTopHeader";
@@ -60,9 +60,7 @@ export default function Home({ onNavigateTab }) {
   return (
     <main className="min-h-screen bg-[#FAF8FF] text-slate-800 font-sans flex flex-col justify-between">
         <AppTopHeader
-          activeTabHref="#homepage"
           brandName="LOGO"
-          adminName="Admin"
           onTabClick={onNavigateTab}
         />
       <div className="w-full px-4 sm:px-6 lg:px-10 py-6 space-y-10">
@@ -448,3 +446,5 @@ export default function Home({ onNavigateTab }) {
     </main>
   );
 }
+
+

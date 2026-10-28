@@ -10,6 +10,16 @@ function getCookie(name) {
   return null;
 }
 
+const API_UNAVAILABLE_MESSAGE =
+  "Không thể kết nối tới máy chủ. Vui lòng kiểm tra Docker/backend đã chạy tại cổng 8000 rồi thử lại.";
+
+function createApiConnectionError(error) {
+  const connectionError = new Error(API_UNAVAILABLE_MESSAGE);
+  connectionError.code = "API_UNAVAILABLE";
+  connectionError.cause = error;
+  return connectionError;
+}
+
 export async function fetchCsrfToken() {
   // Call backend CSRF initialization endpoint to ensure csrftoken cookie is set
   try {
@@ -19,12 +29,14 @@ export async function fetchCsrfToken() {
     });
   } catch (error) {
     console.warn('Could not initialize CSRF token:', error);
+    throw createApiConnectionError(error);
   }
 }
 
 export async function apiClient(endpoint, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
+    Accept: 'application/json',
     ...(options.headers || {}),
   };
 
@@ -43,12 +55,18 @@ export async function apiClient(endpoint, options = {}) {
   // Ensure path starts with /api
   const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 
-  const response = await fetch(url, {
-    ...options,
-    method,
-    headers,
-    credentials: 'include', // Include session cookies for authentication
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      method,
+      headers,
+      credentials: 'include', // Include session cookies for authentication
+    });
+  } catch (error) {
+    console.warn(`API request failed (${method} ${url}):`, error);
+    throw createApiConnectionError(error);
+  }
 
   const contentType = response.headers.get('content-type') || '';
   const isJson = contentType.includes('application/json');

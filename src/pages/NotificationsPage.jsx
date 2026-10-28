@@ -29,7 +29,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="min-h-screen bg-[#FAF8FF] text-slate-800">
-      <AppTopHeader activeTabHref="" />
+      <AppTopHeader activePath="" />
       <div className="w-full px-4 py-6 sm:px-6 lg:px-10">
         <div className="mx-auto w-full max-w-5xl">
         <div className="mb-5 flex items-center justify-between">
@@ -55,3 +55,4 @@ export default function NotificationsPage() {
     </div>
   );
 }
+
