@@ -3,11 +3,12 @@ import AppLayout from "./components/layout/AppLayout";
 import VehicleManagement from "./pages/VehicleManagement";
 import ParkingHistory from "./pages/ParkingHistory";
 import Login from "./pages/LoginPage";
-import Homepage from "./pages/homepage";
 import CustomerManagement from "./pages/CustomerManagement";
 import NotificationsPage from "./pages/NotificationsPage";
 import EmployeeManagement from "./pages/EmployeeManagement";
 import ParkingLot from "./pages/ParkingLotManagement";
+import Ticket from "./pages/TicketManagement";
+import Home from "./pages/homepage";
 const LEGACY_PATHS = {
   "#vehicles": "/vehicles",
   "#history": "/history",
@@ -111,7 +112,7 @@ export default function App() {
 
         <Route
           path="/home"
-          element={<Homepage onNavigateTab={handleNavigateTab} />}
+          element={<Home onNavigateTab={handleNavigateTab} />}
         />
 
         <Route path="/customers" element={<AppLayout />}>
@@ -139,6 +140,11 @@ export default function App() {
       <Route
         path="/parking-lot"
         element={<ParkingLot onNavigateTab={handleNavigateTab} />}
+      />
+
+      <Route
+        path="/tickets"
+        element={<Ticket onNavigateTab={handleNavigateTab} />}
       />
 
         {PLACEHOLDER_PATHS.filter((p) => p !== "/home").map((path) => (
