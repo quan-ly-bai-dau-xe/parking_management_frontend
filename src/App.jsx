@@ -2,7 +2,7 @@ import { useNavigate, Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./components/layout/AppLayout";
 import VehicleManagement from "./pages/VehicleManagement";
 import ParkingHistory from "./pages/ParkingHistory";
-import Login from "./pages/Login";
+import Login from "./pages/login";
 import Homepage from "./pages/homepage";
 import CustomerManagement from "./pages/CustomerManagement";
 import NotificationsPage from "./pages/NotificationsPage";
