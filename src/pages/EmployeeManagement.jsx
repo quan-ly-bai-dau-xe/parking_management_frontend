@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import DataTable from "../components/common/DataTable";
+import TableActions from "../components/common/TableActions";
+import EmployeeModal from "../components/EmployeeModal";
 
 const INITIAL_EMPLOYEES = [
   {
@@ -107,6 +110,47 @@ export default function EmployeeManagement() {
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("all");
   const [status, setStatus] = useState("all");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+
+  const handleOpenAddModal = () => {
+    setSelectedEmployee(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (employee) => {
+    setSelectedEmployee(employee);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedEmployee(null);
+  };
+
+  const handleSaveEmployee = (employeeData) => {
+    if (employeeData.id) {
+      // Cập nhật nhân viên hiện có
+      setEmployees((prev) =>
+        prev.map((item) => (item.id === employeeData.id ? employeeData : item))
+      );
+    } else {
+      // Thêm nhân viên mới: Tạo mã NV tiếp theo
+      const maxIdNum = employees.reduce((max, emp) => {
+        const num = parseInt(emp.id.replace(/\D/g, ""), 10);
+        return !isNaN(num) && num > max ? num : max;
+      }, 0);
+      const newId = `NV${String(maxIdNum + 1).padStart(3, "0")}`;
+
+      const newEmployee = {
+        ...employeeData,
+        id: newId,
+      };
+
+      setEmployees((prev) => [newEmployee, ...prev]);
+    }
+  };
+
   const filteredEmployees = useMemo(
     () =>
       employees.filter((employee) => {
@@ -124,12 +168,128 @@ export default function EmployeeManagement() {
   );
 
   const toggleStatus = (id) =>
-    setEmployees((items) => items.filter((item) => item.id !== id));
-  const deleteEmployee = (id) =>
-    setEmployees((items) => items.filter((item) => item.id !== id));
+    setEmployees((items) =>
+      items.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: item.status === "active" ? "inactive" : "active",
+            }
+          : item,
+      ),
+    );
+
+  const columns = useMemo(
+    () => [
+      {
+        header: "Nhân viên",
+        accessor: (employee) => (
+          <div className="flex items-center gap-2.5">
+            <span
+              className={`flex h-7 w-7 items-center justify-center rounded-full text-[9px] font-bold ${AVATAR_CLASSES[employee.tone] || "bg-slate-100 text-slate-600"}`}
+            >
+              {employee.name
+                .split(" ")
+                .map((part) => part[0])
+                .slice(-2)
+                .join("")}
+            </span>
+            <span>
+              <span className="block font-semibold text-slate-700">
+                {employee.name}
+              </span>
+              <span className="block text-[10px] text-slate-400">
+                {employee.email}
+              </span>
+            </span>
+          </div>
+        ),
+      },
+      {
+        header: "Mã NV",
+        accessor: (employee) => (
+          <span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">
+            {employee.id}
+          </span>
+        ),
+      },
+      {
+        header: "Chức vụ",
+        accessor: (employee) => (
+          <span className="text-slate-600">{employee.role}</span>
+        ),
+      },
+      {
+        header: "Liên hệ",
+        accessor: (employee) => (
+          <div>
+            <span className="block text-slate-600">{employee.phone}</span>
+            <span className="text-[10px] text-slate-400">{employee.email}</span>
+          </div>
+        ),
+      },
+      {
+        header: "Khu vực",
+        accessor: (employee) => (
+          <div>
+            <span className="block text-slate-600">{employee.area}</span>
+            <span className="text-[10px] text-slate-400">{employee.city}</span>
+          </div>
+        ),
+      },
+      {
+        header: "Trạng thái",
+        accessor: (employee) => (
+          <span
+            className={`inline-flex items-center justify-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold min-w-[110px] ${
+              employee.status === "active"
+                ? "bg-emerald-50 text-emerald-600"
+                : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            {employee.status === "active"
+              ? "Đang hoạt động"
+              : "Không hoạt động"}
+          </span>
+        ),
+      },
+      {
+        header: "Thao tác",
+        align: "center",
+        accessor: (employee) => (
+          <TableActions
+            actions={[
+              {
+                label: "Sửa",
+                icon: "edit",
+                title: "Sửa thông tin nhân viên",
+                onClick: () => handleOpenEditModal(employee),
+              },
+              {
+                label: employee.status === "active" ? "Khóa" : "Kích hoạt",
+                icon: "toggle",
+                title:
+                  employee.status === "active"
+                    ? "Ngưng hoạt động"
+                    : "Kích hoạt lại",
+                className: `w-22 justify-center ${
+                  employee.status === "active"
+                    ? "text-amber-600 hover:text-amber-800"
+                    : "text-emerald-600 hover:text-emerald-800"
+                }`,
+                onClick: () => toggleStatus(employee.id),
+              },
+            ]}
+          />
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 text-slate-800 sm:px-6 lg:px-10">
+    <>
       <div className="w-full space-y-5">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
@@ -142,6 +302,7 @@ export default function EmployeeManagement() {
           </div>
           <button
             type="button"
+            onClick={handleOpenAddModal}
             className="rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
           >
             + Thêm nhân viên
@@ -216,139 +377,21 @@ export default function EmployeeManagement() {
               </select>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-xs">
-              <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
-                <tr>
-                  {[
-                    "Nhân viên",
-                    "Mã NV",
-                    "Chức vụ",
-                    "Liên hệ",
-                    "Khu vực",
-                    "Trạng thái",
-                    "Thao tác",
-                  ].map((item) => (
-                    <th key={item} className="px-3 py-3 font-semibold">
-                      {item}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredEmployees.map((employee) => (
-                  <tr key={employee.id} className="hover:bg-slate-50">
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={`flex h-7 w-7 items-center justify-center rounded-full text-[9px] font-bold ${AVATAR_CLASSES[employee.tone]}`}
-                        >
-                          {employee.name
-                            .split(" ")
-                            .map((part) => part[0])
-                            .slice(-2)
-                            .join("")}
-                        </span>
-                        <span>
-                          <span className="block font-semibold text-slate-700">
-                            {employee.name}
-                          </span>
-                          <span className="block text-[10px] text-slate-400">
-                            {employee.email}
-                          </span>
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">
-                        {employee.id}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-slate-600">
-                      {employee.role}
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className="block text-slate-600">
-                        {employee.phone}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {employee.email}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className="block text-slate-600">
-                        {employee.area}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {employee.city}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${employee.status === "active" ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}
-                      >
-                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                        {employee.status === "active"
-                          ? "Đang hoạt động"
-                          : "Không hoạt động"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-2 text-slate-400">
-                        <button
-                          type="button"
-                          title="Sửa nhân viên"
-                          onClick={() => alert(`Sửa ${employee.name}`)}
-                          className="cursor-pointer hover:text-blue-600"
-                        >
-                          <svg
-                            className="h-3.5 w-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                            />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          title="Đổi trạng thái"
-                          onClick={() => toggleStatus(employee.id)}
-                          className="cursor-pointer hover:text-rose-600"
-                        >
-                          <svg
-                            className="h-3.5 w-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M18 8A6 6 0 016 8m0 0V4m0 4h4m-4 4a6 6 0 0012 0m0 0v4m0-4h-4"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {filteredEmployees.length === 0 && (
-            <p className="px-4 py-10 text-center text-xs text-slate-400">
-              Không tìm thấy nhân viên phù hợp.
-            </p>
-          )}
+          <DataTable
+            columns={columns}
+            rows={filteredEmployees}
+            rowKey="id"
+            emptyMessage="Không tìm thấy nhân viên phù hợp."
+          />
         </section>
       </div>
-    </div>
+
+      <EmployeeModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        employee={selectedEmployee}
+        onSave={handleSaveEmployee}
+      />
+    </>
   );
 }

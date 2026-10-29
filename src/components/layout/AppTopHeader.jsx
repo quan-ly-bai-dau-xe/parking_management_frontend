@@ -24,7 +24,7 @@ export default function AppTopHeader({
   activeTabHref,
   brandName = "LOGO",
   userName,
-  fallbackName = "Người dùng",
+  fallbackName = "Anonymous",
   adminName,
   onTabClick,
 }) {

@@ -2,6 +2,7 @@ import { useNavigate, Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./components/layout/AppLayout";
 import VehicleManagement from "./pages/VehicleManagement";
 import ParkingHistory from "./pages/ParkingHistory";
+import Homepage from "./pages/homepage";
 import Login from "./pages/LoginPage";
 import CustomerManagement from "./pages/CustomerManagement";
 import NotificationsPage from "./pages/NotificationsPage";
@@ -16,6 +17,9 @@ const LAYOUT_ROUTES = [
   { path: ROUTES.CUSTOMERS, component: <CustomerManagement /> },
   { path: ROUTES.EMPLOYEES, component: <EmployeeManagement /> },
   { path: ROUTES.VEHICLES, component: <VehicleManagement /> },
+  { path: ROUTES.PARKING_LOT, component: <ParkingLot /> },
+  { path: ROUTES.HISTORY, component: <ParkingHistory /> },
+  { path: ROUTES.TICKETS, component: <Ticket /> },
 ];
 
 function PlaceholderPage({ title = "Trang đang được phát triển" }) {
@@ -104,21 +108,6 @@ export default function App() {
       <Route
         path={ROUTES.HOME}
         element={<Home onNavigateTab={handleNavigateTab} />}
-      />
-
-      <Route
-        path={ROUTES.HISTORY}
-        element={<ParkingHistory onNavigateTab={handleNavigateTab} />}
-      />
-
-      <Route
-        path={ROUTES.PARKING_LOT}
-        element={<ParkingLot onNavigateTab={handleNavigateTab} />}
-      />
-
-      <Route
-        path={ROUTES.TICKETS}
-        element={<Ticket onNavigateTab={handleNavigateTab} />}
       />
 
       <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />

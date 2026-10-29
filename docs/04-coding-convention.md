@@ -4,7 +4,7 @@ Tài liệu này quy định các quy tắc viết code, naming convention và c
 
 ## 1. Ngôn ngữ & Công nghệ
 
-- **React 18** với Hooks (function components).
+- **React 19** với Hooks (function components).
 - **Vite** làm bundler/dev server.
 - **Tailwind CSS** cho styling (không viết CSS inline).
 - **JavaScript ES6+**.

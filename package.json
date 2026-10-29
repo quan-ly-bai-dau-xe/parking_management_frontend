@@ -9,9 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,md}\"",
-        "test:proxy": "node --test tests/viteProxyErrorHandler.test.mjs",
-        "test:proxy:integration": "node --test --test-reporter=spec tests/viteProxy.integration.test.mjs",
-        "test:smoke": "node --test --test-reporter=spec \"tests/*.test.mjs\""
+    "test:proxy": "node --test tests/viteProxyErrorHandler.test.mjs",
+    "test:proxy:integration": "node --test --test-reporter=spec tests/viteProxy.integration.test.mjs",
+    "test:smoke": "node --test --test-reporter=spec \"tests/*.test.mjs\""
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

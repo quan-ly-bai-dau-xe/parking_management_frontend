@@ -1,8 +1,18 @@
-import React, { useState, useRef } from "react";
+import { useState, useRef } from "react";
+import {
+  scanPlateImage,
+  lookupVehicleByPlate,
+  mapPlateScanToVehicle,
+  mapVehicleLookupToVehicle,
+} from "../../features/plateScanService";
+import { mockVehicles } from "../../mocks/vehicleData";
 
 /**
  * ScanPlateModal component
  * Allows scanning vehicle license plates from image files or camera capture.
+ * Connects to backend API:
+ * - scanPlateImage: POST /api/v1/parking/plate-scans/
+ * - lookupVehicleByPlate: GET /api/v1/parking/vehicle-lookup/
  * Automatically looks up vehicle information in the system and displays matched details:
  * - Tên xe, Hãng xe, Tên khách hàng, Số điện thoại, Vị trí đỗ
  */
@@ -13,10 +23,13 @@ export default function ScanPlateModal({
   vehicles = [],
 }) {
   const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
   const [detectedPlate, setDetectedPlate] = useState("");
   const [matchedVehicle, setMatchedVehicle] = useState(null);
+  const [scanDetails, setScanDetails] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [searchStatus, setSearchStatus] = useState("idle"); // 'idle' | 'matched' | 'not_found'
+  const [searchStatus, setSearchStatus] = useState("idle"); // 'idle' | 'matched' | 'not_found' | 'error'
+  const [errorMessage, setErrorMessage] = useState("");
   const fileInputRef = useRef(null);
 
   if (!isOpen) return null;
@@ -26,61 +39,151 @@ export default function ScanPlateModal({
     return (str || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   };
 
-  // Perform search / matching logic
-  const handleMatchPlate = (plateInput) => {
-    const norm = normalizePlate(plateInput);
+  const sampleVehicleList = vehicles.length > 0 ? vehicles : mockVehicles;
+
+  // Search in fallback list (passed vehicles props or mockVehicles)
+  const findInLocalList = (norm) => {
+    return (
+      vehicles.find((v) => normalizePlate(v.licensePlate) === norm) ||
+      mockVehicles.find((v) => normalizePlate(v.licensePlate) === norm)
+    );
+  };
+
+  // Perform search / matching logic via Backend API first, with fallback to local/mock list
+  const handleMatchPlate = async (plateInput) => {
+    const rawInput = (plateInput || "").trim();
+    const norm = normalizePlate(rawInput);
     if (!norm) return;
 
-    const found = vehicles.find((v) => normalizePlate(v.licensePlate) === norm);
-    if (found) {
-      setMatchedVehicle(found);
+    setIsScanning(true);
+    setErrorMessage("");
+
+    try {
+      // 1. Call real backend API: GET /api/v1/parking/vehicle-lookup/
+      const lookupResult = await lookupVehicleByPlate(rawInput);
+      const vehicle = mapVehicleLookupToVehicle(lookupResult);
+
+      if (vehicle) {
+        setMatchedVehicle(vehicle);
+        setSearchStatus("matched");
+        setIsScanning(false);
+        return;
+      }
+    } catch (err) {
+      // If error is 404 (not found), mark as not_found directly
+      if (err.status === 404) {
+        setMatchedVehicle(null);
+        setSearchStatus("not_found");
+        setIsScanning(false);
+        return;
+      }
+
+      // Check fallback list before displaying network error
+      const found = findInLocalList(norm);
+      if (found) {
+        setMatchedVehicle(found);
+        setSearchStatus("matched");
+        setIsScanning(false);
+        return;
+      }
+
+      // If backend failed due to auth/server/network, show clear message
+      setMatchedVehicle(null);
+      setSearchStatus("error");
+      setErrorMessage(
+        err.message || "Không thể kết nối đến máy chủ đối soát. Vui lòng kiểm tra lại dịch vụ."
+      );
+      setIsScanning(false);
+      return;
+    }
+
+    const localFound = findInLocalList(norm);
+    if (localFound) {
+      setMatchedVehicle(localFound);
       setSearchStatus("matched");
     } else {
       setMatchedVehicle(null);
       setSearchStatus("not_found");
     }
+    setIsScanning(false);
   };
 
-  // Handle file selection
+  // Trigger OCR scan on an image file
+  const runOcrScan = async (file) => {
+    if (!file) return;
+
+    setIsScanning(true);
+    setSearchStatus("idle");
+    setErrorMessage("");
+    setScanDetails(null);
+
+    try {
+      // 1. Send file to real backend OCR API: POST /api/v1/parking/plate-scans/
+      const scanResult = await scanPlateImage(file);
+
+      // Extract recognized plate text from backend schema (PlateScanResponseSerializer)
+      const extractedText =
+        scanResult.best_candidate?.plate_text ||
+        scanResult.plate_raw ||
+        scanResult.plate_final ||
+        scanResult.license_plate ||
+        "";
+
+      // Save raw AI recognition details to display to user
+      setScanDetails({
+        plate: extractedText,
+        confidence: scanResult.best_candidate?.confidence ?? scanResult.confidence ?? null,
+        reviewStatus: scanResult.review_status,
+        engine: scanResult.engine_name,
+        latencyMs: scanResult.latency_ms,
+        candidates: scanResult.candidates || [],
+      });
+
+      if (extractedText) {
+        setDetectedPlate(extractedText);
+
+        // Map vehicle directly if vehicle_lookup is returned in scan response
+        const mappedVehicle = mapPlateScanToVehicle(scanResult);
+        if (mappedVehicle) {
+          setMatchedVehicle(mappedVehicle);
+          setSearchStatus("matched");
+        } else {
+          // If scan succeeded but vehicle wasn't auto-resolved, lookup vehicle by plate
+          await handleMatchPlate(extractedText);
+        }
+      } else {
+        setSearchStatus("error");
+        setErrorMessage("AI không nhận diện được biển số từ ảnh chụp này. Vui lòng chọn ảnh rõ nét hơn.");
+      }
+    } catch (err) {
+      setSearchStatus("error");
+      const msg =
+        err.status === 403
+          ? "Phiên làm việc hết hạn hoặc thiếu quyền thực hiện quét biển số (403 Forbidden)."
+          : err.status === 400
+          ? `Tệp hình ảnh không hợp lệ: ${err.message}`
+          : err.message || "Lỗi kết nối tới máy chủ khi gửi ảnh quét OCR.";
+      setErrorMessage(msg);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // Handle file selection and call real scan API
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setSelectedFile(file);
     const imageUrl = URL.createObjectURL(file);
     setSelectedImage(imageUrl);
-    setIsScanning(true);
-    setSearchStatus("idle");
-
-    // Simulate smart OCR detection with high accuracy
-    setTimeout(() => {
-      setIsScanning(false);
-      // Heuristic extraction or default to known plate from sample if filename or mock matches
-      const fileName = file.name.toUpperCase();
-      let extractedPlate = "51K-992.14"; // Default sample plate from UI mock
-
-      if (fileName.includes("30A") || fileName.includes("123")) {
-        extractedPlate = "30A-123.45";
-      } else if (fileName.includes("59P") || fileName.includes("678")) {
-        extractedPlate = "59P1-678.90";
-      } else if (fileName.includes("43A") || fileName.includes("111")) {
-        extractedPlate = "43A-111.22";
-      } else if (fileName.includes("29C") || fileName.includes("333")) {
-        extractedPlate = "29C-333.66";
-      }
-
-      setDetectedPlate(extractedPlate);
-      handleMatchPlate(extractedPlate);
-    }, 1200);
+    runOcrScan(file);
   };
 
   // Quick preset sample buttons for easy live testing
   const handleSelectSample = (plate) => {
     setDetectedPlate(plate);
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
-      handleMatchPlate(plate);
-    }, 500);
+    handleMatchPlate(plate);
   };
 
   const handleApplySelection = () => {
@@ -208,7 +311,7 @@ export default function ScanPlateModal({
             {/* Quick Demo Samples */}
             <div className="mt-3 flex items-center flex-wrap gap-2 text-xs text-slate-500">
               <span className="font-medium text-slate-600">Thử mẫu nhanh:</span>
-              {vehicles.slice(0, 4).map((v) => (
+              {sampleVehicleList.slice(0, 4).map((v) => (
                 <button
                   key={v.id}
                   type="button"
@@ -246,6 +349,20 @@ export default function ScanPlateModal({
                   >
                     Đối soát
                   </button>
+                  {selectedFile && (
+                    <button
+                      type="button"
+                      onClick={() => runOcrScan(selectedFile)}
+                      disabled={isScanning}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-medium rounded-lg shrink-0 transition-colors flex items-center gap-1.5"
+                      title="Chạy lại mô hình OCR để nhận diện biển số từ ảnh"
+                    >
+                      <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>Quét lại AI</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -269,6 +386,11 @@ export default function ScanPlateModal({
                     <span className="w-2 h-2 rounded-full bg-rose-500" />
                     Chưa có trong hệ thống
                   </span>
+                ) : searchStatus === "error" ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    Lỗi kết nối / xác thực
+                  </span>
                 ) : (
                   <span className="text-xs text-slate-400 italic">
                     Chờ tải ảnh...
@@ -277,6 +399,34 @@ export default function ScanPlateModal({
               </div>
             </div>
           </div>
+
+          {/* AI Recognition Details Banner */}
+          {scanDetails && (
+            <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-3.5 text-xs text-indigo-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+                <span className="font-semibold">Kết quả AI OCR:</span>
+                <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border border-indigo-200 text-indigo-700">
+                  {scanDetails.plate || "Không xác định"}
+                </span>
+                {scanDetails.confidence != null && (
+                  <span className="text-2xs text-indigo-600 bg-indigo-100/70 px-1.5 py-0.5 rounded">
+                    Độ tin cậy: {Number(scanDetails.confidence).toFixed(1)}%
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-2xs text-indigo-600">
+                {scanDetails.reviewStatus && (
+                  <span className="px-2 py-0.5 rounded bg-white border border-indigo-200 font-medium">
+                    Chính sách: {scanDetails.reviewStatus}
+                  </span>
+                )}
+                {scanDetails.latencyMs != null && (
+                  <span>Tốc độ: {scanDetails.latencyMs}ms</span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Matched Details Panel (Requirement: Tên xe, Hãng xe, Tên khách hàng, Số điện thoại, Vị trí đỗ) */}
           {matchedVehicle && (
@@ -366,6 +516,18 @@ export default function ScanPlateModal({
                 không tìm thấy trong dữ liệu hiện tại. Bạn có thể bấm Thêm xe
                 mới hoặc kiểm tra lại ảnh chụp.
               </p>
+            </div>
+          )}
+
+          {searchStatus === "error" && errorMessage && (
+            <div className="p-4 bg-rose-50 rounded-xl border border-rose-200 text-rose-800 text-xs flex items-start gap-3">
+              <svg className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <p className="font-semibold text-rose-900">Không thể thực hiện quét / đối soát:</p>
+                <p className="text-rose-700 mt-0.5">{errorMessage}</p>
+              </div>
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { apiClient } from "../services/apiClient.js";
+import { apiClient, fetchCsrfToken, getCookie } from "../services/apiClient.js";
 
 /**
  * Plate Scan & Vehicle Lookup Services
@@ -17,12 +17,31 @@ import { apiClient } from "../services/apiClient.js";
 export async function scanPlateImage(imageFile, gateId = 1) {
   const formData = new FormData();
   formData.append('image', imageFile);
-  formData.append('gate_id', gateId.toString());
+  if (gateId) {
+    formData.append('gate_id', gateId.toString());
+  }
 
-  // For multipart/form-data, don't set Content-Type header (browser sets it with boundary)
+  // Ensure CSRF token is attached for Django session authentication
+  let csrfToken = getCookie('csrftoken');
+  if (!csrfToken) {
+    try {
+      await fetchCsrfToken();
+      csrfToken = getCookie('csrftoken');
+    } catch {
+      // Ignore initial CSRF fetch errors if in testing/mock environment
+    }
+  }
+
+  const headers = {};
+  if (csrfToken) {
+    headers['X-CSRFToken'] = csrfToken;
+  }
+
+  // For multipart/form-data, do NOT set Content-Type header (browser sets boundary automatically)
   const response = await fetch('/api/v1/parking/plate-scans/', {
     method: 'POST',
     body: formData,
+    headers,
     credentials: 'include',
   });
 
@@ -32,7 +51,7 @@ export async function scanPlateImage(imageFile, gateId = 1) {
 
   if (!response.ok) {
     const errorMsg =
-      (typeof data === 'object' && (data.detail || data.message || JSON.stringify(data))) ||
+      (typeof data === 'object' && (data.message || data.detail || JSON.stringify(data))) ||
       `HTTP Error ${response.status}`;
     const err = new Error(errorMsg);
     err.status = response.status;
