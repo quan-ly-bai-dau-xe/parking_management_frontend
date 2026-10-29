@@ -83,7 +83,7 @@ export default function CustomerManagement() {
     return cleanup;
   }, [fetchCustomerList]);
 
-  // Shortcut ⌘K / Ctrl+K to focus search input
+  // Shortcut Ctrl+K to focus search input
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -410,8 +410,7 @@ export default function CustomerManagement() {
   );
 
   return (
-    <div className="min-h-screen bg-[#FAF8FF] text-[#0F172A] font-sans">
-      <main className="w-full px-4 sm:px-6 lg:px-10 py-6 space-y-6">
+    <>
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -426,7 +425,7 @@ export default function CustomerManagement() {
 
         {/* Bộ lọc 2 tầng + Popover tầng 3 */}
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
-          {/* Tầng 1: Search theo mã, tên, SĐT, email + Phím tắt ⌘K */}
+          {/* Tầng 1: Search theo mã, tên, SĐT, email + Phím tắt Ctrl+K */}
           <div className="relative flex items-center">
             <span className="absolute left-3 text-slate-400 pointer-events-none flex items-center justify-center">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -469,7 +468,7 @@ export default function CustomerManagement() {
               <kbd
                 onClick={() => searchInputRef.current?.focus()}
                 className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-2xs font-mono font-medium text-slate-400 bg-slate-50 border border-slate-200 rounded shadow-2xs cursor-pointer select-none"
-                title="Nhấn ⌘K hoặc Ctrl+K để tìm kiếm"
+                title="Nhấn Ctrl+K để tìm kiếm"
               >
                 <span className="text-xs">Ctrl+K</span>
               </kbd>
@@ -1028,7 +1027,6 @@ export default function CustomerManagement() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+    </>
   );
 }

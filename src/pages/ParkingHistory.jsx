@@ -1,6 +1,5 @@
-﻿import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { EmptyState, ConfirmModal, LoadingSpinner, Pagination } from "../components/common";
-import AppTopHeader from "../components/layout/AppTopHeader";
 import { getParkingSessions, mapSessionToFrontend } from "../features/plateScanService";
 import usePagination from "../hooks/usePagination";
 
@@ -134,17 +133,9 @@ export default function ParkingHistory({ onNavigateTab }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8FF] text-slate-800 font-sans flex flex-col justify-between">
-      {/* Top Header matching AppTopHeader */}
+    <>
       <div>
-        <AppTopHeader
-          brandName="LOGO"
-          onTabClick={onNavigateTab}
-        />
-
-        {/* Main Content Area */}
-        <main className="w-full px-4 sm:px-6 lg:px-10 py-6">
-          {/* Page Title */}
+        {/* Page Title */}
           <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
               Lịch sử ra/vào
@@ -395,11 +386,10 @@ export default function ParkingHistory({ onNavigateTab }) {
               className="mt-auto pt-8"
             />
           </section>
-        </main>
       </div>
 
       {/* Footer Branding from Design System */}
-      <footer className="w-full px-4 sm:px-6 lg:px-10 py-4">
+      <footer className="w-full py-4">
         <p className="text-sm font-semibold text-slate-400 tracking-tight">
           Sơ đồ bãi đậu xe — Smart Mobility
         </p>
@@ -421,7 +411,7 @@ export default function ParkingHistory({ onNavigateTab }) {
           />
         </div>
       </ConfirmModal>
-    </div>
+    </>
   );
 }
 

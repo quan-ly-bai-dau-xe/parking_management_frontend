@@ -279,10 +279,8 @@ export default function VehicleManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8FF] text-[#0F172A] font-sans">
-      {/* Main Container */}
-      <main className="w-full px-4 sm:px-6 lg:px-10 py-6 space-y-6">
-        <PageSectionHeader
+    <>
+      <PageSectionHeader
           title="Quản lý xe"
           description="Quản lý phương tiện, chủ xe và tình trạng sử dụng vé"
           onOpenScanModal={() => setIsScanModalOpen(true)}
@@ -979,7 +977,6 @@ export default function VehicleManagement() {
           </div>
         </div>
         )}
-      </main>
 
       {/* OCR License Plate Scan Modal */}
       <ScanPlateModal
@@ -1042,6 +1039,6 @@ export default function VehicleManagement() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

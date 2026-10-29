@@ -289,7 +289,7 @@ export default function EmployeeManagement() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 text-slate-800 sm:px-6 lg:px-10">
+    <>
       <div className="w-full space-y-5">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
@@ -392,6 +392,6 @@ export default function EmployeeManagement() {
         employee={selectedEmployee}
         onSave={handleSaveEmployee}
       />
-    </div>
+    </>
   );
 }

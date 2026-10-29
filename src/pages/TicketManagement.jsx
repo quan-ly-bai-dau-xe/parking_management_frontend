@@ -1,5 +1,4 @@
 import { useState } from "react";
-import AppTopHeader from "../components/layout/AppTopHeader";
 import { initialTickets } from "../mocks/ticketsData";
 import { Pagination } from "../components/common";
 import CreateTicketModal from "../components/CreateTicketModal";
@@ -84,14 +83,7 @@ export default function Ticket({ onNavigatedTab }) {
     };
 
     return (
-        <main className="min-h-screen bg-[#FAF8FF] text-slate-800 font-sans flex flex-col justify-between">
-            <AppTopHeader
-                activeTabHref="#tickets"
-                brandName="LOGO"
-                adminName="Admin"
-                onTabClick={onNavigatedTab}
-            />
-
+        <>
             {/* 1. HEADER & BREADCRUMB */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
@@ -310,6 +302,6 @@ export default function Ticket({ onNavigatedTab }) {
                 ticket={selectedTicket}
                 onClose={() => setIsDetailOpen(false)}
             />
-        </main>
+        </>
     )
 }

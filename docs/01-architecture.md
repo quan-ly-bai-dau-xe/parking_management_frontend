@@ -42,7 +42,7 @@ Các page chính trong hệ thống:
 - `TicketManagement.jsx`: Quản lý các loại vé xe (vé lượt, vé tháng).
 - `NotificationsPage.jsx`: Trung tâm thông báo hệ thống.
 
-Khi thêm page mới, chỉ đặt logic điều phối ở đây; tuân thủ chuẩn layout tại `docs/page-layout-standards.md`. Quy tắc nghiệp vụ có thể dùng lại nên được đưa xuống feature/service thay vì sao chép giữa các page.
+Khi thêm page mới, chỉ đặt logic điều phối ở đây; tuân thủ quy định layout tại rule `page-layout-standards.md`. Quy tắc nghiệp vụ có thể dùng lại nên được đưa xuống feature/service thay vì sao chép giữa các page.
 
 ### `src/components/` — UI component layer
 

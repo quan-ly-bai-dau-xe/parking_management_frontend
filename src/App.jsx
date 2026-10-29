@@ -17,6 +17,9 @@ const LAYOUT_ROUTES = [
   { path: ROUTES.CUSTOMERS, component: <CustomerManagement /> },
   { path: ROUTES.EMPLOYEES, component: <EmployeeManagement /> },
   { path: ROUTES.VEHICLES, component: <VehicleManagement /> },
+  { path: ROUTES.PARKING_LOT, component: <ParkingLot /> },
+  { path: ROUTES.HISTORY, component: <ParkingHistory /> },
+  { path: ROUTES.TICKETS, component: <Ticket /> },
 ];
 
 function PlaceholderPage({ title = "Trang đang được phát triển" }) {
@@ -105,21 +108,6 @@ export default function App() {
       <Route
         path={ROUTES.HOME}
         element={<Home onNavigateTab={handleNavigateTab} />}
-      />
-
-      <Route
-        path={ROUTES.HISTORY}
-        element={<ParkingHistory onNavigateTab={handleNavigateTab} />}
-      />
-
-      <Route
-        path={ROUTES.PARKING_LOT}
-        element={<ParkingLot onNavigateTab={handleNavigateTab} />}
-      />
-
-      <Route
-        path={ROUTES.TICKETS}
-        element={<Ticket onNavigateTab={handleNavigateTab} />}
       />
 
       <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />

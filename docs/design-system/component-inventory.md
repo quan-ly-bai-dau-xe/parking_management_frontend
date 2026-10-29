@@ -1,84 +1,57 @@
 # Component Inventory
 
-> Nguồn: [Figma Design System — Foundations, node 7:8595](https://www.figma.com/design/9hbEEmBDYb18uFdiUF3lVn/Untitled?node-id=7-8595).  
-> Phạm vi hiện xác minh được: frame Foundations — Smart Mobility. Chưa có danh sách component library đầy đủ được trả về từ nguồn truy cập hiện tại; các nhóm dưới đây là kế hoạch kiểm kê, không phải khẳng định rằng mọi component đã tồn tại trong Figma.
+> Nguồn tham chiếu: [Figma Design System — Foundations, node 7:8595](https://www.figma.com/design/9hbEEmBDYb18uFdiUF3lVn/Untitled?node-id=7-8595) & Mẫu giao diện tham khảo [CustomerManagement.jsx](file:///e:/code/parking_management/parking_management_frontend/src/pages/CustomerManagement.jsx).
 
-## Mục tiêu
+Tài liệu này phân loại các **Component dùng chung** (đã có file riêng, sẵn sàng import) và các **Pattern tham khảo** (đang dựng trực tiếp bằng JSX trong các trang mẫu) nhằm giúp lập trình viên và AI chọn đúng giải pháp tái sử dụng, tránh nhầm lẫn pattern cục bộ thành component có sẵn.
 
-Ghi nhận những component có sẵn trong Design System để AI biết component nào có thể tái sử dụng, các variant và properties mà component hỗ trợ. Tài liệu này chỉ mô tả khả năng hiện có, không hướng dẫn AI tự thiết kế lại component.
+---
 
-## Quy tắc quét
+## 1. Form & Filter Elements
 
-Không yêu cầu AI “quét tất cả component” bằng một lượt đệ quy không giới hạn. Quét theo từng nhóm dưới đây, chỉ ghi nhận component gốc/component set và các variant của nó; không tạo mục riêng cho atom lồng bên trong component cha, trừ khi atom đó cũng được công bố như một component độc lập trong thư viện.
-
-### 1. Form Elements
-
-| Component | Variants | Properties | Status |
+| Tên | Loại | Vị trí triển khai | Mô tả / API chính |
 |---|---|---|---|
-| Field / Form Field | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Input / Textarea | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Select / Dropdown | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Checkbox | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Radio | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Switch / Toggle | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Date / Time Picker | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
+| **FilterSelect** | Component dùng chung | `src/components/common/FilterSelect.jsx` | Dropdown chọn bộ lọc: `label`, `value`, `onChange`, `options` |
+| **PageToolbar** | Component dùng chung | `src/components/common/PageToolbar.jsx` | Khung container bộ lọc responsive bọc ngoài: `children` |
+| **Search Input Bar** | Pattern tham khảo | JSX trong `CustomerManagement.jsx` | Ô tìm kiếm kèm icon kính lúp, nút xóa nhanh (X) và shortcut `<kbd>Ctrl+K</kbd>` |
+| **Advanced Filter Popover** | Pattern tham khảo | JSX trong `CustomerManagement.jsx` | Nút bấm kèm badge đếm số bộ lọc, mở panel flyout chứa các tiêu chí lọc nâng cao |
+| **Filter Reset Button** | Pattern tham khảo | JSX trong `CustomerManagement.jsx` | Nút tròn xoay icon reset (`↻`) để đặt lại toàn bộ điều kiện lọc |
 
-### 2. Navigation
+---
 
-| Component | Variants | Properties | Status |
+## 2. Navigation & Layout
+
+| Tên | Loại | Vị trí triển khai | Mô tả / API chính |
 |---|---|---|---|
-| Button | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Link | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Breadcrumb | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Tabs | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Pagination | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Sidebar / Navigation Item | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
+| **AppLayout** | Component dùng chung | `src/components/layout/AppLayout.jsx` | Layout chuẩn bọc ngoài: chứa header và vùng nội dung chính (`Outlet` hoặc `children`) |
+| **AppTopHeader** | Component dùng chung | `src/components/layout/AppTopHeader.jsx` | Header điều hướng: danh sách menu, dropdown tài khoản và popover thông báo |
+| **Pagination** | Component dùng chung | `src/components/common/Pagination.jsx` | Thanh phân trang tích hợp cùng hook `usePagination` (hỗ trợ chọn page size, dấu rút gọn `…`) |
+| **Primary Action Button** | Pattern tham khảo | Class Tailwind toàn dự án | Nút hành động chính (`bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2.5 font-semibold`) |
 
-### 3. Data Display
+---
 
-| Component | Variants | Properties | Status |
+## 3. Data Display & Table
+
+| Tên | Loại | Vị trí triển khai | Mô tả / API chính |
 |---|---|---|---|
-| Avatar | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| List / List Item | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Tag / Badge | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Table | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Tooltip | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Card | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Empty State | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
+| **DataTable** | Component dùng chung | `src/components/common/DataTable.jsx` | Bảng dữ liệu chuẩn: nhận danh sách cột `columns`, dữ liệu `data`, rỗng tự gọi `EmptyState` |
+| **TableActions** | Component dùng chung | `src/components/common/TableActions.jsx` | Nhóm nút thao tác trên dòng: xem (`onView`), sửa (`onEdit`), khóa/mở (`onToggle`), xóa (`onDelete`) |
+| **StatusBadge** | Component dùng chung | `src/components/common/StatusBadge.jsx` | Huy hiệu trạng thái: hỗ trợ các biến thể `active`, `warning`, `error`, `inactive` |
+| **StatCard** | Component dùng chung | `src/components/StatCard.jsx` | Thẻ hiển thị số liệu thống kê: tiêu đề, giá trị chính, icon và nhãn phụ |
 
-### 4. Feedback, Overlay và các nhóm khác
+---
 
-| Component | Variants | Properties | Status |
+## 4. Feedback & Overlay
+
+| Tên | Loại | Vị trí triển khai | Mô tả / API chính |
 |---|---|---|---|
-| Alert / Inline Message | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Toast / Notification | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Modal / Dialog | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Drawer | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Tooltip / Popover | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Loading / Skeleton | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Icon / Icon Button | Chưa xác minh | Chưa xác minh | Chưa kiểm kê từ component library |
-| Parking / Mobility-specific components | Chưa xác minh | Chưa xác minh | Cần kiểm tra các trang/component set chuyên biệt |
+| **ConfirmModal** | Component dùng chung | `src/components/common/ConfirmModal.jsx` | Hộp thoại xác nhận thao tác nguy hiểm hoặc quan trọng: `isOpen`, `onConfirm`, `onCancel` |
+| **LoadingSpinner** | Component dùng chung | `src/components/common/LoadingSpinner.jsx` | Biểu tượng xoay loading: các kích thước `xs` đến `xl`, hỗ trợ kèm nhãn chữ |
+| **EmptyState** | Component dùng chung | `src/components/common/EmptyState.jsx` | Khung trạng thái trống: icon minh họa, tiêu đề, mô tả gợi ý và nút hành động |
 
-## Quy tắc ghi nhận
+---
 
-- **Component**: ghi đúng tên trong Figma và node/component set gốc.
-- **Variants**: liệt kê các giá trị variant thực sự có trong Figma, chẳng hạn `size`, `type`, `state` hoặc `appearance`; không tự thêm biến thể suy đoán.
-- **Properties**: ghi tên property và các giá trị được hỗ trợ, gồm text, boolean, instance swap và variant properties khi có.
-- **Nested atoms**: không mở rộng cây con thành danh sách component độc lập nếu chúng chỉ là thành phần triển khai bên trong component cha.
-- **Chưa xác minh**: giữ nhãn này cho đến khi có bằng chứng từ component library hoặc node nguồn; không thay bằng giá trị mặc định do AI suy luận.
+## Hướng dẫn áp dụng
 
-## Hướng dẫn cho AI
-
-1. Kiểm kê từng nhóm theo thứ tự: Form Elements → Navigation → Data Display → Feedback/Overlay và nhóm chuyên biệt.
-2. Kết thúc mỗi nhóm sau khi đã liệt kê các component gốc, variants và properties có bằng chứng.
-3. Không đệ quy vô hạn qua component con; chỉ theo quan hệ lồng nhau khi cần hiểu property của component cha.
-4. Không tạo component mới, không đề xuất API code và không mô tả quy tắc sử dụng trong tài liệu inventory này.
-5. Nếu không đọc được component library, báo rõ nhóm chưa kiểm kê thay vì suy đoán.
-
-## Cập nhật trạng thái
-
-- [ ] Form Elements đã kiểm tra từ component library.
-- [ ] Navigation đã kiểm tra từ component library.
-- [ ] Data Display đã kiểm tra từ component library.
-- [ ] Feedback / Overlay / nhóm chuyên biệt đã kiểm tra từ component library.
-- [ ] Tên, variants và properties đã được đối chiếu với nguồn Figma.
+1. **Ưu tiên dùng component có sẵn**: Khi xây dựng màn hình mới, ưu tiên sử dụng các component có trong `src/components/common/` và `src/components/layout/` nếu phù hợp với yêu cầu thực tế.
+2. **Tham khảo pattern từ `CustomerManagement.jsx`**: Với các tính năng chưa được đóng gói thành component dùng chung (như thanh tìm kiếm kèm Ctrl+K, popover bộ lọc nâng cao), tham khảo cấu trúc JSX và logic tại `CustomerManagement.jsx` để giữ tính đồng nhất giao diện.
+3. **Linh hoạt theo nghiệp vụ**: Các component như `DataTable`, `TableActions`, hay `Pagination` được khuyến khích sử dụng cho các trang quản trị dạng danh sách chuẩn, nhưng có thể điều chỉnh hoặc dùng giải pháp thay thế khi trang có bố cục đặc thù hoặc yêu cầu tương tác khác biệt.
