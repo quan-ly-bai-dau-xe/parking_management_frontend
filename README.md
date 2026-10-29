@@ -29,7 +29,7 @@ Dự án này là phần mềm frontend cho hệ thống quản lý bãi đậu 
 
 - Xây dựng ứng dụng frontend hiện đại, tối ưu, dễ bảo trì bằng React và Vite.
 - Thiết kế kiến trúc phân lớp rõ ràng (UI Components, Feature Services, Mock/REST API).
-- Tuân thủ quy chuẩn coding convention và tiêu chuẩn giao diện người dùng.
+- Tuân thủ quy chuẩn coding convention và tiêu chuẩn giao diện người dùng thống nhất.
 
 ---
 
@@ -48,8 +48,8 @@ Dự án này là phần mềm frontend cho hệ thống quản lý bãi đậu 
 
 ### Ngoài phạm vi (Out of Scope)
 
-- Phần backend / API server (frontend hiện tại kết nối với mock service, sẵn sàng tích hợp REST API).
-- Thiết bị cứng tại bãi đỗ (camera, Máy quét biển số, cổng chắn) — frontend chỉ hiển thị dữ liệu từ thiết bị qua API.
+- Phần backend / API server (frontend hiện tại kết nối với mock/apiClient service, sẵn sàng tích hợp REST API).
+- Thiết bị cứng tại bãi đỗ (camera, máy quét biển số vật lý, barrier tự động) — frontend hiển thị dữ liệu qua service mô phỏng/API.
 
 ---
 
@@ -57,7 +57,7 @@ Dự án này là phần mềm frontend cho hệ thống quản lý bãi đậu 
 
 ### Yêu cầu hệ thống
 
-- Node.js (khuyên dùng LTS)
+- Node.js (khuyên dùng LTS v18 trở lên)
 - npm
 
 ### Cài đặt và chạy cục bộ
@@ -69,49 +69,63 @@ npm install
 # 2. Chạy ứng dụng ở chế độ phát triển (http://localhost:5173)
 npm run dev
 
-# 3. Lint code
+# 3. Lint kiểm tra lỗi code
 npm run lint
 
-# 4. Build cho sản xuất
+# 4. Build cho môi trường production
 npm run build
 
 # 5. Xem trước bản build
 npm run preview
 ```
 
-### Luồng sử dụng chính
+---
 
-1. **Đăng nhập**: Mở ứng dụng, truy cập trang `/login`, đăng nhập bằng tài khoản Admin hoặc Nhân viên.
-2. **Quản lý phương tiện**: Từ menu chính, vào trang quản lý xe để xem danh sách, thêm mới, chỉnh sửa phương tiện và tìm kiếm theo biển số.
-3. **Quản lý vị trí đỗ**: Xem bản đồ trạng thái các vị trí đỗ (trống/đã có xe), thêm hoặc chỉnh sửa thông tin vị trí đỗ.
-4. **Xe vào / ra bãi**: Ghi nhận xe vào bãi và gán vị trí đỗ; khi xe ra bãi, kiểm tra và tính phí.
-5. **Quản lý vé**: Xem danh sách vé lượt / vé tháng, cấp vé mới hoặc gia hạn vé tháng.
-6. **Tìm kiếm & phân trang**: Sử dụng ô tìm kiếm trên các trang danh sách và điều hướng phân trang để xem dữ liệu.
+## 4. Đồng bộ AI Rules & Skills (`rulesync`)
 
-### Cấu trúc thư mục chính
+Dự án sử dụng thư mục `.rulesync/` làm **Single Source of Truth** để đồng bộ tự động các tiêu chuẩn coding, quy chuẩn trang và kỹ năng (skills) sang các công cụ AI (Antigravity IDE, Cursor, Claude Code, Cline, OpenCode...):
+
+### Cách chạy nhanh `rulesync`
+
+```bash
+# Chạy sinh và đồng bộ rules/skills sang target AI agents
+npx rulesync generate
+
+# Hoặc cài đặt rulesync toàn cục (nếu muốn chạy thường xuyên)
+npm install -g rulesync
+rulesync generate
+```
+
+> **Nguyên tắc cho lập trình viên & AI:**
+> - Mọi thay đổi về luật lệ kỹ thuật hoặc skills phải được sửa tại `.rulesync/` trước tiên, sau đó mới chạy lệnh sync.
+> - Cấu hình target công cụ AI được quản lý tại file `rulesync.jsonc`.
+
+---
+
+## 5. Cấu trúc thư mục mã nguồn
 
 ```text
 src/
-├── App.jsx          # Vỏ ứng dụng và cấu hình route/điều hướng
-├── main.jsx         # Điểm khởi động React và mount root
-├── index.css        # CSS nền/tokens và kiểu dùng chung
-├── assets/          # Ảnh, SVG và tài nguyên_static
-├── components/      # Component UI dùng lại (giao tiếp qua props)
-│   └── layout/      # Layout route dùng Outlet (AppLayout)
-├── config/          # Cấu hình ứng dụng (ví dụ: navigation.js)
-├── features/        # Nghiệp vụ theo domain (ví dụ: login/authService.js)
-├── mocks/           # Dữ liệu mẫu phục vụ phát triển giao diện
-└── pages/           # Thành phần cấp trang (Login, ParkingHistory, VehicleManagement...)
+├── App.jsx             # Vỏ ứng dụng và cấu hình route/điều hướng
+├── main.jsx            # Điểm khởi động React và mount root
+├── index.css           # Cấu hình Tailwind CSS, design tokens dùng chung
+├── assets/             # Hình ảnh, SVG và tài nguyên tĩnh
+├── components/         # Các UI component tái sử dụng (giao tiếp qua props/callbacks)
+│   ├── common/         # Primitives dùng chung (DataTable, TableActions, ConfirmModal, StatusBadge...)
+│   ├── layout/         # Layout chung (AppLayout chứa AppTopHeader và Outlet)
+│   └── VehicleManagement/ # Component gắn với nghiệp vụ xe
+├── config/             # Cấu hình ứng dụng (navigation.js...)
+├── features/           # Nghiệp vụ domain (authService, vehicleService, plateScanService...)
+├── hooks/              # Custom React hooks (usePagination, usePlateScan, useCurrentUser)
+├── mocks/              # Dữ liệu giả lập phục vụ phát triển
+├── pages/              # Thành phần cấp trang (tuân thủ .rulesync/rules/page-layout-standards.md)
+└── services/           # Lớp kết nối API backend (apiClient, customerService...)
 ```
 
-### Routing và layout
-
-`App.jsx` quản lý route bằng React Router. Các màn hình cần dùng layout chung được đặt dưới một route layout và render qua `Outlet`; page chỉ tập trung vào nội dung màn hình. `/login` nằm ngoài layout.
-
 ---
 
-## 4. Đóng góp
+## 6. Đóng góp & Tiêu chuẩn phát triển
 
-Vui lòng tạo issue hoặc pull request để thảo luận trước khi thực hiện các thay đổi lớn. Tuân thủ quy chuẩn commit (Conventional Commits) và coding convention của dự án.
-
----
+- Tuân thủ quy chuẩn commit theo **Conventional Commits** (`feat:`, `fix:`, `refactor:`, `docs:`...).
+- Tuân thủ chuẩn bố cục trang thống nhất được định nghĩa tại `.rulesync/rules/page-layout-standards.md`.
+- Chạy `npm run lint` và `npm run build` trước khi tạo Pull Request để đảm bảo không có lỗi cú pháp hoặc gãy route.

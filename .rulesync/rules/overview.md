@@ -23,6 +23,7 @@ This repository contains the Parking Management Frontend, built with React 19 an
 - **`docs/01-architecture.md`** — Read when you need to understand the system structure, module boundaries, or intended technical architecture.
 - **`docs/02-srs.md`** — Read when implementing or reviewing functional requirements, user flows, or acceptance criteria.
 - **`docs/04-coding-convention.md`** — Read when creating or modifying code and you need the project's detailed coding conventions.
+- **`docs/05-testing.md`** — Read when writing, reviewing, or executing test cases, smoke tests, and test specifications.
 - **`docs/design-system/design-tokens.md`** — Read when styling UI and you need the verified color, typography, spacing, radius, elevation, or status tokens from the design system.
 - **`docs/design-system/type-styles.md`** — Read when defining or changing typography and you need the verified font families, sizes, weights, line heights, or letter spacing.
 - **`docs/design-system/component-inventory.md`** — Read when selecting or extending reusable UI components and you need the currently verified component, variant, and property inventory.

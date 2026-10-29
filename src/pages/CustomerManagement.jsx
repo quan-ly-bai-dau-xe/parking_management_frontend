@@ -2,9 +2,10 @@ import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import {
   EmptyState,
   Pagination,
+  TableActions,
 } from "../components/common";
 import DataTable from "../components/common/DataTable";
-import { mockCustomers } from "../mocks/customerData";
+import { customerService } from "../services/customerService";
 import usePagination from "../hooks/usePagination";
 
 const initialAdvancedFilters = {
@@ -14,7 +15,9 @@ const initialAdvancedFilters = {
 };
 
 export default function CustomerManagement() {
-  const [customerData, setCustomerData] = useState(mockCustomers);
+  const [customerData, setCustomerData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState(null);
   const [newCustomer, setNewCustomer] = useState({
@@ -47,6 +50,38 @@ export default function CustomerManagement() {
 
   const searchInputRef = useRef(null);
   const popoverRef = useRef(null);
+
+  const fetchCustomerList = useCallback(() => {
+    let isSubscribed = true;
+    customerService
+      .getCustomers()
+      .then((data) => {
+        if (isSubscribed) {
+          setCustomerData(data);
+          setErrorMessage(null);
+        }
+      })
+      .catch((err) => {
+        if (isSubscribed) {
+          console.error("Lỗi khi tải danh sách khách hàng:", err);
+          setErrorMessage(err.message || "Không thể tải danh sách khách hàng");
+        }
+      })
+      .finally(() => {
+        if (isSubscribed) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const cleanup = fetchCustomerList();
+    return cleanup;
+  }, [fetchCustomerList]);
 
   // Shortcut ⌘K / Ctrl+K to focus search input
   useEffect(() => {
@@ -209,62 +244,71 @@ export default function CustomerManagement() {
     setShowAddModal(true);
   }, []);
 
-  const handleDeleteCustomer = useCallback((customer) => {
+  const handleDeleteCustomer = useCallback(async (customer) => {
     const confirmed = window.confirm(
       `Bạn có chắc muốn xóa khách hàng ${customer?.name ?? ""} không?`,
     );
     if (!confirmed) return;
 
-    setCustomerData((current) => {
-      const newData = current.filter((c) => c.id !== customer.id);
-      // Calculate new page after deletion
-      setCurrentPage((page) =>
-        Math.min(page, Math.max(1, Math.ceil((newData.length - 1) / itemsPerPage))),
-      );
-      return newData;
-    });
+    try {
+      await customerService.deleteCustomer(customer.id);
+      setCustomerData((current) => {
+        const newData = current.filter((c) => c.id !== customer.id);
+        setCurrentPage((page) =>
+          Math.min(page, Math.max(1, Math.ceil((newData.length - 1) / itemsPerPage))),
+        );
+        return newData;
+      });
+    } catch (err) {
+      alert(`Xóa khách hàng thất bại: ${err.message}`);
+    }
   }, [itemsPerPage]);
 
   const handleRowClick = (customer) => {
     setExpandedRowId((prev) => (prev === customer.id ? null : customer.id));
   };
 
-  const handleSubmitCustomer = (event) => {
+  const handleSubmitCustomer = async (event) => {
     event.preventDefault();
 
-    if (editingCustomerId) {
-      setCustomerData((current) =>
-        current.map((c) =>
-          c.id === editingCustomerId
-            ? {
-                ...c,
-                ...newCustomer,
-              }
-            : c,
-        ),
-      );
-      setEditingCustomerId(null);
-    } else {
-      const customer = {
-        ...newCustomer,
-        id: newCustomer.customerCode || `KH${Date.now()}`,
-        vehicles: [],
-      };
-      setCustomerData((current) => [...current, customer]);
-    }
+    try {
+      if (editingCustomerId) {
+        const updated = await customerService.updateCustomer(editingCustomerId, newCustomer);
+        setCustomerData((current) =>
+          current.map((c) =>
+            c.id === editingCustomerId
+              ? {
+                  ...c,
+                  ...newCustomer,
+                  ...updated,
+                }
+              : c,
+          ),
+        );
+        setEditingCustomerId(null);
+      } else {
+        const created = await customerService.createCustomer({
+          ...newCustomer,
+          vehicles: [],
+        });
+        setCustomerData((current) => [...current, created]);
+      }
 
-    setNewCustomer({
-      customerCode: "",
-      name: "",
-      phone: "",
-      idNumber: "",
-      birthday: "",
-      email: "",
-      gender: "Nam",
-      status: "Đang hoạt động",
-      packageType: "Gói tháng",
-    });
-    setShowAddModal(false);
+      setNewCustomer({
+        customerCode: "",
+        name: "",
+        phone: "",
+        idNumber: "",
+        birthday: "",
+        email: "",
+        gender: "Nam",
+        status: "Đang hoạt động",
+        packageType: "Gói tháng",
+      });
+      setShowAddModal(false);
+    } catch (err) {
+      alert(`Lưu thông tin thất bại: ${err.message}`);
+    }
   };
 
   const columns = useMemo(
@@ -345,54 +389,20 @@ export default function CustomerManagement() {
         accessor: () => null,
         align: "center",
         renderCell: (row) => (
-          <div
-            className="flex items-center justify-center gap-2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => handleEditClick(row)}
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
-            >
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                />
-              </svg>
-              <span>Sửa</span>
-            </button>
-
-            <span className="text-blue-300">|</span>
-
-            <button
-              type="button"
-              onClick={() => handleDeleteCustomer(row)}
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
-            >
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-              <span>Xóa</span>
-            </button>
-          </div>
+          <TableActions
+            actions={[
+              {
+                label: "Sửa",
+                icon: "edit",
+                onClick: () => handleEditClick(row),
+              },
+              {
+                label: "Xóa",
+                icon: "delete",
+                onClick: () => handleDeleteCustomer(row),
+              },
+            ]}
+          />
         ),
       },
     ],
@@ -639,9 +649,12 @@ export default function CustomerManagement() {
             {/* [↻] Nút làm mới bộ lọc */}
             <button
               type="button"
-              onClick={handleResetAll}
-              title="Làm mới bộ lọc"
-              aria-label="Làm mới bộ lọc"
+              onClick={() => {
+                handleResetAll();
+                fetchCustomerList();
+              }}
+              title="Làm mới bộ lọc và dữ liệu"
+              aria-label="Làm mới bộ lọc và dữ liệu"
               className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -693,6 +706,23 @@ export default function CustomerManagement() {
           </div>
 
           <div className="overflow-x-auto">
+            {errorMessage && (
+              <div className="m-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span>{errorMessage}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchCustomerList}
+                  className="inline-flex items-center justify-center px-3 py-1 rounded-md bg-white border border-amber-300 font-medium text-amber-900 hover:bg-amber-100/60 transition-colors cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs"
+                >
+                  Thử lại
+                </button>
+              </div>
+            )}
             <DataTable
               columns={columns}
               rows={paginatedList}
@@ -702,8 +732,34 @@ export default function CustomerManagement() {
               emptyMessage={
                 <div className="flex min-h-[180px] items-center justify-center">
                   <EmptyState
-                    title="Chưa có dữ liệu"
-                    description="Không tìm thấy khách hàng phù hợp với bộ lọc."
+                    title={
+                      isLoading
+                        ? "Đang tải dữ liệu..."
+                        : errorMessage
+                          ? "Không thể tải danh sách khách hàng"
+                          : "Chưa có dữ liệu"
+                    }
+                    description={
+                      isLoading
+                        ? "Vui lòng đợi giây lát trong khi tải dữ liệu từ máy chủ."
+                        : errorMessage
+                          ? errorMessage
+                          : "Không tìm thấy khách hàng phù hợp với bộ lọc."
+                    }
+                    action={
+                      errorMessage ? (
+                        <button
+                          type="button"
+                          onClick={fetchCustomerList}
+                          className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          <span>Tải lại dữ liệu</span>
+                        </button>
+                      ) : null
+                    }
                   />
                 </div>
               }

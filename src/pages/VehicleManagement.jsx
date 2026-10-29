@@ -1,5 +1,9 @@
-﻿import { useState, useMemo, useEffect } from "react";
-import { mapVehicleSearchItem, searchVehicles } from "../features/vehicleService";
+import { useState, useMemo, useEffect } from "react";
+import {
+  fetchVehicleSummary,
+  mapVehicleSearchItem,
+  searchVehicles,
+} from "../features/vehicleService";
 import usePagination from "../hooks/usePagination";
 import ScanPlateModal from "../components/VehicleManagement/ScanPlateModal";
 import PageSectionHeader from "../components/VehicleManagement/PageSectionHeader";
@@ -39,11 +43,28 @@ export default function VehicleManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
 
+  // Fetch KPI summary cards from backend
+  useEffect(() => {
+    let cancelled = false;
+    fetchVehicleSummary()
+      .then((data) => {
+        if (!cancelled && data) {
+          setVehicleStats(data);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not load vehicle summary KPI:", err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     const query = filters.search.trim();
     if (query.length < 2) {
       setVehicles([]);
-      setVehicleStats(null);
       setIsUsingBackendData(false);
       setBackendError("");
       setIsLoading(false);
@@ -64,7 +85,6 @@ export default function VehicleManagement() {
       .catch(() => {
         if (cancelled) return;
         setVehicles([]);
-        setVehicleStats(null);
         setIsUsingBackendData(false);
         setBackendError("Không thể tải dữ liệu phương tiện từ backend.");
       })
@@ -411,7 +431,7 @@ export default function VehicleManagement() {
                 Vé sắp hết hạn
               </p>
               <p className="text-2xl font-bold text-slate-900 mt-0.5">
-                {vehicleStats?.expiring_tickets ?? vehicleStats?.expiringTickets ?? 0}
+                {vehicleStats?.expiring_soon_tickets ?? vehicleStats?.expiring_tickets ?? vehicleStats?.expiringTickets ?? 0}
               </p>
             </div>
           </div>

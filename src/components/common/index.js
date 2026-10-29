@@ -5,3 +5,5 @@ export { default as PageToolbar } from "./PageToolbar";
 export { default as FilterSelect } from "./FilterSelect";
 export { default as StatusBadge } from "./StatusBadge";
 export { default as Pagination } from "./Pagination";
+export { default as DataTable } from "./DataTable";
+export { default as TableActions } from "./TableActions";

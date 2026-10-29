@@ -1,6 +1,6 @@
 ---
 name: frontend-state-and-data-flow
-description: "Workflow for managing React 18 state ownership, immutable data flow, derived state, and mutation lifecycles"
+description: "Workflow for managing React 19 state ownership, immutable data flow, derived state, and mutation lifecycles"
 targets: ["*"]
 ---
 
