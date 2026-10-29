@@ -3,6 +3,7 @@ import { APP_NAVIGATION_TABS, ROUTES, resolveNavigationPath } from "../../config
 import { authService } from "../../features/authService";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useNavigate, useLocation } from "react-router-dom";
+import PlateScannerModal from "../PlateScannerModal";
 
 const INITIAL_NOTIFICATIONS = [
   { id: 1, tone: "red", title: "Xe 51A-12345 đỗ quá giờ tại B1-A12", detail: "10:15 - 31/10/2024", unread: true },
@@ -18,7 +19,8 @@ const NOTIFICATION_DOT_CLASSES = {
 };
 
 export default function AppTopHeader({
-  onOpenScanModal = () => {},
+  onOpenScanModal,
+  onPlateDetected,
   tabs = APP_NAVIGATION_TABS,
   activePath,
   activeTabHref,
@@ -36,6 +38,7 @@ export default function AppTopHeader({
   const currentActivePath = resolveNavigationPath(rawActive);
 
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
+  const [isScanModalOpen, setIsScanModalOpen] = React.useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = React.useState(false);
   const [notifications, setNotifications] = React.useState(INITIAL_NOTIFICATIONS);
   const dropdownRef = React.useRef(null);
@@ -74,9 +77,24 @@ export default function AppTopHeader({
     navigate(ROUTES.LOGIN);
   };
 
+  const handleCameraClick = () => {
+    if (onOpenScanModal) {
+      onOpenScanModal();
+    }
+    setIsScanModalOpen(true);
+  };
+
+  const handlePlateDetected = (plate) => {
+    if (onPlateDetected) {
+      onPlateDetected(plate);
+    }
+    setIsScanModalOpen(false);
+  };
+
   const unreadCount = notifications.filter((item) => item.unread).length;
 
   return (
+    <>
     <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur-sm shadow-2xs">
       <div className="w-full px-4 sm:px-6 lg:px-10">
         <div className="flex h-16 items-center justify-between gap-4">
@@ -104,7 +122,7 @@ export default function AppTopHeader({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={onOpenScanModal}
+              onClick={handleCameraClick}
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 text-xs font-semibold text-slate-700 shadow-2xs transition-all cursor-pointer"
               title="Quét biển số xe từ hình ảnh camera"
             >
@@ -341,6 +359,14 @@ export default function AppTopHeader({
         </div>
       </div>
     </header>
+
+    {/* Component Modal Camera Quét Biển Số */}
+      <PlateScannerModal
+        isOpen={isScanModalOpen}
+        onClose={() => setIsScanModalOpen(false)}
+        onDetected={handlePlateDetected}
+      />
+    </>
   );
 }
 
