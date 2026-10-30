@@ -25,6 +25,8 @@ Tài liệu này phân loại các **Component dùng chung** (đã có file riê
 | **AppLayout** | Component dùng chung | `src/components/layout/AppLayout.jsx` | Layout chuẩn bọc ngoài: chứa header và vùng nội dung chính (`Outlet` hoặc `children`) |
 | **AppTopHeader** | Component dùng chung | `src/components/layout/AppTopHeader.jsx` | Header điều hướng: danh sách menu, dropdown tài khoản và popover thông báo |
 | **Pagination** | Component dùng chung | `src/components/common/Pagination.jsx` | Thanh phân trang tích hợp cùng hook `usePagination` (hỗ trợ chọn page size, dấu rút gọn `…`) |
+| **Button** | Component dùng chung | `src/components/common/button/Button.jsx` (kèm Story) | Nút bấm chuẩn với variants: `primary`, `secondary`, `danger`, `outline`, hỗ trợ `isLoading` |
+| **Icon** | Component dùng chung | `src/components/common/icon/Icon.jsx` (kèm Story) | Biểu tượng Lucide tập trung: `name`, `size` (`xs`->`lg`, số px), gallery showcase |
 | **Primary Action Button** | Pattern tham khảo | Class Tailwind toàn dự án | Nút hành động chính (`bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2.5 font-semibold`) |
 
 ---
@@ -35,7 +37,7 @@ Tài liệu này phân loại các **Component dùng chung** (đã có file riê
 |---|---|---|---|
 | **DataTable** | Component dùng chung | `src/components/common/DataTable.jsx` | Bảng dữ liệu chuẩn: nhận danh sách cột `columns`, dữ liệu `data`, rỗng tự gọi `EmptyState` |
 | **TableActions** | Component dùng chung | `src/components/common/TableActions.jsx` | Nhóm nút thao tác trên dòng: xem (`onView`), sửa (`onEdit`), khóa/mở (`onToggle`), xóa (`onDelete`) |
-| **StatusBadge** | Component dùng chung | `src/components/common/StatusBadge.jsx` | Huy hiệu trạng thái: hỗ trợ các biến thể `active`, `warning`, `error`, `inactive` |
+| **StatusBadge** | Component dùng chung | `src/components/common/badge/StatusBadge.jsx` (kèm Story) | Huy hiệu trạng thái: hỗ trợ các biến thể `active`, `warning`, `error`, `inactive` |
 | **StatCard** | Component dùng chung | `src/components/StatCard.jsx` | Thẻ hiển thị số liệu thống kê: tiêu đề, giá trị chính, icon và nhãn phụ |
 
 ---

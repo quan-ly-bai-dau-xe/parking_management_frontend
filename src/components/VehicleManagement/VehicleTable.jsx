@@ -1,5 +1,5 @@
 // import React from "react"; // Not needed with automatic JSX runtime
-import DataTable from "../common/DataTable";
+import DataTable from "../common/table/DataTable";
 import EmptyState from "@/components/EmptyState";
 
 /**

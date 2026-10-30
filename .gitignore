@@ -23,6 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
+
+
 .cline
 .clinerules
 .agents
@@ -35,3 +37,4 @@ opencode.jsonc
 my-files
 start-opencode.bat
 
+storybook-static

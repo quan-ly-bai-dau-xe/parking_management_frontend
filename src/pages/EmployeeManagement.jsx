@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import DataTable from "../components/common/DataTable";
-import TableActions from "../components/common/TableActions";
+import { DataTable, TableActions } from "../components/common";
 import EmployeeModal from "../components/EmployeeModal";
 
 const INITIAL_EMPLOYEES = [

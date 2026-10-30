@@ -16,7 +16,11 @@ src/
 ├── index.css                  # CSS nền/tokens và cấu hình kiểu dùng chung
 ├── assets/                    # Ảnh, SVG và tài nguyên được Vite import/bundle
 ├── components/                # Component UI dùng lại, giao tiếp qua props
-│   ├── common/                # Shared UI primitives dùng chung toàn dự án
+│   ├── common/                # Shared UI primitives dùng chung (Button, Icon, Badge, Table, Modal,...)
+│   │   ├── badge/             # StatusBadge component, stories & index
+│   │   ├── button/            # Button component, variants & stories
+│   │   ├── icon/              # Icon component, registry, constants & stories
+│   │   └── table/             # DataTable, TableActions components
 │   ├── layout/                # Route layouts, hiện có AppLayout dùng Outlet
 │   └── VehicleManagement/     # Component UI gắn với nghiệp vụ quản lý xe
 ├── config/                    # Cấu hình ứng dụng, hiện có navigation.js
@@ -59,6 +63,9 @@ Khi thêm page mới, chỉ đặt logic điều phối ở đây; tuân thủ q
    - `DataTable`: Component hiển thị bảng dữ liệu dùng chung, chuẩn hóa giao diện header, hàng và ô dữ liệu.
    - `TableActions`: Cụm nút thao tác (Xem, Sửa, Xóa) trên từng dòng dữ liệu trong bảng.
    - `Pagination`: Thanh điều hướng trang dùng chung (`currentPage`, `totalPages`, `onPageChange`), hiển thị dãy số trang và tự thu gọn các trang bị bỏ qua bằng dấu `…` (giữ luôn trang đầu/cuối), kèm dòng tóm tắt dạng *Hiển thị 1–10 / 78 bản ghi* khi truyền `totalItems` + `itemsPerPage`, hỗ trợ kích thước `sm`/`md`.
+   - `Button`: Thành phần nút bấm tái sử dụng với nhiều biến thể (primary, secondary, danger, outline) và hỗ trợ loading spinner.
+   - `Icon`: Biểu tượng chuẩn hoá tích hợp Lucide-react và danh mục ICON_REGISTRY tập trung.
+   - **Cấu trúc thư mục Component & Stories**: Mỗi UI primitive khi đi kèm Story hoặc các file bổ trợ được gom nhóm vào một thư mục riêng biệt (như `button/`, `icon/`, `badge/`, `table/`) bao gồm component chính, file `.stories.jsx`, constants/variants và file `index.js` re-export.
    - `index.js`: Điểm re-export tập trung giúp import thuận tiện (ví dụ `import { StatusBadge, PageToolbar, DataTable, TableActions } from "@/components/common"`).
 
 2. **Domain-specific UI Components (`src/components/VehicleManagement/`, ...)**:
@@ -112,3 +119,11 @@ Page có thể phối hợp component, hook và feature service, nhưng componen
 3. Mọi backend integration mới phải đi qua `services/apiClient.js` hoặc feature service tương ứng.
 4. Giữ API của component ở mức dữ liệu và callback; không truyền chi tiết request, response transport hoặc storage xuống UI.
 5. Khi thay mock bằng backend thật, ưu tiên thay implementation của data/API layer và mapper, giữ nguyên page/component nếu hợp đồng dữ liệu không đổi.
+
+
+## Storybook Component Workshop
+
+Dự án tích hợp Storybook v10 (`@storybook/react-vite`) phục vụ việc phát triển, kiểm thử trực quan và tài liệu hóa độc lập cho các UI components:
+- **Cấu hình (`.storybook/`)**: Tích hợp trực tiếp Tailwind CSS v4, router decorator (`MemoryRouter`) và bộ lọc Docs tự động loại bỏ các JSDoc annotations (`@param`, `@returns`) gây thừa thãi trên trang tài liệu.
+- **Vị trí Stories**: Đi liền cùng component trong thư mục của nó (ví dụ: `src/components/common/button/Button.stories.jsx`, `src/components/common/icon/Icon.stories.jsx`, `src/components/common/badge/StatusBadge.stories.jsx`).
+- **Lệnh thực thi**: `npm run storybook` (chạy dev server tại port 6006) và `npm run build-storybook` (build tĩnh vào thư mục `storybook-static/`).
