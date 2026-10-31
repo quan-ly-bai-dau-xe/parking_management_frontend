@@ -69,7 +69,8 @@ Phần mềm **Hệ thống Quản lý Bãi đậu xe Ô tô (Parking Management
 ## 6. Technology Stack
 
 - **Frontend**: React 19, JavaScript ES6+
-- **Styling**: Tailwind CSS
+- **Styling**: Tailwind CSS v4
+- **Component Workshop / Documentation**: Storybook v10 (@storybook/react-vite)
 - **Build Tool**: Vite
 - **Package Manager**: npm
 - **Version Control**: Git

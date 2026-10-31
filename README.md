@@ -16,7 +16,7 @@ Dự án này là phần mềm frontend cho hệ thống quản lý bãi đậu 
 | Loại | Ứng dụng Web Frontend |
 | Phiên bản | v4.1 |
 | Trạng thái | Phát triển |
-| Công nghệ | React 19 + Tailwind CSS + Vite |
+| Công nghệ | React 19 + Tailwind CSS v4 + Vite + Storybook v10 |
 
 **Mục tiêu kinh doanh**
 
@@ -69,13 +69,19 @@ npm install
 # 2. Chạy ứng dụng ở chế độ phát triển (http://localhost:5173)
 npm run dev
 
-# 3. Lint kiểm tra lỗi code
+# 3. Chạy Storybook Component Workshop (http://localhost:6006)
+npm run storybook
+
+# 4. Build Storybook tĩnh ra thư mục storybook-static/
+npm run build-storybook
+
+# 5. Lint kiểm tra lỗi code
 npm run lint
 
-# 4. Build cho môi trường production
+# 6. Build ứng dụng cho môi trường production
 npm run build
 
-# 5. Xem trước bản build
+# 7. Xem trước bản build ứng dụng
 npm run preview
 ```
 
@@ -111,7 +117,11 @@ src/
 ├── index.css           # Cấu hình Tailwind CSS, design tokens dùng chung
 ├── assets/             # Hình ảnh, SVG và tài nguyên tĩnh
 ├── components/         # Các UI component tái sử dụng (giao tiếp qua props/callbacks)
-│   ├── common/         # Primitives dùng chung (DataTable, TableActions, ConfirmModal, StatusBadge...)
+│   ├── common/         # Primitives dùng chung (Button, Icon, Badge, Table, Modal...)
+│   │   ├── badge/      # StatusBadge component, stories & index
+│   │   ├── button/     # Button component, variants & stories
+│   │   ├── icon/       # Icon component, registry, constants & stories
+│   │   └── table/      # DataTable, TableActions components
 │   ├── layout/         # Layout chung (AppLayout chứa AppTopHeader và Outlet)
 │   └── VehicleManagement/ # Component gắn với nghiệp vụ xe
 ├── config/             # Cấu hình ứng dụng (navigation.js...)
@@ -128,4 +138,5 @@ src/
 
 - Tuân thủ quy chuẩn commit theo **Conventional Commits** (`feat:`, `fix:`, `refactor:`, `docs:`...).
 - Tuân thủ chuẩn bố cục trang thống nhất được định nghĩa tại `.rulesync/rules/page-layout-standards.md`.
-- Chạy `npm run lint` và `npm run build` trước khi tạo Pull Request để đảm bảo không có lỗi cú pháp hoặc gãy route.
+- Tuân thủ quy tắc đóng gói Component: Khi một UI component có Storybook story hoặc file hỗ trợ, gom nhóm trong thư mục riêng biệt (`button/`, `icon/`, `badge/`...) kèm `index.js` re-export.
+- Chạy `npm run lint`, `npm run build` và `npm run build-storybook` trước khi tạo Pull Request để đảm bảo không có lỗi cú pháp, gãy route hoặc lỗi stories.

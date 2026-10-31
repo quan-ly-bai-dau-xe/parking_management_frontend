@@ -3,8 +3,10 @@ import {
   EmptyState,
   Pagination,
   TableActions,
+  DataTable,
+  Icon,
+  Button,
 } from "../components/common";
-import DataTable from "../components/common/DataTable";
 import { customerService } from "../services/customerService";
 import usePagination from "../hooks/usePagination";
 
@@ -428,14 +430,7 @@ export default function CustomerManagement() {
           {/* Tầng 1: Search theo mã, tên, SĐT, email + Phím tắt Ctrl+K */}
           <div className="relative flex items-center">
             <span className="absolute left-3 text-slate-400 pointer-events-none flex items-center justify-center">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
+              <Icon name="search" size="sm" />
             </span>
             <input
               ref={searchInputRef}
@@ -460,9 +455,7 @@ export default function CustomerManagement() {
                   className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
                   title="Xóa tìm kiếm"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <Icon name="close" size="xs" />
                 </button>
               )}
               <kbd
@@ -494,9 +487,7 @@ export default function CustomerManagement() {
                 <option value="Hết hạn">Hết hạn</option>
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                </svg>
+                <Icon name="chevronDown" size="xs" />
               </div>
             </div>
 
@@ -517,9 +508,7 @@ export default function CustomerManagement() {
                 <option value="Vãng lai">Vãng lai</option>
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                </svg>
+                <Icon name="chevronDown" size="xs" />
               </div>
             </div>
 
@@ -534,9 +523,7 @@ export default function CustomerManagement() {
                     : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400"
                 }`}
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                </svg>
+                <Icon name="add" size="xs" />
                 <span>Bộ lọc</span>
                 {activeAdvancedCount > 0 && (
                   <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-blue-600 text-white text-2xs font-bold leading-none">
@@ -617,54 +604,47 @@ export default function CustomerManagement() {
                         <option value="Khác">Khác</option>
                       </select>
                       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                        </svg>
+                        <Icon name="chevronDown" size="xs" />
                       </div>
                     </div>
                   </div>
 
                   {/* Actions: [Áp dụng] [Hủy] */}
                   <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={handleCancelPopover}
-                      className="px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                     >
                       Hủy
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="primary"
+                      size="sm"
                       onClick={handleApplyPopover}
-                      className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
                     >
                       Áp dụng
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
             </div>
 
             {/* [↻] Nút làm mới bộ lọc */}
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="icon"
+              icon="refresh"
               onClick={() => {
                 handleResetAll();
                 fetchCustomerList();
               }}
               title="Làm mới bộ lọc và dữ liệu"
               aria-label="Làm mới bộ lọc và dữ liệu"
-              className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-            </button>
+            />
           </div>
         </div>
 
@@ -681,26 +661,15 @@ export default function CustomerManagement() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="sm"
+                icon="add"
                 onClick={handleOpenCreateModal}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
               >
-                <svg
-                  className="w-3.5 h-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-                <span>Thêm</span>
-              </button>
+                Thêm
+              </Button>
             </div>
           </div>
 
@@ -708,18 +677,18 @@ export default function CustomerManagement() {
             {errorMessage && (
               <div className="m-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
+                  <Icon name="warning" size="sm" className="text-amber-600 shrink-0" />
                   <span>{errorMessage}</span>
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="xs"
                   onClick={fetchCustomerList}
-                  className="inline-flex items-center justify-center px-3 py-1 rounded-md bg-white border border-amber-300 font-medium text-amber-900 hover:bg-amber-100/60 transition-colors cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs"
+                  className="bg-white border-amber-300 font-medium text-amber-900 hover:bg-amber-100/60 self-start sm:self-auto shrink-0 shadow-2xs"
                 >
                   Thử lại
-                </button>
+                </Button>
               </div>
             )}
             <DataTable
@@ -747,16 +716,16 @@ export default function CustomerManagement() {
                     }
                     action={
                       errorMessage ? (
-                        <button
+                        <Button
                           type="button"
+                          variant="secondary"
+                          size="sm"
+                          icon="refresh"
                           onClick={fetchCustomerList}
-                          className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+                          className="mt-3"
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                          <span>Tải lại dữ liệu</span>
-                        </button>
+                          Tải lại dữ liệu
+                        </Button>
                       ) : null
                     }
                   />
@@ -1006,22 +975,24 @@ export default function CustomerManagement() {
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => {
                       setShowAddModal(false);
                       setEditingCustomerId(null);
                     }}
-                    className="px-4 py-2 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer"
                   >
                     Hủy
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="submit"
-                    className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
+                    variant="primary"
+                    size="sm"
                   >
                     {editingCustomerId ? "Cập nhật" : "Thêm khách hàng"}
-                  </button>
+                  </Button>
                 </div>
               </form>
             </div>
