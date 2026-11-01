@@ -1,9 +1,11 @@
-import LoadingSpinner from "./LoadingSpinner";
+import LoadingSpinner from "../LoadingSpinner";
+import BaseModal from "./BaseModal";
 
 /**
  * ConfirmModal component
  * Unified accessible modal overlay with support for confirmation actions,
  * status variants (info, success, warning, error), and custom form/body content.
+ * Kế thừa toàn bộ logic backdrop, phím ESC và scroll-lock từ BaseModal.
  *
  * @param {Object} props
  * @param {boolean} props.isOpen - Whether the modal is visible
@@ -39,18 +41,6 @@ export default function ConfirmModal({
   size = "md",
   className = "",
 }) {
-  if (!isOpen) return null;
-
-  const sizeClasses = {
-    sm: "max-w-sm",
-    md: "max-w-md",
-    lg: "max-w-lg",
-    xl: "max-w-xl",
-    "2xl": "max-w-2xl",
-  };
-
-  const modalWidth = sizeClasses[size] || sizeClasses.md;
-
   const variantStyles = {
     info: {
       iconBg: "bg-blue-50 text-blue-600",
@@ -92,87 +82,75 @@ export default function ConfirmModal({
 
   const currentVariant = variantStyles[variant] || variantStyles.info;
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
-      role="dialog"
-      aria-modal="true"
-    >
-      {/* Backdrop click closer */}
-      <div
-        className="fixed inset-0"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
-      {/* Modal Dialog Card */}
-      <div
-        className={`relative z-10 w-full ${modalWidth} bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 sm:p-7 flex flex-col overflow-hidden max-h-[90vh] ${className}`}
-      >
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${currentVariant.iconBg}`}
-            >
-              {icon || currentVariant.iconSvg}
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                {title}
-              </h3>
-              {description && (
-                <p className="text-xs text-slate-500 mt-0.5">{description}</p>
-              )}
-            </div>
-          </div>
-
-          {showCloseButton && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
-              aria-label="Đóng"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+  const customHeader = (
+    <div className="flex items-start justify-between gap-3 p-5 sm:p-6 border-b border-slate-100 shrink-0">
+      <div className="flex items-center gap-3">
+        <div
+          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${currentVariant.iconBg}`}
+        >
+          {icon || currentVariant.iconSvg}
+        </div>
+        <div>
+          <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+            {title}
+          </h3>
+          {description && (
+            <p className="text-xs text-slate-500 mt-0.5">{description}</p>
           )}
         </div>
-
-        {/* Modal Body / Children */}
-        {children && (
-          <div className="overflow-y-auto flex-1 my-2 text-xs sm:text-sm text-slate-700">
-            {children}
-          </div>
-        )}
-
-        {/* Footer actions */}
-        {showFooter && (
-          <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="py-2 px-4 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-            >
-              {cancelText}
-            </button>
-            {onConfirm && (
-              <button
-                type="button"
-                onClick={onConfirm}
-                disabled={loading}
-                className={`py-2 px-4 rounded-xl text-xs font-semibold shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 ${currentVariant.confirmBtn}`}
-              >
-                {loading && <LoadingSpinner size="xs" color="text-white" />}
-                <span>{confirmText}</span>
-              </button>
-            )}
-          </div>
-        )}
       </div>
+
+      {showCloseButton && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
+          aria-label="Đóng"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
     </div>
+  );
+
+  const customFooter = showFooter ? (
+    <div className="flex items-center justify-end gap-3">
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={loading}
+        className="py-2 px-4 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+      >
+        {cancelText}
+      </button>
+      {onConfirm && (
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={loading}
+          className={`py-2 px-4 rounded-xl text-xs font-semibold shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 ${currentVariant.confirmBtn}`}
+        >
+          {loading && <LoadingSpinner size="xs" color="text-white" />}
+          <span>{confirmText}</span>
+        </button>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <BaseModal
+      isOpen={isOpen}
+      onClose={onClose}
+      size={size}
+      showCloseButton={false}
+      header={customHeader}
+      footer={customFooter}
+      className={className}
+      bodyClassName={children ? "p-5 sm:p-6 text-xs sm:text-sm text-slate-700" : "hidden"}
+    >
+      {children}
+    </BaseModal>
   );
 }

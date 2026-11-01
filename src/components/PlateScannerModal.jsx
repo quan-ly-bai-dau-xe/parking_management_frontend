@@ -11,41 +11,6 @@ export default function PlateScannerModal({ isOpen, onClose, onDetected }) {
   const [ocrStatus, setOcrStatus] = useState("");
   const [detectedPlate, setDetectedPlate] = useState("");
 
-  // 1. Khởi động Webcam laptop khi mở modal
-  useEffect(() => {
-    if (isOpen) {
-      setCameraError("");
-      setDetectedPlate("");
-      setOcrStatus("");
-
-      navigator.mediaDevices
-        ?.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: "user", // Camera trước của laptop
-          },
-          audio: false,
-        })
-        .then((mediaStream) => {
-          setStream(mediaStream);
-          if (videoRef.current) {
-            videoRef.current.srcObject = mediaStream;
-          }
-        })
-        .catch((err) => {
-          console.error("Camera access error:", err);
-          setCameraError(
-            "Không thể truy cập camera laptop. Hãy kiểm tra quyền truy cập camera trên trình duyệt."
-          );
-        });
-    } else {
-      stopCamera();
-    }
-
-    return () => stopCamera();
-  }, [isOpen]);
-
   const stopCamera = () => {
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
@@ -53,8 +18,58 @@ export default function PlateScannerModal({ isOpen, onClose, onDetected }) {
     }
   };
 
+  // 1. Khởi động Webcam laptop khi mở modal
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    let isSubscribed = true;
+
+    navigator.mediaDevices
+      ?.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: "user", // Camera trước của laptop
+        },
+        audio: false,
+      })
+      .then((mediaStream) => {
+        if (!isSubscribed) {
+          mediaStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        setStream(mediaStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      })
+      .catch((err) => {
+        if (!isSubscribed) return;
+        console.error("Camera access error:", err);
+        setCameraError(
+          "Không thể truy cập camera laptop. Hãy kiểm tra quyền truy cập camera trên trình duyệt."
+        );
+      });
+
+    const currentVideo = videoRef.current;
+
+    return () => {
+      isSubscribed = false;
+      if (currentVideo && currentVideo.srcObject) {
+        const currentStream = currentVideo.srcObject;
+        currentStream.getTracks().forEach((track) => track.stop());
+        currentVideo.srcObject = null;
+      }
+    };
+  }, [isOpen]);
+
   const handleClose = () => {
     stopCamera();
+    setCameraError("");
+    setDetectedPlate("");
+    setOcrStatus("");
     onClose();
   };
 

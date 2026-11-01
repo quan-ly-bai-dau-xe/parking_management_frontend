@@ -1,86 +1,157 @@
-/**
- * Centralized API client for communicating with Django backend via Vite proxy.
- * Handles Session cookies and Django CSRF token requirements.
- */
-
-export function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
-  return null;
-}
+import axios from "axios";
 
 const API_UNAVAILABLE_MESSAGE =
-  "Không thể kết nối tới máy chủ. Vui lòng kiểm tra Docker/backend đã chạy tại cổng 8000 rồi thử lại.";
+    "Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối và trạng thái backend.";
+
+export function getCookie(name) {
+    const cookie = document.cookie
+        .split("; ")
+        .find((item) => item.startsWith(`${name}=`));
+
+    return cookie ? cookie.split("=").slice(1).join("=") : null;
+}
 
 function createApiConnectionError(error) {
-  const connectionError = new Error(API_UNAVAILABLE_MESSAGE);
-  connectionError.code = "API_UNAVAILABLE";
-  connectionError.cause = error;
-  return connectionError;
+    const err = new Error(API_UNAVAILABLE_MESSAGE);
+    err.code = "API_UNAVAILABLE";
+    err.cause = error;
+    return err;
 }
+
+export const axiosInstance = axios.create({
+    baseURL: "/",
+    withCredentials: true,
+    headers: {
+        Accept: "application/json",
+    },
+    xsrfCookieName: "csrftoken",
+    xsrfHeaderName: "X-CSRFToken",
+});
+
+let csrfInitPromise = null;
 
 export async function fetchCsrfToken() {
-  // Call backend CSRF initialization endpoint to ensure csrftoken cookie is set
-  try {
-    await fetch('/api/v1/auth/csrf/', {
-      method: 'GET',
-      credentials: 'include',
-    });
-  } catch (error) {
-    console.warn('Could not initialize CSRF token:', error);
-    throw createApiConnectionError(error);
-  }
+    if (csrfInitPromise) return csrfInitPromise;
+
+    csrfInitPromise = (async () => {
+        try {
+            await axiosInstance.get("/api/v1/auth/csrf/");
+
+            if (!getCookie("csrftoken")) {
+                throw new Error("CSRF token was not set by the server.");
+            }
+        } catch (error) {
+            if (!error.response) {
+                throw createApiConnectionError(error);
+            }
+
+            throw error;
+        } finally {
+            csrfInitPromise = null;
+        }
+    })();
+
+    return csrfInitPromise;
 }
+axiosInstance.interceptors.request.use(async (config) => {
+    const method = (config.method || "GET").toUpperCase();
 
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+        return config;
+    }
+
+    let token = getCookie("csrftoken");
+
+    if (!token) {
+        await fetchCsrfToken();
+        token = getCookie("csrftoken");
+    }
+
+    if (!token) {
+        throw new Error("CSRF token is unavailable. Request was not sent.");
+    }
+
+    if (config.headers) {
+        if (typeof config.headers.set === "function") {
+            config.headers.set("X-CSRFToken", token);
+        } else {
+            config.headers["X-CSRFToken"] = token;
+        }
+    } else {
+        config.headers = { "X-CSRFToken": token };
+    }
+
+    return config;
+});
+
+axiosInstance.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        // Preserve canceled requests.
+        if (axios.isCancel(error)) {
+            return Promise.reject(error);
+        }
+
+        // No HTTP response means connection failure.
+        if (!error.response) {
+            return Promise.reject(createApiConnectionError(error));
+        }
+
+        const { status, data } = error.response;
+
+        const message =
+            (typeof data === "object" &&
+                !(data instanceof Blob) &&
+                (data?.detail || data?.message)) ||
+            `HTTP Error ${status}`;
+
+        const err = new Error(message, { cause: error });
+        err.code = error.code;
+        err.status = status;
+        err.data = data;
+
+        return Promise.reject(err);
+    }
+);
+
+/**
+ * Backward-compatible wrapper for existing Fetch-style callers.
+ */
 export async function apiClient(endpoint, options = {}) {
-  const headers = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-    ...(options.headers || {}),
-  };
+    const {
+        method = "GET",
+        body,
+        data,
+        params,
+        headers = {},
+        ...config
+    } = options;
 
-  const method = (options.method || 'GET').toUpperCase();
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    let csrfToken = getCookie('csrftoken');
-    if (!csrfToken) {
-      await fetchCsrfToken();
-      csrfToken = getCookie('csrftoken');
+    const url = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+
+    // Prefer Axios data; fallback to Fetch-style body.
+    const payload = data !== undefined ? data : body;
+
+    const requestHeaders = { ...headers };
+
+    // Explicitly set JSON content-type if body is provided and Content-Type was not specified
+    if (payload !== undefined) {
+        const hasContentType = Object.keys(requestHeaders).some(
+            (key) => key.toLowerCase() === "content-type"
+        );
+        if (!hasContentType) {
+            requestHeaders["Content-Type"] = "application/json";
+        }
     }
-    if (csrfToken) {
-      headers['X-CSRFToken'] = csrfToken;
-    }
-  }
 
-  // Ensure path starts with /api
-  const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-
-  let response;
-  try {
-    response = await fetch(url, {
-      ...options,
-      method,
-      headers,
-      credentials: 'include', // Include session cookies for authentication
+    const response = await axiosInstance.request({
+        ...config,
+        url,
+        method,
+        data: payload,
+        params,
+        headers: requestHeaders,
     });
-  } catch (error) {
-    console.warn(`API request failed (${method} ${url}):`, error);
-    throw createApiConnectionError(error);
-  }
 
-  const contentType = response.headers.get('content-type') || '';
-  const isJson = contentType.includes('application/json');
-  const data = isJson ? await response.json() : await response.text();
-
-  if (!response.ok) {
-    const errorMsg =
-      (typeof data === 'object' && (data.detail || data.message || JSON.stringify(data))) ||
-      `HTTP Error ${response.status}`;
-    const err = new Error(errorMsg);
-    err.status = response.status;
-    err.data = data;
-    throw err;
-  }
-
-  return data;
+    return response.data;
 }
