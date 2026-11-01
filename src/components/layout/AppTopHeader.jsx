@@ -21,6 +21,7 @@ const NOTIFICATION_DOT_CLASSES = {
 export default function AppTopHeader({
   onOpenScanModal,
   onPlateDetected,
+  gateId = null,
   tabs = APP_NAVIGATION_TABS,
   activePath,
   activeTabHref,
@@ -84,9 +85,9 @@ export default function AppTopHeader({
     setIsScanModalOpen(true);
   };
 
-  const handlePlateDetected = (plate) => {
+  const handlePlateDetected = (plate, scanResult) => {
     if (onPlateDetected) {
-      onPlateDetected(plate);
+      onPlateDetected(plate, scanResult);
     }
     setIsScanModalOpen(false);
   };
@@ -365,6 +366,7 @@ export default function AppTopHeader({
         isOpen={isScanModalOpen}
         onClose={() => setIsScanModalOpen(false)}
         onDetected={handlePlateDetected}
+        gateId={gateId}
       />
     </>
   );

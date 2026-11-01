@@ -10,7 +10,7 @@ export function getCookie(name) {
   return null;
 }
 
-const API_UNAVAILABLE_MESSAGE =
+export const API_UNAVAILABLE_MESSAGE =
   "Không thể kết nối tới máy chủ. Vui lòng kiểm tra Docker/backend đã chạy tại cổng 8000 rồi thử lại.";
 
 function createApiConnectionError(error) {
@@ -40,6 +40,11 @@ export async function apiClient(endpoint, options = {}) {
     ...(options.headers || {}),
   };
 
+  // Let the browser generate multipart boundary automatically for FormData uploads
+  if (typeof FormData !== 'undefined' && options.body instanceof FormData) {
+    delete headers['Content-Type'];
+  }
+
   const method = (options.method || 'GET').toUpperCase();
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
     let csrfToken = getCookie('csrftoken');
@@ -64,6 +69,9 @@ export async function apiClient(endpoint, options = {}) {
       credentials: 'include', // Include session cookies for authentication
     });
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw error;
+    }
     console.warn(`API request failed (${method} ${url}):`, error);
     throw createApiConnectionError(error);
   }
@@ -79,6 +87,19 @@ export async function apiClient(endpoint, options = {}) {
     const err = new Error(errorMsg);
     err.status = response.status;
     err.data = data;
+    err.headers = response.headers;
+    const retryAfterHeader = response.headers?.get('retry-after');
+    if (retryAfterHeader) {
+      const parsedRetry = parseInt(retryAfterHeader, 10);
+      if (!Number.isNaN(parsedRetry) && parsedRetry > 0) {
+        err.retryAfter = parsedRetry;
+      } else {
+        const retryDateMs = Date.parse(retryAfterHeader);
+        if (!Number.isNaN(retryDateMs)) {
+          err.retryAfter = Math.max(1, Math.ceil((retryDateMs - Date.now()) / 1000));
+        }
+      }
+    }
     throw err;
   }
 
