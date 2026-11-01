@@ -1,0 +1,10 @@
+# Keep the Docker build context small and portable.
+# node_modules and dist are rebuilt inside the image (npm ci, npm run build);
+# local copies can contain Windows symlinks that break the build context.
+# .env is intentionally NOT ignored: vite build bakes its VITE_* values into the bundle.
+node_modules
+dist
+dist-ssr
+storybook-static
+.git
+*.log
