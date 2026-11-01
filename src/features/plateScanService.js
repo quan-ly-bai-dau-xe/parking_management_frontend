@@ -1,4 +1,4 @@
-import { apiClient, fetchCsrfToken, getCookie } from "../services/apiClient.js";
+import { apiClient, axiosInstance } from "../services/apiClient.js";
 
 /**
  * Plate Scan & Vehicle Lookup Services
@@ -21,45 +21,13 @@ export async function scanPlateImage(imageFile, gateId = 1) {
     formData.append('gate_id', gateId.toString());
   }
 
-  // Ensure CSRF token is attached for Django session authentication
-  let csrfToken = getCookie('csrftoken');
-  if (!csrfToken) {
-    try {
-      await fetchCsrfToken();
-      csrfToken = getCookie('csrftoken');
-    } catch {
-      // Ignore initial CSRF fetch errors if in testing/mock environment
-    }
-  }
-
-  const headers = {};
-  if (csrfToken) {
-    headers['X-CSRFToken'] = csrfToken;
-  }
-
-  // For multipart/form-data, do NOT set Content-Type header (browser sets boundary automatically)
-  const response = await fetch('/api/v1/parking/plate-scans/', {
-    method: 'POST',
-    body: formData,
-    headers,
-    credentials: 'include',
+  // Ensure Accept: application/json so backend DRF never tries to render HTML template
+  const response = await axiosInstance.post('/api/v1/parking/plate-scans/', formData, {
+    headers: {
+      Accept: 'application/json',
+    },
   });
-
-  const contentType = response.headers.get('content-type') || '';
-  const isJson = contentType.includes('application/json');
-  const data = isJson ? await response.json() : await response.text();
-
-  if (!response.ok) {
-    const errorMsg =
-      (typeof data === 'object' && (data.message || data.detail || JSON.stringify(data))) ||
-      `HTTP Error ${response.status}`;
-    const err = new Error(errorMsg);
-    err.status = response.status;
-    err.data = data;
-    throw err;
-  }
-
-  return data;
+  return response.data;
 }
 
 /**

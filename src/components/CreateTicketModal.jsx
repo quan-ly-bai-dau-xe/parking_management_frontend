@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BaseModal } from "./common/modal";
 
 export default function CreateTicketModal({ isOpen, onClose, onSave }) {
   const [formData, setFormData] = useState({
@@ -12,8 +13,6 @@ export default function CreateTicketModal({ isOpen, onClose, onSave }) {
     note: "",
   });
 
-  if (!isOpen) return null;
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -26,22 +25,13 @@ export default function CreateTicketModal({ isOpen, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-xl bg-white rounded-2xl shadow-xl border border-slate-100 p-6 space-y-5">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h3 className="text-base font-bold text-slate-900">Thêm vé mới</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <BaseModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Thêm vé mới"
+      size="xl"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -191,7 +181,6 @@ export default function CreateTicketModal({ isOpen, onClose, onSave }) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

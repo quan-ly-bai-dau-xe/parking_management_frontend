@@ -56,9 +56,10 @@ export const authService = {
     });
   },
 
-    verifyOtp: async ({account, otp}) => {
+    // eslint-disable-next-line no-unused-vars
+    verifyOtp: async ({ account, otp }) => {
         return new Promise((resolve, reject) => {
-            if (otp.trim() === '123456') {
+            if (otp?.trim() === '123456') {
                 resolve({success: true, message: "Xác thực OTP thành công"});
             } else {
                 reject(new Error("Mã OTP không chính xác hoăc hết hạn"));
@@ -66,7 +67,8 @@ export const authService = {
         })
     },
 
-    resetPassword: async ({account, otp, newPassword}) => {
+    // eslint-disable-next-line no-unused-vars
+    resetPassword: async ({ account, otp, newPassword }) => {
         return new Promise((resolve, reject) => {
             if (!newPassword || newPassword.length < 6) {
                 return reject(new Error("Mật khẩu mởi phải có ít nhất 6 ký tự"));

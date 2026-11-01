@@ -1,6 +1,7 @@
 export { default as LoadingSpinner } from "./LoadingSpinner";
 export { default as EmptyState } from "./EmptyState";
-export { default as ConfirmModal } from "./ConfirmModal";
+export { BaseModal, ConfirmModal } from "./modal";
+export * from "./modal";
 export { default as PageToolbar } from "./PageToolbar";
 export { default as FilterSelect } from "./FilterSelect";
 export { default as StatusBadge } from "./badge";

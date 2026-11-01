@@ -40,7 +40,7 @@ export default function VehicleTable({
     { header: "Loại vé", accessor: (row) => row.ticket.type },
     { header: "Ngày hết hạn vé", accessor: (row) => renderTicketBadge(row.ticket) },
     { header: "Vị trí đỗ", accessor: (row) => row.parkingSlot.display },
-    { header: "Trạng thái", accessor: (row) => renderStatusBadge(row.status) },
+    { header: "Trạng thái", accessor: (row) => renderStatusBadge(row.status, row.statusDisplay) },
     {
       header: "Thao tác",
       accessor: (row) => (

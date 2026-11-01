@@ -1,5 +1,3 @@
-import React from "react";
-
 export default function TicketDetailModal({ isOpen, onClose, ticket }) {
   if (!isOpen || !ticket) return null;
 

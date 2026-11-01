@@ -7,7 +7,7 @@ export default {
   argTypes: {
     status: {
       control: 'select',
-      options: ['parked', 'active', 'in_transit', 'maintenance'],
+      options: ['parked', 'active', 'in_transit', 'left', 'maintenance'],
       description: 'Mã trạng thái',
     },
     size: {
@@ -45,6 +45,14 @@ export const Active = {
 export const InTransit = {
   args: {
     status: 'in_transit',
+    size: 'sm',
+    showDot: true,
+  },
+};
+
+export const Left = {
+  args: {
+    status: 'left',
     size: 'sm',
     showDot: true,
   },

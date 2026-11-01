@@ -3,7 +3,7 @@
  * Centralizes vehicle and parking status badge rendering across the application.
  *
  * @param {Object} props
- * @param {'parked'|'active'|'in_transit'|'maintenance'|string} props.status - Status identifier
+ * @param {'parked'|'active'|'in_transit'|'left'|'maintenance'|string} props.status - Status identifier
  * @param {string} [props.label] - Optional custom label to override default status text
  * @param {boolean} [props.showDot=true] - Whether to show the status indicator dot
  * @param {'sm'|'md'} [props.size='sm'] - Badge size
@@ -30,6 +30,11 @@ export default function StatusBadge({
     in_transit: {
       label: "Đang di chuyển",
       badgeClass: "bg-slate-100 text-slate-700 border-slate-300",
+      dotClass: "bg-slate-400",
+    },
+    left: {
+      label: "Đã rời bãi",
+      badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
       dotClass: "bg-slate-400",
     },
     maintenance: {

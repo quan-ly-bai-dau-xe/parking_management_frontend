@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { authService } from "../features/authService";
+import { BaseModal } from "./common/modal";
 
 export default function ResetPasswordModal({ isOpen, onClose, account, otp, onSuccess }) {
     const [newPassword, setNewPassword] = useState("");
@@ -7,8 +8,6 @@ export default function ResetPasswordModal({ isOpen, onClose, account, otp, onSu
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-
-    if (!isOpen) return null;
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -36,26 +35,18 @@ export default function ResetPasswordModal({ isOpen, onClose, account, otp, onSu
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 sm:p-8">
-                {/* Header của Modal */}
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-slate-900">
-                        Đặt lại mật khẩu
-                    </h3>
-                    <button type="button"
-                    onClick={onClose}
-                    className="w-8 h-8 rounded-l flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors">
-                        X
-                    </button>
-                </div>
+        <BaseModal
+            isOpen={isOpen}
+            onClose={onClose}
+            title="Đặt lại mật khẩu"
+            size="md"
+        >
+            <p className="text-sm text-slate-500 mb-6">
+                Vui lòng thiết lập lại mật khẩu cho tài khoản {" "}
+                <strong className="text-slate-800">{account}</strong>
+            </p>
 
-                <p className="text-sm text-slate-500 mb-6">
-                    Vui lòng thiết lập lại mật khẩu cho tài khoản {" "}
-                    <strong className="text-slate-800">{account}</strong>
-                </p>
-
-                <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <label htmlFor="newPassword"
                         className="block text-sm font-semibold text-slate-700 mb-2">
@@ -139,7 +130,6 @@ export default function ResetPasswordModal({ isOpen, onClose, account, otp, onSu
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
+        </BaseModal>
     )
 }

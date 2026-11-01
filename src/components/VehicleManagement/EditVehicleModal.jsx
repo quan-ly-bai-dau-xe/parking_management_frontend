@@ -1,27 +1,26 @@
-import React, { useEffect, useState } from "react";
+import { useState } from "react";
+import { BaseModal } from "../common/modal";
 
 export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
   const [formData, setFormData] = useState({
     licensePlate: "",
-    vehicleType: "",
     customerName: "",
     customerPhone: "",
     parkingDisplay: "",
     status: "",
   });
+  const [prevVehicle, setPrevVehicle] = useState(null);
 
-  useEffect(() => {
-    if (!vehicle) return;
-
+  if (vehicle && vehicle !== prevVehicle) {
+    setPrevVehicle(vehicle);
     setFormData({
       licensePlate: vehicle.licensePlate || "",
-      vehicleType: vehicle.vehicleType || "",
       customerName: vehicle.customer?.name || "",
       customerPhone: vehicle.customer?.phone || "",
       parkingDisplay: vehicle.parkingSlot?.display || "",
       status: vehicle.status || "",
     });
-  }, [vehicle]);
+  }
 
   if (!isOpen || !vehicle) return null;
 
@@ -35,7 +34,6 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
     onSave({
       ...vehicle,
       licensePlate: formData.licensePlate.trim(),
-      vehicleType: formData.vehicleType,
       status: formData.status,
       customer: {
         ...vehicle.customer,
@@ -50,27 +48,13 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/50" onClick={onClose}></div>
-
-      <div className="relative z-10 w-full max-w-2xl rounded-xl bg-white border border-slate-200 shadow-xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">
-              {vehicle?.id === "NEW" ? "Thêm phương tiện" : "Chỉnh sửa phương tiện"}
-            </h2>
-
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-7 h-7 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-          >
-            ✕
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+    <BaseModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={vehicle?.id === "NEW" ? "Thêm phương tiện" : "Chỉnh sửa phương tiện"}
+      size="2xl"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
               <label className="block text-2xs font-semibold text-slate-500 mb-1">
@@ -83,22 +67,6 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
                 className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 required
               />
-            </div>
-
-            <div>
-              <label className="block text-2xs font-semibold text-slate-500 mb-1">
-                Loại xe
-              </label>
-              <select
-                value={formData.vehicleType}
-                onChange={(e) => handleChange("vehicleType", e.target.value)}
-                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              >
-                <option value="Ô tô">Ô tô</option>
-                <option value="Xe máy">Xe máy</option>
-                <option value="Xe điện">Xe điện</option>
-                <option value="Xe tải">Xe tải</option>
-              </select>
             </div>
 
             <div>
@@ -150,6 +118,7 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
                 <option value="parked">Đang đỗ</option>
                 <option value="active">Đang hoạt động</option>
                 <option value="in_transit">Đang di chuyển</option>
+                <option value="left">Đã rời bãi</option>
                 <option value="maintenance">Bảo trì</option>
               </select>
             </div>
@@ -171,7 +140,6 @@ export default function EditVehicleModal({ isOpen, onClose, vehicle, onSave }) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </BaseModal>
   );
 }
