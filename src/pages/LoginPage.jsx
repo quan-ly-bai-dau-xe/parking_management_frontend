@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { authService } from "../features/authService";
 import { ROUTES } from "../config/navigation";
 import OtpModal from "../components/OTPModal";
@@ -7,6 +7,7 @@ import ResetPasswordModal from "../components/ResetPasswordModal";
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     account: "",
     password: "",
@@ -21,6 +22,45 @@ export default function Login() {
   // Quản lý modal
   const [modal, setModal] = useState(null);
   const [verifiedOtp, setVerifiedOtp] = useState("");
+
+  // Hỗ trợ tự động điền / tự động đăng nhập khi chạy môi trường dev (qua query param ?account=...&password=...&autologin=1)
+  useEffect(() => {
+    const accParam = searchParams.get("account");
+    const pwdParam = searchParams.get("password");
+    const autoLogin = searchParams.get("autologin");
+
+    if (accParam || pwdParam) {
+      const initialData = {
+        account: accParam || "",
+        password: pwdParam || "",
+        rememberMe: true,
+      };
+      setFormData((prev) => ({
+        ...prev,
+        ...initialData,
+      }));
+
+      if (autoLogin === "1" && accParam && pwdParam) {
+        setLoading(true);
+        authService
+          .login(initialData)
+          .then((res) => {
+            setSubmittedStatus({
+              account: res.user?.account || initialData.account,
+            });
+            setTimeout(() => {
+              navigate(ROUTES.HOME);
+            }, 500);
+          })
+          .catch((err) => {
+            setErrorMessage(err.message || "Tự động đăng nhập thất bại.");
+          })
+          .finally(() => {
+            setLoading(false);
+          });
+      }
+    }
+  }, [searchParams, navigate]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;

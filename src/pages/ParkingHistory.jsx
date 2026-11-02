@@ -3,7 +3,7 @@ import { EmptyState, ConfirmModal, LoadingSpinner, Pagination } from "../compone
 import { getParkingSessions, mapSessionToFrontend } from "../features/plateScanService";
 import usePagination from "../hooks/usePagination";
 
-export default function ParkingHistory({ onNavigateTab }) {
+export default function ParkingHistory() {
   // Filter form states matching UI: Mã phiên đỗ, Biển số xe, Thời gian vào đậu, Thời gian ra bãi, Cước phí
   const [sessionCode, setSessionCode] = useState("");
   const [licensePlate, setLicensePlate] = useState("");

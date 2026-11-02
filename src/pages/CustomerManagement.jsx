@@ -7,6 +7,7 @@ import {
   Icon,
   Button,
 } from "../components/common";
+import CustomerModal from "../components/CustomerManagement/CustomerModal";
 import { customerService } from "../services/customerService";
 import usePagination from "../hooks/usePagination";
 
@@ -795,209 +796,22 @@ export default function CustomerManagement() {
         </div>
 
         {/* Modal Thêm / Sửa khách hàng */}
-        {showAddModal && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-            <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl p-6">
-              <h2 className="mb-4 text-lg font-bold text-slate-900">
-                {editingCustomerId ? "Sửa thông tin khách hàng" : "Thêm khách hàng mới"}
-              </h2>
-
-              <form onSubmit={handleSubmitCustomer} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-2xs font-semibold text-slate-600">
-                      Mã khách hàng
-                    </label>
-                    <input
-                      required
-                      value={newCustomer.customerCode}
-                      onChange={(e) =>
-                        setNewCustomer((current) => ({
-                          ...current,
-                          customerCode: e.target.value,
-                        }))
-                      }
-                      placeholder="Nhập mã khách hàng..."
-                      className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-2xs font-semibold text-slate-600">
-                      Tên khách hàng
-                    </label>
-                    <input
-                      required
-                      value={newCustomer.name}
-                      onChange={(e) =>
-                        setNewCustomer((current) => ({
-                          ...current,
-                          name: e.target.value,
-                        }))
-                      }
-                      placeholder="Nhập tên khách hàng..."
-                      className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-2xs font-semibold text-slate-600">
-                      Số điện thoại
-                    </label>
-                    <input
-                      required
-                      value={newCustomer.phone}
-                      onChange={(e) =>
-                        setNewCustomer((current) => ({
-                          ...current,
-                          phone: e.target.value,
-                        }))
-                      }
-                      placeholder="Nhập số điện thoại..."
-                      className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-2xs font-semibold text-slate-600">
-                      Số CCCD
-                    </label>
-                    <input
-                      required
-                      value={newCustomer.idNumber}
-                      onChange={(e) =>
-                        setNewCustomer((current) => ({
-                          ...current,
-                          idNumber: e.target.value,
-                        }))
-                      }
-                      placeholder="Nhập số CCCD..."
-                      className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-2xs font-semibold text-slate-600">
-                      Ngày sinh
-                    </label>
-                    <input
-                      value={newCustomer.birthday}
-                      onChange={(e) =>
-                        setNewCustomer((current) => ({
-                          ...current,
-                          birthday: e.target.value,
-                        }))
-                      }
-                      placeholder="dd/mm/yyyy"
-                      className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-2xs font-semibold text-slate-600">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={newCustomer.email}
-                      onChange={(e) =>
-                        setNewCustomer((current) => ({
-                          ...current,
-                          email: e.target.value,
-                        }))
-                      }
-                      placeholder="Nhập email..."
-                      className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-2xs font-semibold text-slate-600">
-                      Giới tính
-                    </label>
-                    <select
-                      value={newCustomer.gender}
-                      onChange={(e) =>
-                        setNewCustomer((current) => ({
-                          ...current,
-                          gender: e.target.value,
-                        }))
-                      }
-                      className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500"
-                    >
-                      <option value="Nam">Nam</option>
-                      <option value="Nữ">Nữ</option>
-                      <option value="Khác">Khác</option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-2xs font-semibold text-slate-600">
-                      Gói thuê bao
-                    </label>
-                    <select
-                      value={newCustomer.packageType || "Gói tháng"}
-                      onChange={(e) =>
-                        setNewCustomer((current) => ({
-                          ...current,
-                          packageType: e.target.value,
-                        }))
-                      }
-                      className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500"
-                    >
-                      <option value="Gói tháng">Gói tháng</option>
-                      <option value="Gói quý">Gói quý</option>
-                      <option value="Gói năm">Gói năm</option>
-                      <option value="Vãng lai">Vãng lai</option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col gap-1 sm:col-span-2">
-                    <label className="text-2xs font-semibold text-slate-600">
-                      Trạng thái
-                    </label>
-                    <select
-                      value={newCustomer.status || "Đang hoạt động"}
-                      onChange={(e) =>
-                        setNewCustomer((current) => ({
-                          ...current,
-                          status: e.target.value,
-                        }))
-                      }
-                      className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500"
-                    >
-                      <option value="Đang hoạt động">Đang hoạt động</option>
-                      <option value="Sắp hết hạn">Sắp hết hạn</option>
-                      <option value="Tạm khóa">Tạm khóa</option>
-                      <option value="Hết hạn">Hết hạn</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setShowAddModal(false);
-                      setEditingCustomerId(null);
-                    }}
-                  >
-                    Hủy
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                  >
-                    {editingCustomerId ? "Cập nhật" : "Thêm khách hàng"}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        <CustomerModal
+          isOpen={showAddModal}
+          onClose={() => {
+            setShowAddModal(false);
+            setEditingCustomerId(null);
+          }}
+          editingCustomerId={editingCustomerId}
+          customerData={newCustomer}
+          onChange={(field, value) =>
+            setNewCustomer((current) => ({
+              ...current,
+              [field]: value,
+            }))
+          }
+          onSubmit={handleSubmitCustomer}
+        />
     </>
   );
 }

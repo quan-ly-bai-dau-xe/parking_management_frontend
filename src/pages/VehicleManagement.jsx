@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import {
+  fetchVehicles,
   fetchVehicleSummary,
   mapVehicleSearchItem,
-  searchVehicles,
 } from "../features/vehicleService";
 import usePagination from "../hooks/usePagination";
 import ScanPlateModal from "../components/VehicleManagement/ScanPlateModal";
@@ -17,6 +17,18 @@ import {
   LoadingSpinner,
 } from "../components/common";
 
+// Helper chuẩn hoá chuỗi tìm kiếm tiếng Việt (hỗ trợ cả có dấu và không dấu)
+function normalizeSearchText(str) {
+  if (!str) return "";
+  return String(str)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim();
+}
+
 export default function VehicleManagement() {
   const [vehicles, setVehicles] = useState([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState(null);
@@ -27,7 +39,7 @@ export default function VehicleManagement() {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isUsingBackendData, setIsUsingBackendData] = useState(false);
   const [backendError, setBackendError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [vehicleStats, setVehicleStats] = useState(null);
 
   // Filter and form state
@@ -62,38 +74,33 @@ export default function VehicleManagement() {
   }, []);
 
   useEffect(() => {
-    const query = filters.search.trim();
-    if (query.length < 2) {
-      setVehicles([]);
-      setIsUsingBackendData(false);
-      setBackendError("");
-      setIsLoading(false);
-      return;
-    }
+    let isMounted = true;
 
-    let cancelled = false;
-    setBackendError("");
-    setIsLoading(true);
-    searchVehicles(query)
+    fetchVehicles({ page_size: 100 })
       .then((payload) => {
-        if (cancelled) return;
-        const results = Array.isArray(payload) ? payload : payload.results || [];
-        setVehicles(results.filter(Boolean).map(mapVehicleSearchItem));
+        if (!isMounted) return;
+        const results = Array.isArray(payload) ? payload : payload?.results || [];
+        const mapped = results.filter(Boolean).map(mapVehicleSearchItem);
+        setVehicles(mapped);
         setIsUsingBackendData(true);
-        setCurrentPage(1);
+        setSelectedVehicleId((prev) => (prev || (mapped.length > 0 ? mapped[0].id : null)));
       })
-      .catch(() => {
-        if (cancelled) return;
-        setVehicles([]);
+      .catch((err) => {
+        if (!isMounted) return;
+        console.warn("Could not load vehicles from backend:", err);
+        setBackendError("Không thể tải danh sách phương tiện từ máy chủ.");
         setIsUsingBackendData(false);
-        setBackendError("Không thể tải dữ liệu phương tiện từ backend.");
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       });
 
-    return () => { cancelled = true; };
-  }, [filters.search]);
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Active selected vehicle for detail bottom panels
   const selectedVehicle = useMemo(() => {
@@ -104,12 +111,24 @@ export default function VehicleManagement() {
   const filteredVehicles = useMemo(() => {
     return vehicles.filter((item) => {
       if (filters.search) {
-        const s = filters.search.toLowerCase();
-        if (
-          !(item.licensePlate || "").toLowerCase().includes(s) &&
-          !(item.customer?.name || "").toLowerCase().includes(s) &&
-          !(item.customer?.phone || "").toLowerCase().includes(s)
-        ) {
+        const rawSearch = filters.search.trim().toLowerCase();
+        const normSearch = normalizeSearchText(filters.search);
+
+        const plate = (item.licensePlate || "").toLowerCase();
+        const customerName = (item.customer?.name || "").toLowerCase();
+        const phone = (item.customer?.phone || "").toLowerCase();
+
+        const matchesRaw =
+          plate.includes(rawSearch) ||
+          customerName.includes(rawSearch) ||
+          phone.includes(rawSearch);
+
+        const matchesNormalized =
+          normalizeSearchText(item.licensePlate).includes(normSearch) ||
+          normalizeSearchText(item.customer?.name).includes(normSearch) ||
+          normalizeSearchText(item.customer?.phone).includes(normSearch);
+
+        if (!matchesRaw && !matchesNormalized) {
           return false;
         }
       }
@@ -236,7 +255,7 @@ export default function VehicleManagement() {
   };
 
   // Helper for status badge rendering
-  const renderStatusBadge = (status) => <StatusBadge status={status} />;
+  const renderStatusBadge = (status, label) => <StatusBadge status={status} label={label} />;
 
   const renderTicketBadge = (ticket) => {
     if (ticket.status === "warning") {
@@ -302,9 +321,10 @@ export default function VehicleManagement() {
               type="text"
               placeholder="Tìm biển số, tên hoặc SĐT khách hàng..."
               value={filters.search}
-              onChange={(e) =>
-                setFilters({ ...filters, search: e.target.value })
-              }
+              onChange={(e) => {
+                setFilters({ ...filters, search: e.target.value });
+                setCurrentPage(1);
+              }}
               className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
             />
           </div>
@@ -313,9 +333,10 @@ export default function VehicleManagement() {
           <FilterSelect
             label="Loại vé"
             value={filters.ticketType}
-            onChange={(e) =>
-              setFilters({ ...filters, ticketType: e.target.value })
-            }
+            onChange={(e) => {
+              setFilters({ ...filters, ticketType: e.target.value });
+              setCurrentPage(1);
+            }}
             placeholder="Tất cả loại vé"
             options={["Vé tháng", "Vé ngày", "Vé quý", "Vé năm"]}
           />
@@ -324,14 +345,16 @@ export default function VehicleManagement() {
           <FilterSelect
             label="Trạng thái"
             value={filters.status}
-            onChange={(e) =>
-              setFilters({ ...filters, status: e.target.value })
-            }
+            onChange={(e) => {
+              setFilters({ ...filters, status: e.target.value });
+              setCurrentPage(1);
+            }}
             placeholder="Tất cả trạng thái"
             options={[
               { value: "parked", label: "Đang đỗ" },
               { value: "active", label: "Đang hoạt động" },
               { value: "in_transit", label: "Đang di chuyển" },
+              { value: "left", label: "Đã rời bãi" },
             ]}
           />
 
@@ -339,9 +362,10 @@ export default function VehicleManagement() {
           <FilterSelect
             label="Tình trạng vé"
             value={filters.ticketStatus}
-            onChange={(e) =>
-              setFilters({ ...filters, ticketStatus: e.target.value })
-            }
+            onChange={(e) => {
+              setFilters({ ...filters, ticketStatus: e.target.value });
+              setCurrentPage(1);
+            }}
             placeholder="Tất cả"
             options={[
               { value: "active", label: "Còn hạn" },
@@ -576,7 +600,7 @@ export default function VehicleManagement() {
 
                         {/* Trạng thái */}
                         <td className="py-3.5 px-3.5">
-                          {renderStatusBadge(vehicle.status)}
+                          {renderStatusBadge(vehicle.status, vehicle.statusDisplay)}
                         </td>
 
                         {/* Thao tác */}
@@ -742,7 +766,7 @@ export default function VehicleManagement() {
                     {selectedVehicle.licensePlate}
                   </span>
                   <div className="mt-0.5">
-                    {renderStatusBadge(selectedVehicle.status)}
+                    {renderStatusBadge(selectedVehicle.status, selectedVehicle.statusDisplay)}
                   </div>
                 </div>
               </div>
@@ -756,12 +780,6 @@ export default function VehicleManagement() {
                   <span className="font-semibold text-slate-800">
                     {selectedVehicle.customer.id} —{" "}
                     {selectedVehicle.customer.name}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-2xs text-slate-400 block">Loại xe</span>
-                  <span className="font-semibold text-slate-800">
-                    {selectedVehicle.vehicleType}
                   </span>
                 </div>
                 <div>

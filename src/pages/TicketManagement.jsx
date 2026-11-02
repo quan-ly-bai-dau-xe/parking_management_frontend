@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { initialTickets } from "../mocks/ticketsData";
 import { Pagination } from "../components/common";
 import CreateTicketModal from "../components/CreateTicketModal";
 import RenewTicketModal from "../components/RenewTicketModal";
 import TicketDetailModal from "../components/TicketDetailModal";
 
-export default function Ticket({ onNavigatedTab }) {
+export default function Ticket() {
     const [tickets] = useState(initialTickets);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(5);

@@ -1,7 +1,8 @@
-﻿// src/pages/Home.jsx
+// src/pages/Home.jsx
 import { useEffect, useState } from "react";
 import { dashboardService } from "../features/dashboardService";
 import AppTopHeader from "../components/layout/AppTopHeader";
+import { BaseModal } from "../components/common/modal";
 
 export default function Home({ onNavigateTab }) {
   const [loading, setLoading] = useState(true);
@@ -17,7 +18,6 @@ export default function Home({ onNavigateTab }) {
 
   // Nạp toàn bộ dữ liệu khi khởi động trang
   useEffect(() => {
-    setLoading(true);
     dashboardService
       .loadInitialDashboard("B1")
       .then((data) => {
@@ -414,35 +414,18 @@ export default function Home({ onNavigateTab }) {
       </div>
 
       {/* Modal xem ảnh camera đối soát phóng to */}
-      {selectedImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fadeIn"
-          onClick={() => setSelectedImage(null)}
-        >
-          <div
-            className="bg-white p-3 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-3">
-              <span className="text-sm font-semibold text-slate-800">
-                Ảnh chụp camera đối soát biển số
-              </span>
-              <button
-                type="button"
-                onClick={() => setSelectedImage(null)}
-                className="w-7 h-7 rounded-lg text-slate-400 hover:bg-slate-100 flex items-center justify-center"
-              >
-                ✕
-              </button>
-            </div>
-            <img
-              src={selectedImage}
-              alt="Ảnh đối soát"
-              className="w-full h-auto max-h-[70vh] object-contain rounded-xl"
-            />
-          </div>
-        </div>
-      )}
+      <BaseModal
+        isOpen={Boolean(selectedImage)}
+        onClose={() => setSelectedImage(null)}
+        title="Ảnh chụp camera đối soát biển số"
+        size="lg"
+      >
+        <img
+          src={selectedImage}
+          alt="Ảnh đối soát"
+          className="w-full h-auto max-h-[70vh] object-contain rounded-xl"
+        />
+      </BaseModal>
     </main>
   );
 }

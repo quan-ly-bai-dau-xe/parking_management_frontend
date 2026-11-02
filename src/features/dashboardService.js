@@ -45,70 +45,70 @@ export const dashboardService = {
   /**
    * 2. LẤY DANH SÁCH LỊCH SỬ XE RA VÀO
    */
-    getAllHistory: () => {
-        return new Promise((resolve) => {
-            delay().then(() => {
-                resolve({
-                success: true,
-                data: [...mockParkingHistory],
-                total: mockParkingHistory.length,
-                });
-            });
+  getAllHistory: () => {
+    return new Promise((resolve) => {
+      delay().then(() => {
+        resolve({
+          success: true,
+          data: [...mockParkingHistory],
+          total: mockParkingHistory.length,
         });
-    },
+      });
+    });
+  },
 
   /**
    * Tìm kiếm và lọc lịch sử xe
    * @param {Object} filterParams - { keyword, vehicleType, status }
    * @returns {Promise<Array>}
    */
-    filterHistory: ({ keyword = "", vehicleType = "ALL", status = "ALL" }) => {
-        return new Promise((resolve) => {
-            delay(250).then(() => {
-                const query = keyword.trim().toLowerCase();
+  filterHistory: ({ keyword = "", vehicleType = "ALL", status = "ALL" }) => {
+    return new Promise((resolve) => {
+      delay(250).then(() => {
+        const query = keyword.trim().toLowerCase();
 
-                const filtered = mockParkingHistory.filter((item) => {
-                // Lọc theo từ khóa (Biển số hoặc Mã phiên)
-                const matchKeyword =
-                    !query ||
-                    item.licensePlate.toLowerCase().includes(query) ||
-                    item.sessionCode.toLowerCase().includes(query);
+        const filtered = mockParkingHistory.filter((item) => {
+          // Lọc theo từ khóa (Biển số hoặc Mã phiên)
+          const matchKeyword =
+            !query ||
+            item.licensePlate.toLowerCase().includes(query) ||
+            item.sessionCode.toLowerCase().includes(query);
 
-                // Lọc theo loại phương tiện
-                const matchVehicle =
-                    vehicleType === "ALL" || item.vehicleType === vehicleType;
+          // Lọc theo loại phương tiện
+          const matchVehicle =
+            vehicleType === "ALL" || item.vehicleType === vehicleType;
 
-                // Lọc theo trạng thái
-                const matchStatus =
-                    status === "ALL" || item.status === status;
+          // Lọc theo trạng thái
+          const matchStatus =
+            status === "ALL" || item.status === status;
 
-                return matchKeyword && matchVehicle && matchStatus;
-                });
-
-                resolve({
-                    success: true,
-                    data: filtered,
-                    total: filtered.length,
-                });
-            });
+          return matchKeyword && matchVehicle && matchStatus;
         });
-    },
 
-    /**
-     * Lấy chi tiết 1 phiên đỗ xe theo ID
-     */
-    getHistoryById: (id) => {
-        return new Promise((resolve, reject) => {
-            delay(200).then(() => {
-                const record = mockParkingHistory.find((item) => item.id === id);
-                if (record) {
-                    resolve({ success: true, data: record });
-                } else {
-                    reject(new Error(`Không tìm thấy phiên đỗ xe mã ${id}`));
-                }
-            });
+        resolve({
+          success: true,
+          data: filtered,
+          total: filtered.length,
         });
-    },
+      });
+    });
+  },
+
+  /**
+   * Lấy chi tiết 1 phiên đỗ xe theo ID
+   */
+  getHistoryById: (id) => {
+    return new Promise((resolve, reject) => {
+      delay(200).then(() => {
+        const record = mockParkingHistory.find((item) => item.id === id);
+        if (record) {
+          resolve({ success: true, data: record });
+        } else {
+          reject(new Error(`Không tìm thấy phiên đỗ xe mã ${id}`));
+        }
+      });
+    });
+  },
 
   /**
    * 3. LẤY DANH SÁCH CẢNH BÁO BẤT THƯỜNG
@@ -131,14 +131,17 @@ export const dashboardService = {
   getOverviewMetrics: () => {
     return new Promise((resolve) => {
       delay(350).then(() => {
+
         // Tổng số khu bãi trên toàn hệ thống
+        // eslint-disable-next-line no-unused-vars
         const totalZones = mockParkingFloors.reduce(
           (acc, floor) => acc + floor.zones.length,
           0
         );
-
         // Tính tổng lượt xe vào và ra
+        // eslint-disable-next-line no-unused-vars
         const inCount = mockParkingHistory.filter((l) => l.direction === "IN").length;
+        // eslint-disable-next-line no-unused-vars
         const outCount = mockParkingHistory.filter((l) => l.direction === "OUT").length;
 
         // Trả về đúng format 4 thẻ StatCard của nửa trên
@@ -177,17 +180,17 @@ export const dashboardService = {
   /**
    * LẤY TOÀN BỘ DỮ LIỆU ĐỒNG THỜI KHI NẠP TRANG CHỦ
    */
-    loadInitialDashboard: (defaultFloor = "B1") => {
-        return Promise.all([
-            dashboardService.getOverviewMetrics(),
-            dashboardService.getAnomalyAlerts(),
-            dashboardService.getAllHistory(), // <-- Sửa từ getTrafficLogs() thành getAllHistory()
-            dashboardService.getFloorDetails(defaultFloor),
-        ]).then(([metrics, alerts, history, floorData]) => ({
-            stats: metrics.data,
-            alerts: alerts.data,
-            history: history.data,
-            currentFloor: floorData.data,
-        }));
+  loadInitialDashboard: (defaultFloor = "B1") => {
+    return Promise.all([
+      dashboardService.getOverviewMetrics(),
+      dashboardService.getAnomalyAlerts(),
+      dashboardService.getAllHistory(), // <-- Sửa từ getTrafficLogs() thành getAllHistory()
+      dashboardService.getFloorDetails(defaultFloor),
+    ]).then(([metrics, alerts, history, floorData]) => ({
+      stats: metrics.data,
+      alerts: alerts.data,
+      history: history.data,
+      currentFloor: floorData.data,
+    }));
   },
 };

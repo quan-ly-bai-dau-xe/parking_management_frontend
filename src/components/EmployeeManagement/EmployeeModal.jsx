@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BaseModal } from "../common/modal";
 
 const ROLE_OPTIONS = [
   "Quản lý",
@@ -83,36 +84,18 @@ function EmployeeModalContent({ onClose, employee, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
-      <div
-        className="fixed inset-0"
-        aria-hidden="true"
-        onClick={onClose}
-      />
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-xl border border-slate-100 p-6 space-y-5 z-10 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h3 className="text-base font-bold text-slate-900">
-              {isEditing ? "Chỉnh sửa nhân viên" : "Thêm nhân viên mới"}
-            </h3>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {isEditing
-                ? "Cập nhật thông tin nhân sự trong hệ thống."
-                : "Điền đầy đủ thông tin để tạo hồ sơ nhân viên mới."}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <BaseModal
+      isOpen={true}
+      onClose={onClose}
+      title={isEditing ? "Chỉnh sửa nhân viên" : "Thêm nhân viên mới"}
+      description={
+        isEditing
+          ? "Cập nhật thông tin nhân sự trong hệ thống."
+          : "Điền đầy đủ thông tin để tạo hồ sơ nhân viên mới."
+      }
+      size="lg"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -294,8 +277,7 @@ function EmployeeModalContent({ onClose, employee, onSave }) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </BaseModal>
   );
 }
 
