@@ -1,53 +1,36 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
+import { BaseModal } from "./common/modal";
 
 export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm }) {
-  const [formData, setFormData] = useState({
-    newTicketType: "",
-    newSlot: "",
-    newEndDate: "2026-12-07",
-    renewPrice: "500000",
-    note: "",
-  });
-
-  useEffect(() => {
-    if (ticket) {
-      setFormData((prev) => ({
-        ...prev,
-        newTicketType: ticket.ticketType || "",
-        newSlot: ticket.slotLocation || "",
-      }));
-    }
-  }, [ticket]);
-
-  if (!isOpen) return null;
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  const [ticketType, setTicketType] = useState(ticket?.ticketType || "");
+  const [slot, setSlot] = useState(ticket?.slotLocation || "");
+  const [newEndDate, setNewEndDate] = useState("2026-12-07");
+  const [renewPrice, setRenewPrice] = useState("500000");
+  const [note, setNote] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (onConfirm) onConfirm({ ticketId: ticket?.ticketCode, ...formData });
+    if (onConfirm) {
+      onConfirm({
+        ticketId: ticket?.ticketCode,
+        newTicketType: ticketType,
+        newSlot: slot,
+        newEndDate,
+        renewPrice,
+        note,
+      });
+    }
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-slate-100 p-6 space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h3 className="text-base font-bold text-slate-900">Gia hạn vé</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+    <BaseModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Gia hạn vé"
+      size="lg"
+    >
+      <form onSubmit={handleSubmit} className="space-y-3.5">
           {/* Mã vé (Readonly) */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -67,8 +50,8 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
             </label>
             <select
               name="newTicketType"
-              value={formData.newTicketType}
-              onChange={handleChange}
+              value={ticketType}
+              onChange={(e) => setTicketType(e.target.value)}
               required
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
@@ -85,8 +68,8 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
             </label>
             <select
               name="newSlot"
-              value={formData.newSlot}
-              onChange={handleChange}
+              value={slot}
+              onChange={(e) => setSlot(e.target.value)}
               required
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
@@ -104,8 +87,8 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
             <input
               type="date"
               name="newEndDate"
-              value={formData.newEndDate}
-              onChange={handleChange}
+              value={newEndDate}
+              onChange={(e) => setNewEndDate(e.target.value)}
               required
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
@@ -119,8 +102,8 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
               <input
                 type="text"
                 name="renewPrice"
-                value={formData.renewPrice}
-                onChange={handleChange}
+                value={renewPrice}
+                onChange={(e) => setRenewPrice(e.target.value)}
                 required
                 className="w-full px-3.5 py-2.5 pr-8 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
               />
@@ -137,8 +120,8 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
             <textarea
               name="note"
               rows={2}
-              value={formData.note}
-              onChange={handleChange}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
               placeholder="Nhập ghi chú..."
               className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
@@ -161,7 +144,6 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

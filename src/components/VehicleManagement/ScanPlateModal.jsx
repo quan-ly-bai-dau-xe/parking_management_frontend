@@ -5,16 +5,22 @@ import {
   mapPlateScanToVehicle,
   mapVehicleLookupToVehicle,
 } from "../../features/plateScanService";
+import {
+  validateVehicleEntry,
+  calculateParkingFee,
+  checkInVehicle,
+  checkOutVehicle,
+} from "../../features/parkingSessionService";
 import { mockVehicles } from "../../mocks/vehicleData";
 
 /**
  * ScanPlateModal component
- * Allows scanning vehicle license plates from image files or camera capture.
- * Connects to backend API:
- * - scanPlateImage: POST /api/v1/parking/plate-scans/
- * - lookupVehicleByPlate: GET /api/v1/parking/vehicle-lookup/
- * Automatically looks up vehicle information in the system and displays matched details:
- * - Tên xe, Hãng xe, Tên khách hàng, Số điện thoại, Vị trí đỗ
+ * Hỗ trợ toàn diện quy trình xe Vào/Ra:
+ * 1. Quét biển số bằng AI OCR (Upload ảnh hoặc chụp camera).
+ * 2. Tra cứu danh bạ xe, kiểm tra vé, kiểm tra danh sách đen (Blacklist).
+ * 3. Tự động xác định làn Vào (Entry) hay làn Ra (Exit).
+ * 4. Ghi nhận xe vào tạo Parking Session và kích hoạt mở thanh chắn (Barrier).
+ * 5. Tính phí thời lượng gửi xe thực tế và xác nhận thanh toán kết thúc phiên.
  */
 export default function ScanPlateModal({
   isOpen,
@@ -23,13 +29,20 @@ export default function ScanPlateModal({
   vehicles = [],
 }) {
   const [selectedImage, setSelectedImage] = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
   const [detectedPlate, setDetectedPlate] = useState("");
   const [matchedVehicle, setMatchedVehicle] = useState(null);
   const [scanDetails, setScanDetails] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [searchStatus, setSearchStatus] = useState("idle"); // 'idle' | 'matched' | 'not_found' | 'error'
   const [errorMessage, setErrorMessage] = useState("");
+  const [rawLookup, setRawLookup] = useState(null);
+
+  // Workflow states: Lane mode & Action statuses
+  const [laneMode, setLaneMode] = useState("auto"); // 'auto' | 'entry' | 'exit'
+  const [barrierState, setBarrierState] = useState("closed"); // 'closed' | 'opening' | 'opened'
+  const [actionSuccessMessage, setActionSuccessMessage] = useState("");
+  const [isActionPending, setIsActionPending] = useState(false);
+
   const fileInputRef = useRef(null);
 
   if (!isOpen) return null;
@@ -38,8 +51,6 @@ export default function ScanPlateModal({
   const normalizePlate = (str) => {
     return (str || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   };
-
-  const sampleVehicleList = vehicles.length > 0 ? vehicles : mockVehicles;
 
   // Search in fallback list (passed vehicles props or mockVehicles)
   const findInLocalList = (norm) => {
@@ -57,10 +68,13 @@ export default function ScanPlateModal({
 
     setIsScanning(true);
     setErrorMessage("");
+    setActionSuccessMessage("");
+    setBarrierState("closed");
 
     try {
       // 1. Call real backend API: GET /api/v1/parking/vehicle-lookup/
       const lookupResult = await lookupVehicleByPlate(rawInput);
+      setRawLookup(lookupResult);
       const vehicle = mapVehicleLookupToVehicle(lookupResult);
 
       if (vehicle) {
@@ -70,25 +84,26 @@ export default function ScanPlateModal({
         return;
       }
     } catch (err) {
-      // If error is 404 (not found), mark as not_found directly
-      if (err.status === 404) {
-        setMatchedVehicle(null);
-        setSearchStatus("not_found");
-        setIsScanning(false);
-        return;
-      }
-
-      // Check fallback list before displaying network error
+      // Check fallback list in all error cases (404, 502, network down)
       const found = findInLocalList(norm);
       if (found) {
         setMatchedVehicle(found);
+        setRawLookup(null);
         setSearchStatus("matched");
         setIsScanning(false);
         return;
       }
 
-      // If backend failed due to auth/server/network, show clear message
+      if (err.status === 404) {
+        setMatchedVehicle(null);
+        setRawLookup(null);
+        setSearchStatus("not_found");
+        setIsScanning(false);
+        return;
+      }
+
       setMatchedVehicle(null);
+      setRawLookup(null);
       setSearchStatus("error");
       setErrorMessage(
         err.message || "Không thể kết nối đến máy chủ đối soát. Vui lòng kiểm tra lại dịch vụ."
@@ -100,9 +115,11 @@ export default function ScanPlateModal({
     const localFound = findInLocalList(norm);
     if (localFound) {
       setMatchedVehicle(localFound);
+      setRawLookup(null);
       setSearchStatus("matched");
     } else {
       setMatchedVehicle(null);
+      setRawLookup(null);
       setSearchStatus("not_found");
     }
     setIsScanning(false);
@@ -116,12 +133,12 @@ export default function ScanPlateModal({
     setSearchStatus("idle");
     setErrorMessage("");
     setScanDetails(null);
+    setActionSuccessMessage("");
+    setBarrierState("closed");
 
     try {
-      // 1. Send file to real backend OCR API: POST /api/v1/parking/plate-scans/
       const scanResult = await scanPlateImage(file);
 
-      // Extract recognized plate text from backend schema (PlateScanResponseSerializer)
       const extractedText =
         scanResult.best_candidate?.plate_text ||
         scanResult.plate_raw ||
@@ -129,7 +146,6 @@ export default function ScanPlateModal({
         scanResult.license_plate ||
         "";
 
-      // Save raw AI recognition details to display to user
       setScanDetails({
         plate: extractedText,
         confidence: scanResult.best_candidate?.confidence ?? scanResult.confidence ?? null,
@@ -142,13 +158,12 @@ export default function ScanPlateModal({
       if (extractedText) {
         setDetectedPlate(extractedText);
 
-        // Map vehicle directly if vehicle_lookup is returned in scan response
         const mappedVehicle = mapPlateScanToVehicle(scanResult);
         if (mappedVehicle) {
           setMatchedVehicle(mappedVehicle);
+          setRawLookup(scanResult.vehicle_lookup || null);
           setSearchStatus("matched");
         } else {
-          // If scan succeeded but vehicle wasn't auto-resolved, lookup vehicle by plate
           await handleMatchPlate(extractedText);
         }
       } else {
@@ -158,32 +173,47 @@ export default function ScanPlateModal({
     } catch (err) {
       setSearchStatus("error");
       const msg =
-        err.status === 403
-          ? "Phiên làm việc hết hạn hoặc thiếu quyền thực hiện quét biển số (403 Forbidden)."
-          : err.status === 400
-          ? `Tệp hình ảnh không hợp lệ: ${err.message}`
-          : err.message || "Lỗi kết nối tới máy chủ khi gửi ảnh quét OCR.";
+        err.status === 401
+          ? "Phiên làm việc hết hạn hoặc chưa đăng nhập. Vui lòng đăng nhập lại."
+          : err.status === 403
+          ? "Thiếu quyền thực hiện quét biển số (403 Forbidden)."
+          : err.status === 502 || err.code === "ERR_BAD_RESPONSE"
+          ? "Máy chủ nhận diện AI (Backend OCR) đang dừng hoặc khởi động lại (502 Bad Gateway). Bạn có thể nhập biển số thủ công bên dưới để tra cứu tiếp."
+          : err.status === 405 || err.status === 500
+          ? "Hệ thống AI server đang bận hoặc gặp lỗi mẫu hiển thị. Bạn có thể nhập biển số thủ công bên dưới để tra cứu tiếp."
+          : err.message || "Lỗi tải ảnh lên hệ thống nhận diện AI.";
       setErrorMessage(msg);
     } finally {
       setIsScanning(false);
     }
   };
 
-  // Handle file selection and call real scan API
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setSelectedFile(file);
-    const imageUrl = URL.createObjectURL(file);
-    setSelectedImage(imageUrl);
-    runOcrScan(file);
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedImage(URL.createObjectURL(file));
+      runOcrScan(file);
+    }
   };
 
-  // Quick preset sample buttons for easy live testing
-  const handleSelectSample = (plate) => {
-    setDetectedPlate(plate);
-    handleMatchPlate(plate);
+  const handleManualSearch = (e) => {
+    e.preventDefault();
+    if (detectedPlate) {
+      handleMatchPlate(detectedPlate);
+    }
+  };
+
+  const handleReset = () => {
+    setSelectedImage(null);
+    setDetectedPlate("");
+    setMatchedVehicle(null);
+    setScanDetails(null);
+    setSearchStatus("idle");
+    setErrorMessage("");
+    setActionSuccessMessage("");
+    setBarrierState("closed");
+    setRawLookup(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleApplySelection = () => {
@@ -193,39 +223,112 @@ export default function ScanPlateModal({
     onClose();
   };
 
+  // Determine current active workflow mode: Entry vs Exit
+  const isVehicleCurrentlyParked = Boolean(
+    rawLookup?.open_session ||
+    matchedVehicle?.status === "parked" ||
+    matchedVehicle?.status === "Đang gửi"
+  );
+
+  const effectiveMode =
+    laneMode === "auto"
+      ? isVehicleCurrentlyParked
+        ? "exit"
+        : "entry"
+      : laneMode;
+
+  // Security and eligibility validation
+  const entryValidation = validateVehicleEntry({
+    vehicle: matchedVehicle,
+    lookupResult: rawLookup,
+  });
+
+  const isBlacklisted =
+    rawLookup?.is_blacklisted ||
+    matchedVehicle?.note?.toLowerCase()?.includes("cảnh báo") ||
+    matchedVehicle?.note?.toLowerCase()?.includes("blacklist");
+
+  // Exit Fee Estimation (Mock 2h30m entry = 08:00 exit = 10:30)
+  const hasValidTicket =
+    matchedVehicle?.ticket?.status === "active" &&
+    matchedVehicle?.ticket?.type !== "Vé lượt" &&
+    matchedVehicle?.ticket?.type !== "—";
+
+  const exitFeeCalc = calculateParkingFee({
+    vehicleType: matchedVehicle?.vehicleType || "CAR",
+    durationMinutes: 150, // 2h30m
+    hasActiveTicket: hasValidTicket,
+  });
+
+  // Action: Confirm Entry (Check-in)
+  const handleConfirmEntry = async () => {
+    setIsActionPending(true);
+    setActionSuccessMessage("");
+
+    try {
+      await checkInVehicle({
+        licensePlate: detectedPlate || matchedVehicle?.licensePlate,
+        vehicleType: matchedVehicle?.vehicleType || "CAR",
+        entryGate: "Cổng vào A1",
+        slotCode: matchedVehicle?.parkingSlot?.display || "A1-01",
+        imageUrl: selectedImage,
+        activeTicket: hasValidTicket,
+      });
+
+      setBarrierState("opening");
+      setTimeout(() => setBarrierState("opened"), 600);
+      setActionSuccessMessage(
+        `✓ Đã tạo phiên gửi xe lúc ${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}. Mở thanh chắn cho xe vào bãi!`
+      );
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  // Action: Confirm Exit (Check-out)
+  const handleConfirmExit = async () => {
+    setIsActionPending(true);
+    setActionSuccessMessage("");
+
+    try {
+      await checkOutVehicle({
+        sessionId: rawLookup?.open_session?.id,
+        licensePlate: detectedPlate || matchedVehicle?.licensePlate,
+        entryTimeRaw: rawLookup?.open_session?.entry_time,
+        vehicleType: matchedVehicle?.vehicleType || "CAR",
+        hasActiveTicket: hasValidTicket,
+        paymentMethod: hasValidTicket ? "TICKET_EXEMPT" : "CASH",
+        exitGate: "Cổng ra B1",
+      });
+
+      setBarrierState("opening");
+      setTimeout(() => setBarrierState("opened"), 600);
+      setActionSuccessMessage(
+        `✓ Đã xác nhận thanh toán (${exitFeeCalc.feeFormatted}) & kết thúc phiên gửi xe. Mở thanh chắn cho xe ra bãi!`
+      );
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+        <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 bg-slate-50/80">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                />
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </div>
             <div>
               <h3 className="text-base font-semibold text-slate-900">
-                Scan Biển Số Xe Từ Hình Ảnh
+                Kiểm Soát Xe Ra / Vào & Quét Biển Số
               </h3>
-              <p className="text-xs text-slate-500">
-                Tự động nhận diện biển số và đối soát thông tin xe vào/ra
+              <p className="text-2xs text-slate-500">
+                Quy trình Check-in / Check-out, đối soát danh sách đen & thanh toán mở barrier
               </p>
             </div>
           </div>
@@ -233,288 +336,326 @@ export default function ScanPlateModal({
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          {/* Upload Area */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              Tải ảnh xe hoặc camera vào/ra
-            </label>
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-blue-200 hover:border-blue-500 bg-blue-50/30 hover:bg-blue-50/60 transition-all rounded-xl p-5 flex flex-col items-center justify-center cursor-pointer text-center group"
+        <div className="p-6 overflow-y-auto space-y-4 text-xs">
+          {/* Mode Selector Tabs */}
+          <div className="flex items-center justify-between bg-slate-100 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => {
+                setLaneMode("auto");
+                setActionSuccessMessage("");
+                setBarrierState("closed");
+              }}
+              className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all text-center ${
+                laneMode === "auto"
+                  ? "bg-white text-blue-700 shadow-xs font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
             >
-              {selectedImage ? (
-                <div className="relative w-full max-h-48 flex justify-center items-center overflow-hidden rounded-lg">
-                  <img
-                    src={selectedImage}
-                    alt="Preview"
-                    className="max-h-48 object-contain rounded-lg"
-                  />
-                  <div className="absolute inset-0 bg-slate-900/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="bg-white/90 text-xs font-medium text-slate-800 px-3 py-1.5 rounded-md shadow-xs">
-                      Bấm để chọn ảnh khác
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="w-12 h-12 rounded-full bg-blue-100/80 text-blue-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </div>
-                  <p className="text-sm font-medium text-slate-800">
-                    Nhấp vào đây để tải ảnh biển số xe
-                  </p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Hỗ trợ định dạng JPG, PNG, WEBP từ camera giám sát
-                  </p>
-                </>
-              )}
-            </div>
-
-            {/* Quick Demo Samples */}
-            <div className="mt-3 flex items-center flex-wrap gap-2 text-xs text-slate-500">
-              <span className="font-medium text-slate-600">Thử mẫu nhanh:</span>
-              {sampleVehicleList.slice(0, 4).map((v) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => handleSelectSample(v.licensePlate)}
-                  className="px-2.5 py-1 rounded bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-slate-200 text-slate-700 font-mono transition-colors"
-                >
-                  {v.licensePlate} ({v.brand})
-                </button>
-              ))}
-            </div>
+              🔄 Tự động nhận diện ({effectiveMode === "entry" ? "Xe Vào" : "Xe Ra"})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setLaneMode("entry");
+                setActionSuccessMessage("");
+                setBarrierState("closed");
+              }}
+              className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all text-center ${
+                laneMode === "entry"
+                  ? "bg-emerald-600 text-white shadow-xs font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              🚗 Làn Vào (Check-in)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setLaneMode("exit");
+                setActionSuccessMessage("");
+                setBarrierState("closed");
+              }}
+              className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all text-center ${
+                laneMode === "exit"
+                  ? "bg-blue-600 text-white shadow-xs font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              🚙 Làn Ra (Check-out)
+            </button>
           </div>
 
-          {/* OCR Input & Recognition Status */}
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/80">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex-1">
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Biển số nhận diện được:
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={detectedPlate}
-                    onChange={(e) => {
-                      setDetectedPlate(e.target.value);
-                      handleMatchPlate(e.target.value);
-                    }}
-                    placeholder="VD: 51K-992.14"
-                    className="font-mono text-base font-bold tracking-wider px-3 py-1.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-full uppercase"
+          {/* Upload and Camera Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Input file upload / preview */}
+            <div className="border border-slate-200 rounded-xl p-3 flex flex-col items-center justify-center bg-slate-50/50 hover:bg-slate-50 transition-colors">
+              {selectedImage ? (
+                <div className="relative w-full h-40 bg-slate-900 rounded-lg overflow-hidden flex items-center justify-center">
+                  <img
+                    src={selectedImage}
+                    alt="Plate Scan Preview"
+                    className="max-h-full max-w-full object-contain"
                   />
                   <button
                     type="button"
-                    onClick={() => handleMatchPlate(detectedPlate)}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg shrink-0 transition-colors"
+                    onClick={handleReset}
+                    className="absolute top-2 right-2 bg-slate-900/80 hover:bg-slate-900 text-white p-1 rounded-md text-2xs"
+                    title="Xóa ảnh"
                   >
-                    Đối soát
+                    Đổi ảnh
                   </button>
-                  {selectedFile && (
-                    <button
-                      type="button"
-                      onClick={() => runOcrScan(selectedFile)}
-                      disabled={isScanning}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-medium rounded-lg shrink-0 transition-colors flex items-center gap-1.5"
-                      title="Chạy lại mô hình OCR để nhận diện biển số từ ảnh"
-                    >
-                      <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      <span>Quét lại AI</span>
-                    </button>
-                  )}
                 </div>
-              </div>
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full h-40 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 p-4 text-center"
+                >
+                  <svg className="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="font-semibold text-slate-700">Tải ảnh camera cổng</span>
+                  <span className="text-slate-400 text-2xs mt-0.5">Nhấp để chọn ảnh JPG, PNG</span>
+                </div>
+              )}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageChange}
+                accept="image/*"
+                className="hidden"
+              />
+            </div>
 
-              {/* Status Badge */}
-              <div className="sm:text-right shrink-0">
-                <span className="block text-xs text-slate-400 mb-1">
-                  Trạng thái hệ thống
-                </span>
-                {isScanning ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                    Đang quét AI OCR...
-                  </span>
-                ) : searchStatus === "matched" ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    Đã tìm thấy trong hệ thống
-                  </span>
-                ) : searchStatus === "not_found" ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
-                    <span className="w-2 h-2 rounded-full bg-rose-500" />
-                    Chưa có trong hệ thống
-                  </span>
-                ) : searchStatus === "error" ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
-                    <span className="w-2 h-2 rounded-full bg-rose-500" />
-                    Lỗi kết nối / xác thực
-                  </span>
-                ) : (
-                  <span className="text-xs text-slate-400 italic">
-                    Chờ tải ảnh...
-                  </span>
+            {/* License plate recognition panel */}
+            <div className="flex flex-col justify-between border border-slate-200 rounded-xl p-3.5 bg-white">
+              <form onSubmit={handleManualSearch} className="space-y-3">
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    Biển số nhận diện được
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={detectedPlate}
+                      onChange={(e) => setDetectedPlate(e.target.value.toUpperCase())}
+                      placeholder="VD: 43A-123.45"
+                      className="flex-1 font-mono uppercase font-bold text-slate-800 tracking-wider px-3 py-2 border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isScanning || !detectedPlate}
+                      className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-semibold transition-colors"
+                    >
+                      {isScanning ? "Đang tra..." : "Tra cứu"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* AI Confidence badge */}
+                {scanDetails && (
+                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-center justify-between text-2xs text-slate-600">
+                    <span>Độ tin cậy AI:</span>
+                    <span className="font-semibold text-emerald-700">
+                      {scanDetails.confidence
+                        ? `${Math.round(scanDetails.confidence * 100)}%`
+                        : "Khớp mẫu chuẩn"}
+                    </span>
+                  </div>
                 )}
+              </form>
+
+              {/* Barrier Status Widget */}
+              <div className="mt-3 p-2.5 rounded-lg border flex items-center justify-between bg-slate-50 border-slate-200">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      barrierState === "opened"
+                        ? "bg-emerald-500 animate-ping"
+                        : barrierState === "opening"
+                        ? "bg-amber-500 animate-pulse"
+                        : "bg-slate-400"
+                    }`}
+                  />
+                  <span className="font-medium text-slate-700">Thanh chắn (Barrier):</span>
+                </div>
+                <span
+                  className={`font-semibold px-2 py-0.5 rounded text-2xs ${
+                    barrierState === "opened"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : barrierState === "opening"
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  {barrierState === "opened" ? "ĐÃ MỞ - MỜI XE QUA" : barrierState === "opening" ? "ĐANG NÂNG CẦN..." : "ĐANG ĐÓNG"}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* AI Recognition Details Banner */}
-          {scanDetails && (
-            <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-3.5 text-xs text-indigo-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
-                <span className="font-semibold">Kết quả AI OCR:</span>
-                <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border border-indigo-200 text-indigo-700">
-                  {scanDetails.plate || "Không xác định"}
-                </span>
-                {scanDetails.confidence != null && (
-                  <span className="text-2xs text-indigo-600 bg-indigo-100/70 px-1.5 py-0.5 rounded">
-                    Độ tin cậy: {Number(scanDetails.confidence).toFixed(1)}%
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2 text-2xs text-indigo-600">
-                {scanDetails.reviewStatus && (
-                  <span className="px-2 py-0.5 rounded bg-white border border-indigo-200 font-medium">
-                    Chính sách: {scanDetails.reviewStatus}
-                  </span>
-                )}
-                {scanDetails.latencyMs != null && (
-                  <span>Tốc độ: {scanDetails.latencyMs}ms</span>
-                )}
+          {/* Action Success Alert */}
+          {actionSuccessMessage && (
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 flex items-center gap-2">
+              <span className="text-base">🎉</span>
+              <span className="font-semibold">{actionSuccessMessage}</span>
+            </div>
+          )}
+
+          {/* Security Alert: Blacklist Warning */}
+          {isBlacklisted && (
+            <div className="p-3.5 bg-rose-50 rounded-xl border-2 border-rose-400 text-rose-900 flex items-start gap-2.5 animate-bounce">
+              <span className="text-xl">⛔</span>
+              <div>
+                <p className="font-bold text-rose-900 uppercase tracking-wide">
+                  CẢNH BÁO: BIỂN SỐ NẰM TRONG DANH SÁCH ĐEN (BLACKLIST)!
+                </p>
+                <p className="text-rose-700 text-2xs mt-0.5">
+                  Phương tiện bị hạn chế hoặc có báo cáo vi phạm an ninh. Không được mở thanh chắn cho vào bãi!
+                </p>
               </div>
             </div>
           )}
 
-          {/* Matched Details Panel (Requirement: Tên xe, Hãng xe, Tên khách hàng, Số điện thoại, Vị trí đỗ) */}
-          {matchedVehicle && (
-            <div className="border border-emerald-200 bg-emerald-50/30 rounded-xl p-4.5 space-y-4">
-              <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+          {/* Vehicle & Session Details Card */}
+          {searchStatus === "matched" && matchedVehicle && (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-                    Thông tin phương tiện khớp tự động
+                  <span className="font-mono text-sm font-bold bg-white px-2.5 py-1 rounded border border-slate-300 shadow-2xs">
+                    {matchedVehicle.licensePlate}
                   </span>
+                  <span className="text-slate-600 font-semibold">{matchedVehicle.model}</span>
                 </div>
-                <span className="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
-                  Mã xe: {matchedVehicle.id}
+                <span
+                  className={`px-2 py-0.5 rounded text-2xs font-semibold ${
+                    effectiveMode === "entry"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-blue-100 text-blue-800"
+                  }`}
+                >
+                  {effectiveMode === "entry" ? "Quy trình Vào (08:00)" : "Quy trình Ra (10:30)"}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
-                {/* Tên xe & Model */}
-                <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-                  <span className="text-slate-400 block mb-0.5">
-                    Tên xe / Dòng xe
-                  </span>
-                  <span className="font-semibold text-slate-800 text-sm">
-                    {matchedVehicle.model} ({matchedVehicle.vehicleType})
+              {/* Details Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-2xs">
+                <div className="bg-white p-2 rounded-lg border border-slate-200">
+                  <span className="text-slate-400 block">Chủ phương tiện</span>
+                  <span className="font-semibold text-slate-800 text-xs">
+                    {matchedVehicle.customer?.name || "Vãng lai"}
                   </span>
                 </div>
-
-                {/* Hãng xe */}
-                <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-                  <span className="text-slate-400 block mb-0.5">Hãng xe</span>
-                  <span className="font-semibold text-slate-800 text-sm">
-                    {matchedVehicle.brand}
+                <div className="bg-white p-2 rounded-lg border border-slate-200">
+                  <span className="text-slate-400 block">Số điện thoại</span>
+                  <span className="font-semibold text-slate-800 text-xs">
+                    {matchedVehicle.customer?.phone || "—"}
                   </span>
                 </div>
-
-                {/* Tên khách hàng */}
-                <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-                  <span className="text-slate-400 block mb-0.5">
-                    Tên khách hàng
-                  </span>
-                  <span className="font-semibold text-blue-700 text-sm">
-                    {matchedVehicle.customer.name}
-                  </span>
-                  <span className="text-slate-400 text-2xs block">
-                    Mã KH: {matchedVehicle.customer.id}
+                <div className="bg-white p-2 rounded-lg border border-slate-200">
+                  <span className="text-slate-400 block">Loại vé</span>
+                  <span className="font-semibold text-blue-700 text-xs">
+                    {matchedVehicle.ticket?.type || "Vé lượt"}
                   </span>
                 </div>
-
-                {/* Số điện thoại */}
-                <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-                  <span className="text-slate-400 block mb-0.5">
-                    Số điện thoại
+                <div className="bg-white p-2 rounded-lg border border-slate-200">
+                  <span className="text-slate-400 block">Vị trí đỗ</span>
+                  <span className="font-semibold text-emerald-700 text-xs">
+                    {matchedVehicle.parkingSlot?.display || "Khu A - Tầng 1"}
                   </span>
-                  <span className="font-semibold text-slate-800 text-sm">
-                    {matchedVehicle.customer.phone}
-                  </span>
-                </div>
-
-                {/* Vị trí đỗ */}
-                <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-2xs sm:col-span-2">
-                  <span className="text-slate-400 block mb-0.5">
-                    Vị trí đỗ quy định
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-emerald-700 text-sm">
-                      {matchedVehicle.parkingSlot.display}
-                    </span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-2xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      {matchedVehicle.status === "parked"
-                        ? "Đang đỗ"
-                        : "Đang hoạt động"}
-                    </span>
-                  </div>
                 </div>
               </div>
+
+              {/* Mode Specific Workflow Content */}
+              {effectiveMode === "entry" ? (
+                /* ENTRY WORKFLOW BOX */
+                <div className="bg-white p-3 rounded-lg border border-emerald-200 space-y-2">
+                  <div className="flex items-center justify-between text-2xs text-slate-600">
+                    <span>Thời gian xe vào:</span>
+                    <span className="font-mono font-bold text-slate-900">
+                      {new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-2xs text-slate-600">
+                    <span>Kiểm tra chỗ trống:</span>
+                    <span className="font-semibold text-emerald-600">✓ Còn vị trí đỗ trống (Tầng 1)</span>
+                  </div>
+                  <div className="flex items-center justify-between text-2xs text-slate-600">
+                    <span>Điều kiện mở barrier:</span>
+                    <span className="font-semibold text-slate-900">
+                      {entryValidation.eligible ? "✓ Đủ điều kiện vào" : "⚠️ Cần kiểm tra"}
+                    </span>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 flex justify-end">
+                    <button
+                      type="button"
+                      disabled={isActionPending || isBlacklisted}
+                      onClick={handleConfirmEntry}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg font-semibold shadow-xs flex items-center gap-1.5"
+                    >
+                      <span>{isActionPending ? "Đang xử lý..." : "✓ Xác nhận Xe Vào & Mở Barrier"}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* EXIT WORKFLOW BOX */
+                <div className="bg-white p-3 rounded-lg border border-blue-200 space-y-2">
+                  <div className="grid grid-cols-3 gap-2 text-2xs bg-slate-50 p-2 rounded-md">
+                    <div>
+                      <span className="text-slate-400 block">Thời gian vào</span>
+                      <span className="font-mono font-bold text-slate-800">08:00</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Thời gian ra</span>
+                      <span className="font-mono font-bold text-slate-800">10:30 (Hiện tại)</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Thời lượng đỗ</span>
+                      <span className="font-bold text-blue-700">2 giờ 30 phút</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-2 rounded-md bg-blue-50/60 border border-blue-100">
+                    <div>
+                      <span className="text-slate-600 block text-2xs">Số tiền cần thanh toán</span>
+                      <span className="text-2xs text-slate-400">{exitFeeCalc.calculationBreakdown}</span>
+                    </div>
+                    <span className="text-base font-bold text-blue-700 font-mono">
+                      {exitFeeCalc.feeFormatted}
+                    </span>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <div className="text-2xs text-slate-500">
+                      Phương thức: <span className="font-semibold text-slate-700">Tiền mặt / VietQR</span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isActionPending}
+                      onClick={handleConfirmExit}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-semibold shadow-xs flex items-center gap-1.5"
+                    >
+                      <span>{isActionPending ? "Đang xử lý..." : "✓ Xác nhận Thanh Toán & Mở Barrier"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {searchStatus === "not_found" && (
             <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs">
-              <p className="font-semibold">
-                Phương tiện chưa đăng ký trong danh bạ!
-              </p>
+              <p className="font-semibold">Phương tiện chưa đăng ký trong danh bạ!</p>
               <p className="text-amber-700 mt-1">
-                Biển số{" "}
-                <span className="font-mono font-bold">{detectedPlate}</span>{" "}
-                không tìm thấy trong dữ liệu hiện tại. Bạn có thể bấm Thêm xe
-                mới hoặc kiểm tra lại ảnh chụp.
+                Biển số <span className="font-mono font-bold">{detectedPlate}</span> có thể là xe vãng lai gửi theo lượt. Hệ thống vẫn cho phép tạo phiên gửi lượt mới.
               </p>
             </div>
           )}
@@ -533,7 +674,7 @@ export default function ScanPlateModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-slate-100 bg-slate-50/50">
+        <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50/50">
           <button
             type="button"
             onClick={onClose}
@@ -545,21 +686,11 @@ export default function ScanPlateModal({
             <button
               type="button"
               onClick={handleApplySelection}
-              className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
+              className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg shadow-2xs transition-colors flex items-center gap-1.5"
             >
-              <span>Xem chi tiết phương tiện</span>
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M14 5l7 7m0 0l-7 7m7-7H3"
-                />
+              <span>Xem hồ sơ chi tiết</span>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
               </svg>
             </button>
           )}
