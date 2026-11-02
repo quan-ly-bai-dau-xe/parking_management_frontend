@@ -83,6 +83,9 @@ export default function PlateScannerModal({
   if (currentDetectedPlate !== prevDetectedPlate) {
     setPrevDetectedPlate(currentDetectedPlate);
     setUserEditedPlate(null);
+    if (!currentDetectedPlate) {
+      setApplyError("");
+    }
   }
 
   const effectivePlate =

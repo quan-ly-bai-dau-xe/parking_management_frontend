@@ -126,6 +126,30 @@ export function isStaticScene(grayA, grayB, threshold = 5.0) {
 }
 
 /**
+ * Compute bounding box area in pixels from scan result.
+ *
+ * @param {Object} scanResult
+ * @returns {number}
+ */
+export function getBoundingBoxArea(scanResult) {
+  if (!scanResult || typeof scanResult !== 'object') return 0;
+  const box = scanResult.best_candidate?.bounding_box || scanResult.bounding_box;
+  if (!box) return 0;
+  if (Array.isArray(box) && box.length >= 4) {
+    return Math.max(0, box[2] - box[0]) * Math.max(0, box[3] - box[1]);
+  }
+  if (
+    typeof box.x1 === 'number' &&
+    typeof box.x2 === 'number' &&
+    typeof box.y1 === 'number' &&
+    typeof box.y2 === 'number'
+  ) {
+    return Math.max(0, box.x2 - box.x1) * Math.max(0, box.y2 - box.y1);
+  }
+  return 0;
+}
+
+/**
  * 3-of-4 temporal stability voting.
  *
  * @param {Array<string|{ plate_final?: string }>} historyWindow
@@ -185,7 +209,7 @@ export function extractScanConfidence(scanResult) {
 }
 
 /**
- * Select the highest-confidence candidate frame matching stablePlate.
+ * Select the highest-confidence candidate frame matching stablePlate, with largest bounding box as tie-breaker.
  *
  * @param {Array<{ blob: Blob, scanResult: Object, timestamp?: number }>} candidateFrames
  * @param {string|null} [stablePlate=null]
@@ -208,12 +232,24 @@ export function selectBestCandidateFrame(candidateFrames = [], stablePlate = nul
 
   let bestFrame = null;
   let maxConfidence = -Infinity;
+  let maxArea = -Infinity;
 
   for (const frame of eligible) {
     if (!frame || !frame.blob || !frame.scanResult) continue;
     const conf = extractScanConfidence(frame.scanResult) ?? 0;
-    if (conf > maxConfidence) {
+    const area = getBoundingBoxArea(frame.scanResult);
+
+    // Pick frame with highest confidence; if close within 0.5% or tied, pick frame with larger bounding box
+    const isHigherConfidence = conf > maxConfidence + 0.5;
+    const isCloseConfidence = Math.abs(conf - maxConfidence) <= 0.5;
+
+    if (
+      bestFrame === null ||
+      isHigherConfidence ||
+      (isCloseConfidence && area > maxArea)
+    ) {
       maxConfidence = conf;
+      maxArea = area;
       bestFrame = frame;
     }
   }
@@ -307,9 +343,9 @@ export function scaleBoundingBox({
  * - At most 1 request per rateLimitMs (default 1000ms).
  * - Strictly 1 request in flight (synchronous lock acquired before frame capture).
  * - Motion gating: skips frame capture/send when thumbnail is static AND last response was 422.
- * - 3-of-4 temporal voting + highest-confidence frame retention.
+ * - 3-of-4 temporal voting + highest-confidence frame retention with bounding box tie-break.
  * - AbortController cancellation on stop/close/reset.
- * - Backoff on 503 (obeying Retry-After), 429, and network failure (surfacing apiClient connection message).
+ * - Backoff on 503 (obeying Retry-After), 429, and network failure (surfacing neutral connection message).
  * - Immediate loop stop on 401/403 surfacing backend message.
  * - Authoritative apply (preview=false) comparing against the previewed plate_final.
  */
@@ -325,6 +361,7 @@ export function createPlateAutoDetectMachine({
   default503BackoffSec = 3,
   rateLimit429BackoffMs = 2500,
   networkBackoffMs = 2000,
+  forcedHeartbeatMs = 2500,
 } = {}) {
   if (typeof scanFn !== 'function') {
     throw new Error('createPlateAutoDetectMachine requires a scanFn function.');
@@ -425,6 +462,10 @@ export function createPlateAutoDetectMachine({
   }
 
   async function tick({ thumbnail = null, captureFrame, gateId = null } = {}) {
+    if (scanState === SCAN_STATES.DETECTED) {
+      return { action: 'skipped_inactive' };
+    }
+
     if (
       scanState !== SCAN_STATES.SEARCHING &&
       scanState !== SCAN_STATES.CONFIRMING
@@ -446,11 +487,17 @@ export function createPlateAutoDetectMachine({
     }
 
     if (thumbnail && thumbnail.length > 0) {
-      if (
+      const isStatic =
         previousThumbnail &&
         lastResponseWas422 &&
-        isStaticScene(previousThumbnail, thumbnail, staticThreshold)
-      ) {
+        isStaticScene(previousThumbnail, thumbnail, staticThreshold);
+
+      const isForcedHeartbeat =
+        lastResponseWas422 &&
+        lastRequestAt > 0 &&
+        now - lastRequestAt >= forcedHeartbeatMs;
+
+      if (isStatic && !isForcedHeartbeat) {
         previousThumbnail = thumbnail;
         return { action: 'skipped_static_422' };
       }
@@ -584,7 +631,7 @@ export function createPlateAutoDetectMachine({
       backoffUntil = nowFn() + networkBackoffMs;
       statusMessage =
         err?.message ||
-        'Không thể kết nối tới máy chủ. Vui lòng kiểm tra Docker/backend đã chạy tại cổng 8000 rồi thử lại.';
+        'Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối mạng hoặc hệ thống máy chủ rồi thử lại.';
       emit();
       return { action: 'backoff_network', message: statusMessage };
     } finally {

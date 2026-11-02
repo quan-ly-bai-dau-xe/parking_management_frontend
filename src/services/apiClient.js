@@ -11,7 +11,7 @@ export function getCookie(name) {
 }
 
 export const API_UNAVAILABLE_MESSAGE =
-  "Không thể kết nối tới máy chủ. Vui lòng kiểm tra Docker/backend đã chạy tại cổng 8000 rồi thử lại.";
+  "Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối mạng hoặc hệ thống máy chủ rồi thử lại.";
 
 function createApiConnectionError(error) {
   const connectionError = new Error(API_UNAVAILABLE_MESSAGE);
