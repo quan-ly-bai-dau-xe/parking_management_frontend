@@ -60,10 +60,29 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = null }) {
     }
   });
 
+  const [isTabVisible, setIsTabVisible] = useState(() =>
+    typeof document !== 'undefined' ? !document.hidden : true
+  );
+
   const streamRef = useRef(null);
   const captureCanvasRef = useRef(null);
   const thumbCanvasRef = useRef(null);
   const machineRef = useRef(null);
+  const handleTrackEndedRef = useRef(null);
+
+  // Pause frame capture and network requests when tab is hidden
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
+    const handleVisibilityChange = () => {
+      setIsTabVisible(!document.hidden);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const getMachine = useCallback(() => {
     if (machineRef.current === null) {
@@ -86,7 +105,12 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = null }) {
 
   const stopCameraTracks = useCallback(() => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach((track) => {
+        if (handleTrackEndedRef.current) {
+          track.removeEventListener('ended', handleTrackEndedRef.current);
+        }
+        track.stop();
+      });
       streamRef.current = null;
     }
     if (videoRef.current) {
@@ -199,6 +223,15 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = null }) {
         return;
       }
 
+      const handleTrackEnded = () => {
+        stopCameraTracks();
+        machine.setFatalError('Thiết bị camera đã bị ngắt kết nối.');
+      };
+      handleTrackEndedRef.current = handleTrackEnded;
+      stream.getVideoTracks().forEach((track) => {
+        track.addEventListener('ended', handleTrackEnded);
+      });
+
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -228,6 +261,7 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = null }) {
   useEffect(() => {
     if (
       !isOpen ||
+      !isTabVisible ||
       (snapshot.scanState !== SCAN_STATES.SEARCHING &&
         snapshot.scanState !== SCAN_STATES.CONFIRMING)
     ) {
@@ -236,6 +270,10 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = null }) {
 
     const machine = getMachine();
     const intervalId = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
+
       const video = videoRef.current;
       if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
         return;
@@ -295,7 +333,7 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = null }) {
     return () => {
       clearInterval(intervalId);
     };
-  }, [isOpen, snapshot.scanState, gateId, getMachine, videoRef]);
+  }, [isOpen, isTabVisible, snapshot.scanState, gateId, getMachine, videoRef]);
 
   const applyAuthoritativeScan = useCallback(async () => {
     return getMachine().apply({ gateId });

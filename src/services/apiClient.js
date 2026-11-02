@@ -8,8 +8,8 @@ export function getCookie(name) {
         .split("; ")
         .find((item) => item.startsWith(`${name}=`));
 
-    return cookie ? cookie.split("=").slice(1).join("=") : null;
-}
+export const API_UNAVAILABLE_MESSAGE =
+  "Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối mạng hoặc hệ thống máy chủ rồi thử lại.";
 
 function createApiConnectionError(error) {
     const err = new Error(API_UNAVAILABLE_MESSAGE);

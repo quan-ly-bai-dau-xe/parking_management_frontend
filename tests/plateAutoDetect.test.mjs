@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   SCAN_STATES,
@@ -11,12 +14,16 @@ import {
   createPlateAutoDetectMachine,
   extractScanConfidence,
   formatReviewReasons,
+  getBoundingBoxArea,
   isStaticScene,
   scaleBoundingBox,
   selectBestCandidateFrame,
 } from '../src/utils/plateAutoDetect.js';
 import { API_UNAVAILABLE_MESSAGE, apiClient } from '../src/services/apiClient.js';
 import { scanPlate } from '../src/services/plateScanService.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function makeThumb(fillValue, length = 768) {
   return new Uint8Array(length).fill(fillValue);
@@ -46,7 +53,7 @@ function makeScanResponse(plateFinal, confidence = 96.5, box = { x1: 100, y1: 20
   };
 }
 
-test('1. Stability voting (3 of 4) and highest-confidence frame selection', () => {
+test('1. Exact 3-of-4 stability voting and candidate frame selection with bounding box tie-break', () => {
   assert.deepEqual(checkStability([]), { isStable: false, stablePlate: null, count: 0 });
   assert.equal(checkStability(['51K99214', '51K99214']).isStable, false);
 
@@ -62,18 +69,31 @@ test('1. Stability voting (3 of 4) and highest-confidence frame selection', () =
   const split22 = checkStability(['51K99214', '30A12345', '51K99214', '30A12345']);
   assert.equal(split22.isStable, false);
 
-  const sliding = checkStability(['30A11111', '30A11111', '51K99214', '51K99214', '51K99214']);
+  const sliding = checkStability(['30A11111', '51K99214', '51K99214', '51K99214']);
   assert.equal(sliding.isStable, true);
   assert.equal(sliding.stablePlate, '51K99214');
 
+  // Exact 3-of-4: OCR variations do NOT fuzzy match
+  const nonExact = checkStability(['29A33185', '29A3318S', '29A33185']);
+  assert.equal(nonExact.isStable, false);
+
+  // Highest confidence candidate frame selection with bounding box tie-breaker
   const frames = [
-    { blob: { id: 'low' }, scanResult: makeScanResponse('51K99214', 84.2) },
-    { blob: { id: 'high' }, scanResult: makeScanResponse('51K99214', 98.7) },
+    { blob: { id: 'low' }, scanResult: makeScanResponse('51K99214', 84.2, { x1: 10, y1: 10, x2: 50, y2: 30 }) },
+    { blob: { id: 'high' }, scanResult: makeScanResponse('51K99214', 98.7, { x1: 20, y1: 20, x2: 60, y2: 40 }) },
     { blob: { id: 'other' }, scanResult: makeScanResponse('30A12345', 99.9) },
   ];
   const best = selectBestCandidateFrame(frames, '51K99214');
   assert.equal(best.blob.id, 'high');
   assert.equal(extractScanConfidence(best.scanResult), 98.7);
+
+  // Bounding box area tie-breaker when confidences are equal
+  const tiedFrames = [
+    { blob: { id: 'small_box' }, scanResult: makeScanResponse('51K99214', 95.0, { x1: 0, y1: 0, x2: 50, y2: 50 }) },
+    { blob: { id: 'large_box' }, scanResult: makeScanResponse('51K99214', 95.0, { x1: 0, y1: 0, x2: 200, y2: 100 }) },
+  ];
+  const bestTied = selectBestCandidateFrame(tiedFrames, '51K99214');
+  assert.equal(bestTied.blob.id, 'large_box');
 });
 
 test('2. Downscaling dimensions and grayscale motion-gating helpers', () => {
@@ -100,7 +120,6 @@ test('2. Downscaling dimensions and grayscale motion-gating helpers', () => {
 test('3. Bounding-box scaling for CSS object-fit cover and contain', () => {
   const box = { x1: 100, y1: 100, x2: 300, y2: 200 };
 
-  // Cover: 1280x720 video inside 640x480 box -> scale = 480/720 = 2/3, offsetX = (640 - 853.33)/2 = -106.67
   const coverTaller = scaleBoundingBox({
     box,
     sourceWidth: 1280,
@@ -114,7 +133,6 @@ test('3. Bounding-box scaling for CSS object-fit cover and contain', () => {
   assert.ok(Math.abs(coverTaller.width - 133.33) < 0.05);
   assert.ok(Math.abs(coverTaller.height - 66.67) < 0.05);
 
-  // Contain: 1280x720 video inside 1280x1000 box -> letterbox scale = 1, offsetY = (1000 - 720)/2 = 140
   const containLetterbox = scaleBoundingBox({
     box,
     sourceWidth: 1280,
@@ -130,7 +148,6 @@ test('3. Bounding-box scaling for CSS object-fit cover and contain', () => {
     height: 100,
   });
 
-  // Contain pillarbox: 720x720 video inside 1000x500 box -> scale = 500/720, offsetX = 250
   const containPillarbox = scaleBoundingBox({
     box: { x1: 72, y1: 72, x2: 216, y2: 144 },
     sourceWidth: 720,
@@ -175,14 +192,12 @@ test('4. State machine enforces single in-flight, <= 1 req/s rate limit, and pre
 
   machine.startSearching();
 
-  // Start first tick; do not resolve scanFn yet
   const firstPromise = machine.tick({
     thumbnail: makeThumb(50),
     captureFrame: makeFrameCapture('f1'),
     gateId: 2,
   });
 
-  // While first request is in flight, even 5 seconds later a second tick must be skipped
   now += 5000;
   const overlappingResult = await machine.tick({
     thumbnail: makeThumb(90),
@@ -198,7 +213,6 @@ test('4. State machine enforces single in-flight, <= 1 req/s rate limit, and pre
   assert.equal(firstOutcome.action, 'confirming');
   assert.equal(machine.getSnapshot().scanState, SCAN_STATES.CONFIRMING);
 
-  // Advance only 400ms (< 1000ms rate limit) -> must skip due to rate limit
   now += 400;
   const rateLimited = await machine.tick({
     thumbnail: makeThumb(120),
@@ -208,12 +222,13 @@ test('4. State machine enforces single in-flight, <= 1 req/s rate limit, and pre
   assert.equal(calls.length, 1);
 });
 
-test('5. State machine skips static scene ONLY when last answer was 422, and keeps searching on 422', async () => {
+test('5. State machine skips static scene on 422, keeps searching, and triggers forced heartbeat at 2500ms', async () => {
   let now = 20_000;
   let callCount = 0;
 
   const machine = createPlateAutoDetectMachine({
     nowFn: () => now,
+    forcedHeartbeatMs: 2500,
     scanFn: async () => {
       callCount += 1;
       const err = new Error('Không nhận diện được biển số xe từ hình ảnh đã cung cấp.');
@@ -224,7 +239,6 @@ test('5. State machine skips static scene ONLY when last answer was 422, and kee
 
   machine.startSearching();
 
-  // First frame returns 422 -> state remains SEARCHING with "Đang tìm biển số…"
   const r1 = await machine.tick({
     thumbnail: makeThumb(80),
     captureFrame: makeFrameCapture('empty1'),
@@ -234,7 +248,7 @@ test('5. State machine skips static scene ONLY when last answer was 422, and kee
   assert.equal(machine.getSnapshot().statusMessage, STATUS_MESSAGES.SEARCHING);
   assert.equal(callCount, 1);
 
-  // Next second: scene is static (80 vs 82 -> MAD 2 < 5) and last answer was 422 -> skipped!
+  // Static scene before forcedHeartbeatMs -> skipped
   now += 1200;
   let captureCalled = false;
   const r2 = await machine.tick({
@@ -248,17 +262,66 @@ test('5. State machine skips static scene ONLY when last answer was 422, and kee
   assert.equal(captureCalled, false);
   assert.equal(callCount, 1);
 
-  // Next second: vehicle enters scene (82 vs 140 -> MAD 58 >= 5) -> sent!
+  // At 2500ms after last request -> forced heartbeat triggers despite static scene!
+  now += 1300; // total 2500ms elapsed
+  const rHeartbeat = await machine.tick({
+    thumbnail: makeThumb(82),
+    captureFrame: makeFrameCapture('heartbeat'),
+  });
+  assert.equal(rHeartbeat.action, 'no_plate_422');
+  assert.equal(callCount, 2);
+
+  // Moving scene -> sent immediately
   now += 1200;
   const r3 = await machine.tick({
     thumbnail: makeThumb(140),
     captureFrame: makeFrameCapture('moving'),
   });
   assert.equal(r3.action, 'no_plate_422');
-  assert.equal(callCount, 2);
+  assert.equal(callCount, 3);
 });
 
-test('6. State machine obeys 503 Retry-After, 429 backoff, network backoff with apiClient message, and 401/403 stop', async () => {
+test('6. State machine protects operator view by disabling auto-reset in DETECTED state', async () => {
+  let now = 30_000;
+  let currentPlate = '51F69881';
+
+  const machine = createPlateAutoDetectMachine({
+    nowFn: () => now,
+    windowSize: 5,
+    minMatches: 3,
+    scanFn: async () => makeScanResponse(currentPlate, 98.5),
+  });
+
+  machine.startSearching();
+
+  for (let i = 0; i < 3; i += 1) {
+    now += 1000;
+    await machine.tick({
+      thumbnail: makeThumb(100),
+      captureFrame: makeFrameCapture(`frame_${i}`),
+    });
+  }
+
+  assert.equal(machine.getSnapshot().scanState, SCAN_STATES.DETECTED);
+  assert.equal(machine.getSnapshot().detectedData?.plate_final, '51F69881');
+
+  // Thumbnail changes drastically (e.g. vehicle movement, lighting change, passing person)
+  // State machine MUST NOT reset; must stay in DETECTED state to protect operator workflow!
+  now += 500;
+  const tickWithSceneChange = await machine.tick({
+    thumbnail: makeThumb(180),
+  });
+  assert.equal(tickWithSceneChange.action, 'skipped_inactive');
+  assert.equal(machine.getSnapshot().scanState, SCAN_STATES.DETECTED);
+  assert.equal(machine.getSnapshot().detectedData?.plate_final, '51F69881');
+
+  // Reset only happens when operator explicitly initiates it
+  machine.reset();
+  assert.equal(machine.getSnapshot().scanState, SCAN_STATES.SEARCHING);
+  assert.equal(machine.getSnapshot().detectedData, null);
+});
+
+test('7. State machine obeys 503 Retry-After, 429 backoff, network backoff with neutral message, and 401/403 stop', async () => {
   let now = 50_000;
   let nextError = null;
   let callCount = 0;
@@ -273,7 +336,6 @@ test('6. State machine obeys 503 Retry-After, 429 backoff, network backoff with 
 
   machine.startSearching();
 
-  // 503 with Retry-After: 4
   nextError = Object.assign(new Error('Overloaded'), { status: 503, retryAfter: 4 });
   const r503 = await machine.tick({
     thumbnail: makeThumb(40),
@@ -282,7 +344,6 @@ test('6. State machine obeys 503 Retry-After, 429 backoff, network backoff with 
   assert.equal(r503.action, 'backoff_503');
   assert.equal(r503.retrySeconds, 4);
 
-  // 2.5s later (< 4s Retry-After) -> skipped_backoff
   now += 2500;
   const during503 = await machine.tick({
     thumbnail: makeThumb(90),
@@ -291,7 +352,6 @@ test('6. State machine obeys 503 Retry-After, 429 backoff, network backoff with 
   assert.equal(during503.action, 'skipped_backoff');
   assert.equal(callCount, 1);
 
-  // After 4s -> dispatches again; test network failure surfacing apiClient message
   now += 2000;
   nextError = Object.assign(new Error(API_UNAVAILABLE_MESSAGE), { code: 'API_UNAVAILABLE' });
   const rNet = await machine.tick({
@@ -300,8 +360,9 @@ test('6. State machine obeys 503 Retry-After, 429 backoff, network backoff with 
   });
   assert.equal(rNet.action, 'backoff_network');
   assert.equal(machine.getSnapshot().statusMessage, API_UNAVAILABLE_MESSAGE);
+  assert.doesNotMatch(machine.getSnapshot().statusMessage, /cổng\s*8000/i);
+  assert.doesNotMatch(machine.getSnapshot().statusMessage, /docker/i);
 
-  // After network backoff -> test 429 backoff
   now += 2500;
   nextError = Object.assign(new Error('Too Many Requests'), { status: 429 });
   const r429 = await machine.tick({
@@ -310,7 +371,6 @@ test('6. State machine obeys 503 Retry-After, 429 backoff, network backoff with 
   });
   assert.equal(r429.action, 'backoff_429');
 
-  // After 429 backoff -> test 403 stopping loop and exposing backend message
   now += 3000;
   nextError = Object.assign(new Error('Bạn không có quyền thực hiện thao tác này.'), {
     status: 403,
@@ -327,7 +387,6 @@ test('6. State machine obeys 503 Retry-After, 429 backoff, network backoff with 
     'Bạn không có quyền thực hiện thao tác này.'
   );
 
-  // Subsequent ticks must not run once stopped in ERROR state
   now += 5000;
   const after403 = await machine.tick({
     thumbnail: makeThumb(10),
@@ -336,7 +395,7 @@ test('6. State machine obeys 503 Retry-After, 429 backoff, network backoff with 
   assert.equal(after403.action, 'skipped_inactive');
 });
 
-test('7. State machine aborts in-flight request on stop/close and handles authoritative apply (preview=false) + mismatch', async () => {
+test('8. State machine aborts in-flight request on stop/close and handles authoritative apply (preview=false) + mismatch', async () => {
   let now = 80_000;
   let capturedSignal = null;
 
@@ -359,7 +418,6 @@ test('7. State machine aborts in-flight request on stop/close and handles author
     thumbnail: makeThumb(30),
     captureFrame: makeFrameCapture('abort_frame'),
   });
-  // Yield microtask so captureFrame resolves and scanFn starts
   await Promise.resolve();
   assert.ok(capturedSignal);
   assert.equal(capturedSignal.aborted, false);
@@ -370,7 +428,6 @@ test('7. State machine aborts in-flight request on stop/close and handles author
   assert.equal(abortedOutcome.action, 'aborted');
   assert.equal(abortMachine.getSnapshot().scanState, SCAN_STATES.IDLE);
 
-  // Full 3-of-4 detection + best-frame retention + authoritative apply + mismatch check
   const previewFrames = [
     { conf: 88.0, label: 'low_conf_blob' },
     { conf: 99.2, label: 'best_conf_blob' },
@@ -378,7 +435,7 @@ test('7. State machine aborts in-flight request on stop/close and handles author
   ];
   let idx = 0;
   let applyCalls = [];
-  let authoritativePlate = '30G99999'; // First simulate mismatch against previewed 43K86050
+  let authoritativePlate = '30G99999';
 
   const fullMachine = createPlateAutoDetectMachine({
     nowFn: () => now,
@@ -413,21 +470,19 @@ test('7. State machine aborts in-flight request on stop/close and handles author
   assert.equal(fullMachine.getSnapshot().scanState, SCAN_STATES.DETECTED);
   assert.equal(await fullMachine.getSnapshot().bestFrameBlob.text(), 'best_conf_blob');
 
-  // First apply: backend returns 30G99999 !== previewed 43K86050 -> mismatch asks re-confirmation
   const mismatchRes = await fullMachine.apply({ gateId: 1 });
   assert.equal(mismatchRes.success, false);
   assert.equal(mismatchRes.mismatch, true);
   assert.equal(fullMachine.getSnapshot().detectedData.plate_final, '30G99999');
   assert.equal(await applyCalls[0].text(), 'best_conf_blob');
 
-  // Second apply: operator confirms 30G99999 and backend returns 30G99999 -> success!
   const confirmedRes = await fullMachine.apply({ gateId: 1 });
   assert.equal(confirmedRes.success, true);
   assert.equal(confirmedRes.data.plate_final, '30G99999');
   assert.ok(confirmedRes.data.image_url);
 });
 
-test('8. apiClient FormData multipart boundary support, AbortError passthrough, and review reason mapping', async () => {
+test('9. apiClient FormData multipart boundary support, AbortError passthrough, and review reason mapping', async () => {
   assert.deepEqual(formatReviewReasons(['LOW_CHAR_CONFIDENCE', 'POSITION_CORRECTED', 'CUSTOM']), [
     'Độ tin cậy ký tự thấp',
     'Đã tự động sửa ký tự theo quy tắc',
@@ -460,7 +515,6 @@ test('8. apiClient FormData multipart boundary support, AbortError passthrough, 
     assert.equal(capturedReq.init.body.get('preview'), 'true');
     assert.equal(capturedReq.init.body.get('gate_id'), '3');
 
-    // Verify AbortError is rethrown as AbortError and NOT wrapped into API_UNAVAILABLE
     globalThis.fetch = async () => {
       const abortErr = new Error('The operation was aborted.');
       abortErr.name = 'AbortError';
@@ -474,4 +528,63 @@ test('8. apiClient FormData multipart boundary support, AbortError passthrough, 
     globalThis.document = origDoc;
     globalThis.fetch = origFetch;
   }
+});
+
+test('10. NGINX configuration ensures Cache-Control no-cache and explicit security headers across all locations', () => {
+  const nginxPath = path.resolve(__dirname, '../nginx.conf');
+  assert.ok(fs.existsSync(nginxPath), 'nginx.conf must exist in frontend root');
+  const nginxContent = fs.readFileSync(nginxPath, 'utf8');
+
+  // 1. location / verification
+  const locationSlashMatch = nginxContent.match(/location\s+\/\s*\{([^}]+)\}/);
+  assert.ok(locationSlashMatch, 'location / block must be present');
+  const slashBody = locationSlashMatch[1];
+  assert.match(slashBody, /add_header\s+Cache-Control\s+"no-cache";/i);
+  assert.match(slashBody, /add_header\s+X-Frame-Options\s+"SAMEORIGIN";/i);
+  assert.match(slashBody, /add_header\s+X-Content-Type-Options\s+"nosniff";/i);
+  assert.match(slashBody, /add_header\s+X-XSS-Protection\s+"1;\s*mode=block";/i);
+
+  // 2. location /assets/ verification
+  const assetsMatch = nginxContent.match(/location\s+\/assets\/\s*\{([^}]+)\}/);
+  assert.ok(assetsMatch, 'location /assets/ must be present');
+  const assetsBody = assetsMatch[1];
+  assert.match(assetsBody, /add_header\s+Cache-Control\s+"public,\s*immutable";/i);
+  assert.match(assetsBody, /add_header\s+X-Frame-Options\s+"SAMEORIGIN";/i);
+  assert.match(assetsBody, /add_header\s+X-Content-Type-Options\s+"nosniff";/i);
+  assert.match(assetsBody, /add_header\s+X-XSS-Protection\s+"1;\s*mode=block";/i);
+
+  // 3. static media location verification
+  const mediaMatch = nginxContent.match(/location\s+~\*\s+\\\.\(svg[^{]+\{([^}]+)\}/);
+  assert.ok(mediaMatch, 'static images location must be present');
+  const mediaBody = mediaMatch[1];
+  assert.match(mediaBody, /add_header\s+Cache-Control\s+"public,\s*immutable";/i);
+  assert.match(mediaBody, /add_header\s+X-Frame-Options\s+"SAMEORIGIN";/i);
+  assert.match(mediaBody, /add_header\s+X-Content-Type-Options\s+"nosniff";/i);
+  assert.match(mediaBody, /add_header\s+X-XSS-Protection\s+"1;\s*mode=block";/i);
+});
+
+test('11. Camera lifecycle and Page Visibility hook wiring verification', () => {
+  const hookPath = path.resolve(__dirname, '../src/hooks/usePlateAutoDetect.js');
+  const hookCode = fs.readFileSync(hookPath, 'utf8');
+
+  // Track ended listener wiring
+  assert.match(
+    hookCode,
+    /track\.addEventListener\(\s*['"]ended['"]\s*,\s*handleTrackEnded\s*\)/,
+    'Must attach ended listener to camera tracks'
+  );
+  assert.match(
+    hookCode,
+    /machine\.setFatalError\(\s*['"]Thiết bị camera đã bị ngắt kết nối\.['"]\s*\)/,
+    'Must invoke setFatalError on camera disconnect'
+  );
+
+  // Page Visibility listener wiring
+  assert.match(
+    hookCode,
+    /document\.addEventListener\(\s*['"]visibilitychange['"]\s*,\s*handleVisibilityChange\s*\)/,
+    'Must attach visibilitychange listener to document'
+  );
+  assert.match(hookCode, /isTabVisible/);
+  assert.match(hookCode, /document\.hidden/);
 });
