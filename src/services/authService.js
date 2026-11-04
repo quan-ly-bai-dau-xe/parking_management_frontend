@@ -1,0 +1,63 @@
+import { apiClient, fetchCsrfToken } from "./apiClient.js";
+
+export const authService = {
+  login: async ({ account, password, rememberMe }) => {
+    if (!account || !password) {
+      throw new Error("Vui lòng nhập đầy đủ tài khoản và mật khẩu");
+    }
+
+    await fetchCsrfToken();
+    const user = await apiClient("/api/v1/auth/login/", {
+      method: "POST",
+      body: JSON.stringify({
+        identifier: account.trim(),
+        password,
+        remember: rememberMe,
+      }),
+    });
+
+    const storage = rememberMe ? localStorage : sessionStorage;
+    storage.setItem("sp_user", JSON.stringify(user));
+    return { status: 200, user };
+  },
+
+  forgotPassword: async (account) => {
+    return new Promise((resolve, reject) => {
+      if (!account) {
+        return reject(new Error("Vui lòng cung cấp email hoặc số điện thoại"));
+      }
+      return resolve({ message: "Mã xác nhập OTP đã được gửi thành công" });
+    });
+  },
+
+  // eslint-disable-next-line no-unused-vars
+  verifyOtp: async ({ account, otp }) => {
+    return new Promise((resolve, reject) => {
+      if (otp?.trim() === "123456") {
+        resolve({ success: true, message: "Xác thực OTP thành công" });
+      } else {
+        reject(new Error("Mã OTP không chính xác hoăc hết hạn"));
+      }
+    });
+  },
+
+  // eslint-disable-next-line no-unused-vars
+  resetPassword: async ({ account, otp, newPassword }) => {
+    return new Promise((resolve, reject) => {
+      if (!newPassword || newPassword.length < 6) {
+        return reject(new Error("Mật khẩu mởi phải có ít nhất 6 ký tự"));
+      }
+      resolve({ success: true, message: "Đổi mật khẩu thành công" });
+    });
+  },
+
+  logout: () => {
+    return new Promise((resolve) => {
+      localStorage.removeItem("sp_auth_token");
+      localStorage.removeItem("sp_user");
+      sessionStorage.removeItem("sp_auth_token");
+      sessionStorage.removeItem("sp_user");
+      resolve(true);
+    });
+  },
+};

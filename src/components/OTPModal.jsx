@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { authService } from "../features/authService";
+import { authService } from "../services/authService";
 
 export default function OtpModal({ isOpen, onClose, account, onSuccess }) {
     const [otp, setOtp] = useState("");

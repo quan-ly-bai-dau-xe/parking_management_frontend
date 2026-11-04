@@ -1,6 +1,6 @@
 import React from "react";
 import { APP_NAVIGATION_TABS, ROUTES, resolveNavigationPath } from "../../config/navigation";
-import { authService } from "../../features/authService";
+import { authService } from "../../services/authService";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useNavigate, useLocation } from "react-router-dom";
 import PlateScannerModal from "../PlateScannerModal";

@@ -4,13 +4,13 @@ import {
   lookupVehicleByPlate,
   mapPlateScanToVehicle,
   mapVehicleLookupToVehicle,
-} from "../../features/plateScanService";
+} from "../../services/plateScanService";
 import {
   validateVehicleEntry,
   calculateParkingFee,
   checkInVehicle,
   checkOutVehicle,
-} from "../../features/parkingSessionService";
+} from "../../services/parkingSessionService";
 import { mockVehicles } from "../../mocks/vehicleData";
 
 /**
@@ -29,6 +29,7 @@ export default function ScanPlateModal({
   vehicles = [],
 }) {
   const [selectedImage, setSelectedImage] = useState(null);
+  const [uploadedCloudinaryUrl, setUploadedCloudinaryUrl] = useState(null);
   const [detectedPlate, setDetectedPlate] = useState("");
   const [matchedVehicle, setMatchedVehicle] = useState(null);
   const [scanDetails, setScanDetails] = useState(null);
@@ -44,6 +45,7 @@ export default function ScanPlateModal({
   const [isActionPending, setIsActionPending] = useState(false);
 
   const fileInputRef = useRef(null);
+  const actionPendingRef = useRef(false);
 
   if (!isOpen) return null;
 
@@ -154,6 +156,11 @@ export default function ScanPlateModal({
         latencyMs: scanResult.latency_ms,
         candidates: scanResult.candidates || [],
       });
+      if (scanResult?.image_url) {
+        setUploadedCloudinaryUrl(scanResult.image_url);
+      } else {
+        setUploadedCloudinaryUrl(null);
+      }
 
       if (extractedText) {
         setDetectedPlate(extractedText);
@@ -205,6 +212,7 @@ export default function ScanPlateModal({
 
   const handleReset = () => {
     setSelectedImage(null);
+    setUploadedCloudinaryUrl(null);
     setDetectedPlate("");
     setMatchedVehicle(null);
     setScanDetails(null);
@@ -262,43 +270,67 @@ export default function ScanPlateModal({
 
   // Action: Confirm Entry (Check-in)
   const handleConfirmEntry = async () => {
+    if (actionPendingRef.current) return;
+
+    actionPendingRef.current = true;
     setIsActionPending(true);
     setActionSuccessMessage("");
 
     try {
+      const assignedSlotId = matchedVehicle?.parkingSlot?.slotId || null;
       await checkInVehicle({
         licensePlate: detectedPlate || matchedVehicle?.licensePlate,
         vehicleType: matchedVehicle?.vehicleType || "CAR",
-        entryGate: "Cổng vào A1",
-        slotCode: matchedVehicle?.parkingSlot?.display || "A1-01",
-        imageUrl: selectedImage,
+        entryGateId: 1,
+        slotId: assignedSlotId,
+        recognitionSource: uploadedCloudinaryUrl ? "AI" : "MANUAL",
+        aiConfidence: uploadedCloudinaryUrl ? 98.5 : null,
+        imageUrl: uploadedCloudinaryUrl,
         activeTicket: hasValidTicket,
       });
 
       setBarrierState("opening");
       setTimeout(() => setBarrierState("opened"), 600);
+      const slotNotice = matchedVehicle?.parkingSlot?.display
+        ? ` -> Ô đỗ: ${matchedVehicle.parkingSlot.display}`
+        : "";
       setActionSuccessMessage(
-        `✓ Đã tạo phiên gửi xe lúc ${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}. Mở thanh chắn cho xe vào bãi!`
+        `✓ Đã tạo phiên gửi xe lúc ${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}${slotNotice}. Mở thanh chắn cho xe vào bãi!`
+      );
+    } catch (err) {
+      if (err?.status === 409) {
+        // Backend đã xác nhận xe có phiên mở; chuyển ngay sang luồng xe ra
+        // để không cho người dùng tiếp tục retry check-in cùng biển số.
+        setLaneMode("exit");
+      }
+      setErrorMessage(
+        err?.status === 409
+          ? "Xe này đã có phiên gửi đang mở. Vui lòng tra cứu lại biển số để chuyển sang thao tác Xe Ra."
+          : err?.message || "Không thể thực hiện check-in phương tiện. Vui lòng thử lại."
       );
     } finally {
+      actionPendingRef.current = false;
       setIsActionPending(false);
     }
   };
 
   // Action: Confirm Exit (Check-out)
   const handleConfirmExit = async () => {
+    if (actionPendingRef.current) return;
+
+    actionPendingRef.current = true;
     setIsActionPending(true);
     setActionSuccessMessage("");
 
     try {
       await checkOutVehicle({
-        sessionId: rawLookup?.open_session?.id,
+        sessionId: rawLookup?.open_session?.id || rawLookup?.open_session?.session_code,
         licensePlate: detectedPlate || matchedVehicle?.licensePlate,
         entryTimeRaw: rawLookup?.open_session?.entry_time,
         vehicleType: matchedVehicle?.vehicleType || "CAR",
         hasActiveTicket: hasValidTicket,
         paymentMethod: hasValidTicket ? "TICKET_EXEMPT" : "CASH",
-        exitGate: "Cổng ra B1",
+        exitGate: 3,
       });
 
       setBarrierState("opening");
@@ -306,7 +338,12 @@ export default function ScanPlateModal({
       setActionSuccessMessage(
         `✓ Đã xác nhận thanh toán (${exitFeeCalc.feeFormatted}) & kết thúc phiên gửi xe. Mở thanh chắn cho xe ra bãi!`
       );
+    } catch (err) {
+      setErrorMessage(
+        err?.message || "Không thể thực hiện check-out phương tiện. Vui lòng thử lại."
+      );
     } finally {
+      actionPendingRef.current = false;
       setIsActionPending(false);
     }
   };
@@ -464,8 +501,13 @@ export default function ScanPlateModal({
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-center justify-between text-2xs text-slate-600">
                     <span>Độ tin cậy AI:</span>
                     <span className="font-semibold text-emerald-700">
-                      {scanDetails.confidence
-                        ? `${Math.round(scanDetails.confidence * 100)}%`
+                      {scanDetails.confidence !== null && scanDetails.confidence !== undefined
+                        ? (() => {
+                            const num = Number(scanDetails.confidence);
+                            if (Number.isNaN(num)) return "Khớp mẫu chuẩn";
+                            const val = num <= 1.0 ? num * 100 : num;
+                            return `${Math.round(val * 10) / 10}%`;
+                          })()
                         : "Khớp mẫu chuẩn"}
                     </span>
                   </div>
@@ -585,7 +627,11 @@ export default function ScanPlateModal({
                   </div>
                   <div className="flex items-center justify-between text-2xs text-slate-600">
                     <span>Kiểm tra chỗ trống:</span>
-                    <span className="font-semibold text-emerald-600">✓ Còn vị trí đỗ trống (Tầng 1)</span>
+                    <span className="font-semibold text-emerald-600">
+                      {matchedVehicle.parkingSlot?.display
+                        ? `✓ Đã xếp: ${matchedVehicle.parkingSlot.display}`
+                        : "✓ Còn vị trí đỗ trống (Tự động gán theo làn)"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between text-2xs text-slate-600">
                     <span>Điều kiện mở barrier:</span>

@@ -486,21 +486,9 @@ export function createPlateAutoDetectMachine({
       return { action: 'skipped_rate_limit' };
     }
 
+    // Luôn cho phép gửi frame mới để camera tiếp tục quét liên tục.
+    // Việc chống request chồng nhau và giới hạn tần suất đã được xử lý bên trên.
     if (thumbnail && thumbnail.length > 0) {
-      const isStatic =
-        previousThumbnail &&
-        lastResponseWas422 &&
-        isStaticScene(previousThumbnail, thumbnail, staticThreshold);
-
-      const isForcedHeartbeat =
-        lastResponseWas422 &&
-        lastRequestAt > 0 &&
-        now - lastRequestAt >= forcedHeartbeatMs;
-
-      if (isStatic && !isForcedHeartbeat) {
-        previousThumbnail = thumbnail;
-        return { action: 'skipped_static_422' };
-      }
       previousThumbnail = thumbnail;
     }
 
@@ -566,7 +554,8 @@ export function createPlateAutoDetectMachine({
         const bestFrame = selectBestCandidateFrame(candidateFrames, stability.stablePlate);
         bestFrameBlob = bestFrame ? bestFrame.blob : captured.blob;
         detectedData = bestFrame ? bestFrame.scanResult : responseData;
-        scanState = SCAN_STATES.DETECTED;
+        // Giữ dữ liệu ổn định để xác nhận, nhưng tiếp tục vòng quét realtime.
+        scanState = SCAN_STATES.CONFIRMING;
         statusMessage = STATUS_MESSAGES.DETECTED;
         emit();
         return { action: 'detected', data: detectedData };
@@ -589,7 +578,8 @@ export function createPlateAutoDetectMachine({
         lastResponseWas422 = true;
         rawBoundingBox = null;
         scanState = SCAN_STATES.SEARCHING;
-        statusMessage = STATUS_MESSAGES.SEARCHING;
+        errorMessage = err?.message || 'Ảnh không hợp lệ hoặc không đạt yêu cầu nhận diện.';
+        statusMessage = errorMessage;
         emit();
         return { action: 'no_plate_422' };
       }

@@ -1,7 +1,113 @@
 import { useEffect, useState, useMemo } from "react";
 import { EmptyState, ConfirmModal, LoadingSpinner, Pagination } from "../components/common";
-import { getParkingSessions, mapSessionToFrontend } from "../features/plateScanService";
+import { getParkingSessions, mapSessionToFrontend } from "../services/plateScanService";
 import usePagination from "../hooks/usePagination";
+
+/**
+ * Thumbnail hình ảnh đối soát với chuẩn đoán lỗi rõ ràng và UI fallback sạch.
+ */
+function ParkingSessionThumbnail({ item, onPreview }) {
+  const [hasError, setHasError] = useState(false);
+  const imageUrl = item.plateImageUrl || item.exitPlateImageUrl;
+
+  if (!imageUrl) {
+    return <span className="text-slate-400 text-xs">—</span>;
+  }
+
+  const handleImageError = () => {
+    const isEntry = Boolean(item.plateImageUrl);
+    console.error(
+      `❌ [Image Load Failed] Không thể tải ảnh đối soát:`,
+      {
+        sessionCode: item.sessionCode,
+        licensePlate: item.licensePlate,
+        imageType: isEntry ? "Ảnh vào (entry)" : "Ảnh ra (exit)",
+        targetUrl: imageUrl,
+        timestamp: new Date().toISOString(),
+      }
+    );
+    setHasError(true);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={() => onPreview({
+        entryUrl: item.plateImageUrl,
+        exitUrl: item.exitPlateImageUrl,
+        licensePlate: item.licensePlate,
+        sessionCode: item.sessionCode,
+      })}
+      className="group relative block h-10 w-14 overflow-hidden rounded-md border border-slate-200 bg-slate-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+      aria-label={`Xem ảnh đối soát ${item.licensePlate}`}
+    >
+      {hasError ? (
+        <span
+          className="flex h-full w-full flex-col items-center justify-center bg-slate-100 p-1 text-[9px] font-medium text-slate-400 transition-colors group-hover:bg-slate-200"
+          title={`Không thể tải ảnh từ: ${imageUrl}`}
+        >
+          <svg className="h-3.5 w-3.5 text-slate-400 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          Ảnh lỗi
+        </span>
+      ) : (
+        <img
+          src={imageUrl}
+          alt={`Ảnh đối soát ${item.licensePlate}`}
+          className="h-full w-full object-cover transition-transform group-hover:scale-110"
+          loading="lazy"
+          onError={handleImageError}
+        />
+      )}
+    </button>
+  );
+}
+
+/**
+ * Hiển thị ảnh trong Modal xem chi tiết với fallback chuẩn React.
+ */
+function ModalImagePreview({ url, label, licensePlate, sessionCode }) {
+  const [hasError, setHasError] = useState(false);
+
+  const handleError = () => {
+    console.error(
+      `❌ [Modal Image Load Failed] Lỗi tải ảnh chi tiết trong modal:`,
+      {
+        sessionCode,
+        licensePlate,
+        label,
+        targetUrl: url,
+        timestamp: new Date().toISOString(),
+      }
+    );
+    setHasError(true);
+  };
+
+  return (
+    <div>
+      <p className="mb-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</p>
+      <div className="overflow-hidden rounded-xl bg-slate-100 flex items-center justify-center p-2 min-h-[140px] border border-slate-200">
+        {hasError ? (
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <svg className="h-8 w-8 text-slate-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p className="text-xs font-semibold text-slate-600">Không thể tải hình ảnh</p>
+            <p className="text-[11px] text-slate-400 max-w-xs truncate mt-0.5" title={url}>URL: {url}</p>
+          </div>
+        ) : (
+          <img
+            src={url}
+            alt={`${label} - ${licensePlate}`}
+            className="w-full max-h-[300px] object-contain"
+            onError={handleError}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function ParkingHistory() {
   // Filter form states matching UI: Mã phiên đỗ, Biển số xe, Thời gian vào đậu, Thời gian ra bãi, Cước phí
@@ -45,8 +151,8 @@ export default function ParkingHistory() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
 
-  // Selected image preview modal
-  const [previewImage, setPreviewImage] = useState(null);
+  // Selected image preview modal: { entryUrl, exitUrl, licensePlate }
+  const [previewSession, setPreviewSession] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,8 +212,8 @@ export default function ParkingHistory() {
       
       // Date and server-supported filters are applied by the sessions API.
       if (filterByTime) {
-        const entryClock = item.entryTime.split(" ")[1];
-        const exitClock = item.exitTime.split(" ")[1] || "";
+        const entryClock = item.entryTime?.split(" ")[1] || "";
+        const exitClock = item.exitTime ? item.exitTime.split(" ")[1] || "" : "";
         if (entryTimeFrom && entryClock < entryTimeFrom) return false;
         if (entryTimeTo && entryClock > entryTimeTo) return false;
         if (exitTimeFrom && (!exitClock || exitClock < exitTimeFrom)) return false;
@@ -338,10 +444,16 @@ export default function ParkingHistory() {
                           {item.licensePlate}
                         </div>
                         <div className="col-span-1 text-slate-600">
-                          {item.entryTime}
+                          {item.entryTime || "—"}
                         </div>
                         <div className="col-span-1 text-slate-600">
-                          {item.exitTime}
+                          {item.exitTime && item.exitTime !== "—" ? (
+                            item.exitTime
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
+                              Đang trong bãi
+                            </span>
+                          )}
                         </div>
                         <div className="col-span-1 text-slate-600">
                           {item.duration}
@@ -350,20 +462,10 @@ export default function ParkingHistory() {
                           <span className="font-semibold text-emerald-600">
                             {item.fee}
                           </span>
-                          {item.plateImageUrl ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setPreviewImage(item.plateImageUrl)
-                              }
-                              className="group relative block h-10 w-14 overflow-hidden rounded-md border border-slate-200 cursor-pointer"
-                              aria-label={`Xem ảnh đối soát ${item.licensePlate}`}
-                            >
-                              <img src={item.plateImageUrl} alt="Ảnh biển số" className="h-full w-full object-cover transition-transform group-hover:scale-110" />
-                            </button>
-                          ) : (
-                            <span className="text-slate-400 text-xs">—</span>
-                          )}
+                          <ParkingSessionThumbnail
+                            item={item}
+                            onPreview={setPreviewSession}
+                          />
                         </div>
                       </div>
                     ))}
@@ -397,18 +499,35 @@ export default function ParkingHistory() {
 
       {/* Image Preview Modal */}
       <ConfirmModal
-        isOpen={Boolean(previewImage)}
-        onClose={() => setPreviewImage(null)}
-        title="Hình ảnh đối soát camera"
+        isOpen={Boolean(previewSession)}
+        onClose={() => setPreviewSession(null)}
+        title={`Hình ảnh đối soát camera${previewSession?.licensePlate ? ` — ${previewSession.licensePlate}` : ""}`}
         size="lg"
         showFooter={false}
       >
-        <div className="mt-1 overflow-hidden rounded-xl bg-slate-100 flex items-center justify-center p-2">
-          <img
-            src={previewImage}
-            alt="Hình ảnh đối soát"
-            className="w-full max-h-[400px] object-contain"
-          />
+        <div className="mt-1 space-y-4">
+          {/* Entry image */}
+          {previewSession?.entryUrl && (
+            <ModalImagePreview
+              url={previewSession.entryUrl}
+              label="Ảnh lúc vào"
+              licensePlate={previewSession.licensePlate}
+              sessionCode={previewSession.sessionCode}
+            />
+          )}
+          {/* Exit image */}
+          {previewSession?.exitUrl && (
+            <ModalImagePreview
+              url={previewSession.exitUrl}
+              label="Ảnh lúc ra"
+              licensePlate={previewSession.licensePlate}
+              sessionCode={previewSession.sessionCode}
+            />
+          )}
+          {/* No images at all */}
+          {!previewSession?.entryUrl && !previewSession?.exitUrl && (
+            <p className="py-8 text-center text-sm text-slate-400">Không có hình ảnh đối soát.</p>
+          )}
         </div>
       </ConfirmModal>
     </>

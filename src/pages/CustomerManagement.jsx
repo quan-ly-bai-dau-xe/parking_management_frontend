@@ -1,817 +1,157 @@
-import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import { useMemo } from "react";
+import { Button, PageHeader } from "../components/common";
 import {
-  EmptyState,
-  Pagination,
-  TableActions,
-  DataTable,
-  Icon,
-  Button,
-} from "../components/common";
-import CustomerModal from "../components/CustomerManagement/CustomerModal";
-import { customerService } from "../services/customerService";
+  CustomerModal,
+  CustomerFilters,
+  CustomerDataTable,
+  CustomerDeleteModals,
+  getCustomerColumns,
+  useCustomerManagementLogic,
+} from "../components/CustomerManagement";
 import usePagination from "../hooks/usePagination";
-
-const initialAdvancedFilters = {
-  idNumber: "",
-  birthday: "",
-  gender: "",
-};
+import useCustomerData from "../hooks/useCustomerData";
+import { useToast } from "../context/ToastContext";
 
 export default function CustomerManagement() {
-  const [customerData, setCustomerData] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editingCustomerId, setEditingCustomerId] = useState(null);
-  const [newCustomer, setNewCustomer] = useState({
-    customerCode: "",
-    name: "",
-    phone: "",
-    idNumber: "",
-    birthday: "",
-    email: "",
-    gender: "Nam",
-    status: "Đang hoạt động",
-    packageType: "Gói tháng",
-  });
+  const toast = useToast();
+  const { customerData, setCustomerData, isLoading, errorMessage, fetchCustomerList } =
+    useCustomerData();
 
-  // Tầng 1: Search term (mã, tên, SĐT, email)
-  const [searchTerm, setSearchTerm] = useState("");
-
-  // Tầng 2: Trạng thái & Gói
-  const [statusFilter, setStatusFilter] = useState("");
-  const [packageFilter, setPackageFilter] = useState("");
-
-  // Tầng 3: Bộ lọc chi tiết (CCCD, Ngày sinh, Giới tính)
-  const [appliedAdvancedFilters, setAppliedAdvancedFilters] = useState(initialAdvancedFilters);
-  const [draftFilters, setDraftFilters] = useState(initialAdvancedFilters);
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
-  const [expandedRowId, setExpandedRowId] = useState(null);
-
-  const searchInputRef = useRef(null);
-  const popoverRef = useRef(null);
-
-  const fetchCustomerList = useCallback(() => {
-    let isSubscribed = true;
-    customerService
-      .getCustomers()
-      .then((data) => {
-        if (isSubscribed) {
-          setCustomerData(data);
-          setErrorMessage(null);
-        }
-      })
-      .catch((err) => {
-        if (isSubscribed) {
-          console.error("Lỗi khi tải danh sách khách hàng:", err);
-          setErrorMessage(err.message || "Không thể tải danh sách khách hàng");
-        }
-      })
-      .finally(() => {
-        if (isSubscribed) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      isSubscribed = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const cleanup = fetchCustomerList();
-    return cleanup;
-  }, [fetchCustomerList]);
-
-  // Shortcut Ctrl+K to focus search input
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  // Click outside to close popover
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
-        setIsPopoverOpen(false);
-      }
-    };
-    if (isPopoverOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isPopoverOpen]);
-
-  // Count active filters in Tầng 3 (Popover)
-  const activeAdvancedCount = useMemo(() => {
-    let count = 0;
-    if (appliedAdvancedFilters.idNumber.trim()) count++;
-    if (appliedAdvancedFilters.birthday.trim()) count++;
-    if (appliedAdvancedFilters.gender) count++;
-    return count;
-  }, [appliedAdvancedFilters]);
-
-  // Filtered customer list
-  const customers = useMemo(() => {
-    return customerData.filter((customer) => {
-      // Tầng 1: Tìm theo mã, tên, SĐT, email
-      if (searchTerm.trim()) {
-        const q = searchTerm.trim().toLowerCase();
-        const matchesCode = String(customer.customerCode ?? "").toLowerCase().includes(q);
-        const matchesName = String(customer.name ?? "").toLowerCase().includes(q);
-        const matchesPhone = String(customer.phone ?? "").toLowerCase().includes(q);
-        const matchesEmail = String(customer.email ?? "").toLowerCase().includes(q);
-        if (!matchesCode && !matchesName && !matchesPhone && !matchesEmail) {
-          return false;
-        }
-      }
-
-      // Tầng 2: Trạng thái & Gói
-      if (statusFilter && customer.status !== statusFilter) {
-        return false;
-      }
-      if (packageFilter && customer.packageType !== packageFilter) {
-        return false;
-      }
-
-      // Tầng 3: CCCD, Ngày sinh, Giới tính
-      if (
-        appliedAdvancedFilters.idNumber.trim() &&
-        !String(customer.idNumber ?? "")
-          .toLowerCase()
-          .includes(appliedAdvancedFilters.idNumber.trim().toLowerCase())
-      ) {
-        return false;
-      }
-      if (
-        appliedAdvancedFilters.birthday.trim() &&
-        !String(customer.birthday ?? "")
-          .toLowerCase()
-          .includes(appliedAdvancedFilters.birthday.trim().toLowerCase())
-      ) {
-        return false;
-      }
-      if (
-        appliedAdvancedFilters.gender &&
-        customer.gender !== appliedAdvancedFilters.gender
-      ) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [customerData, searchTerm, statusFilter, packageFilter, appliedAdvancedFilters]);
-
-  const { totalPages, paginatedList } = usePagination(
-    customers,
+  const {
+    showAddModal,
+    setShowAddModal,
+    editingCustomerId,
+    setEditingCustomerId,
+    isSubmitting,
+    newCustomer,
+    setNewCustomer,
+    customerToDelete,
+    setCustomerToDelete,
+    customerBlockedFromDelete,
+    setCustomerBlockedFromDelete,
+    isDeleting,
+    searchTerm,
+    setSearchTerm,
+    statusFilter,
+    setStatusFilter,
+    packageFilter,
+    setPackageFilter,
+    appliedAdvancedFilters,
+    draftFilters,
+    setDraftFilters,
+    isPopoverOpen,
     currentPage,
+    setCurrentPage,
     itemsPerPage,
-  );
+    setItemsPerPage,
+    expandedRowId,
+    setExpandedRowId,
+    searchInputRef,
+    popoverRef,
+    activeAdvancedCount,
+    customers,
+    handleOpenPopover,
+    handleApplyPopover,
+    handleCancelPopover,
+    handleClearPopoverDraft,
+    handleResetAll,
+    handleOpenCreateModal,
+    handleEditClick,
+    handleDeleteClick,
+    handleConfirmDelete,
+    handleSubmitCustomer,
+  } = useCustomerManagementLogic(customerData, setCustomerData, toast);
 
-  const handleOpenPopover = () => {
-    if (!isPopoverOpen) {
-      setDraftFilters({ ...appliedAdvancedFilters });
-    }
-    setIsPopoverOpen((prev) => !prev);
-  };
-
-  const handleApplyPopover = () => {
-    setAppliedAdvancedFilters({ ...draftFilters });
-    setCurrentPage(1);
-    setIsPopoverOpen(false);
-  };
-
-  const handleCancelPopover = () => {
-    setDraftFilters({ ...appliedAdvancedFilters });
-    setIsPopoverOpen(false);
-  };
-
-  const handleClearPopoverDraft = () => {
-    const cleared = { idNumber: "", birthday: "", gender: "" };
-    setDraftFilters(cleared);
-    setAppliedAdvancedFilters(cleared);
-    setCurrentPage(1);
-  };
-
-  const handleResetAll = () => {
-    setSearchTerm("");
-    setStatusFilter("");
-    setPackageFilter("");
-    const cleared = { idNumber: "", birthday: "", gender: "" };
-    setDraftFilters(cleared);
-    setAppliedAdvancedFilters(cleared);
-    setCurrentPage(1);
-    searchInputRef.current?.focus();
-  };
-
-  const handleOpenCreateModal = () => {
-    setEditingCustomerId(null);
-    setNewCustomer({
-      customerCode: `KH${String(customerData.length + 1).padStart(4, "0")}`,
-      name: "",
-      phone: "",
-      idNumber: "",
-      birthday: "",
-      email: "",
-      gender: "Nam",
-      status: "Đang hoạt động",
-      packageType: "Gói tháng",
-    });
-    setShowAddModal(true);
-  };
-
-  const handleEditClick = useCallback((customer) => {
-    setEditingCustomerId(customer.id);
-    setNewCustomer({
-      customerCode: customer.customerCode ?? "",
-      name: customer.name ?? "",
-      phone: customer.phone ?? "",
-      idNumber: customer.idNumber ?? "",
-      birthday: customer.birthday ?? "",
-      email: customer.email ?? "",
-      gender: customer.gender ?? "Nam",
-      status: customer.status ?? "Đang hoạt động",
-      packageType: customer.packageType ?? "Gói tháng",
-    });
-    setShowAddModal(true);
-  }, []);
-
-  const handleDeleteCustomer = useCallback(async (customer) => {
-    const confirmed = window.confirm(
-      `Bạn có chắc muốn xóa khách hàng ${customer?.name ?? ""} không?`,
-    );
-    if (!confirmed) return;
-
-    try {
-      await customerService.deleteCustomer(customer.id);
-      setCustomerData((current) => {
-        const newData = current.filter((c) => c.id !== customer.id);
-        setCurrentPage((page) =>
-          Math.min(page, Math.max(1, Math.ceil((newData.length - 1) / itemsPerPage))),
-        );
-        return newData;
-      });
-    } catch (err) {
-      alert(`Xóa khách hàng thất bại: ${err.message}`);
-    }
-  }, [itemsPerPage]);
-
-  const handleRowClick = (customer) => {
-    setExpandedRowId((prev) => (prev === customer.id ? null : customer.id));
-  };
-
-  const handleSubmitCustomer = async (event) => {
-    event.preventDefault();
-
-    try {
-      if (editingCustomerId) {
-        const updated = await customerService.updateCustomer(editingCustomerId, newCustomer);
-        setCustomerData((current) =>
-          current.map((c) =>
-            c.id === editingCustomerId
-              ? {
-                  ...c,
-                  ...newCustomer,
-                  ...updated,
-                }
-              : c,
-          ),
-        );
-        setEditingCustomerId(null);
-      } else {
-        const created = await customerService.createCustomer({
-          ...newCustomer,
-          vehicles: [],
-        });
-        setCustomerData((current) => [...current, created]);
-      }
-
-      setNewCustomer({
-        customerCode: "",
-        name: "",
-        phone: "",
-        idNumber: "",
-        birthday: "",
-        email: "",
-        gender: "Nam",
-        status: "Đang hoạt động",
-        packageType: "Gói tháng",
-      });
-      setShowAddModal(false);
-    } catch (err) {
-      alert(`Lưu thông tin thất bại: ${err.message}`);
-    }
-  };
+  const { totalPages, paginatedList } = usePagination(customers, currentPage, itemsPerPage);
 
   const columns = useMemo(
-    () => [
-      {
-        header: "Mã khách hàng",
-        accessor: "customerCode",
-        renderCell: (row) => (
-          <span className="font-semibold text-slate-800">{row.customerCode}</span>
-        ),
-      },
-      {
-        header: "Tên khách hàng",
-        accessor: "name",
-        renderCell: (row) => (
-          <span className="font-medium text-slate-900">{row.name}</span>
-        ),
-      },
-      {
-        header: "Số điện thoại",
-        accessor: "phone",
-        renderCell: (row) => (
-          <span className="font-semibold text-blue-600">{row.phone}</span>
-        ),
-      },
-      { header: "Số CCCD", accessor: "idNumber" },
-      { header: "Ngày sinh", accessor: "birthday" },
-      { header: "Email", accessor: "email" },
-      { header: "Giới tính", accessor: "gender" },
-      {
-        header: "Gói",
-        accessor: "packageType",
-        renderCell: (row) => (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-            {row.packageType || "Gói tháng"}
-          </span>
-        ),
-      },
-      {
-        header: "Trạng thái",
-        accessor: "status",
-        renderCell: (row) => {
-          const status = row.status || "Đang hoạt động";
-          if (status === "Đang hoạt động") {
-            return (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border bg-emerald-50 text-emerald-700 border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                Đang hoạt động
-              </span>
-            );
-          }
-          if (status === "Sắp hết hạn") {
-            return (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border bg-amber-50 text-amber-700 border-amber-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                Sắp hết hạn
-              </span>
-            );
-          }
-          if (status === "Tạm khóa") {
-            return (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border bg-rose-50 text-rose-700 border-rose-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                Tạm khóa
-              </span>
-            );
-          }
-          return (
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border bg-slate-100 text-slate-600 border-slate-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-              {status}
-            </span>
-          );
-        },
-      },
-      {
-        header: "Thao tác",
-        accessor: () => null,
-        align: "center",
-        renderCell: (row) => (
-          <TableActions
-            actions={[
-              {
-                label: "Sửa",
-                icon: "edit",
-                onClick: () => handleEditClick(row),
-              },
-              {
-                label: "Xóa",
-                icon: "delete",
-                onClick: () => handleDeleteCustomer(row),
-              },
-            ]}
-          />
-        ),
-      },
-    ],
-    [handleEditClick, handleDeleteCustomer],
+    () => getCustomerColumns({ onEdit: handleEditClick, onDeleteClick: handleDeleteClick }),
+    [handleEditClick, handleDeleteClick],
   );
 
   return (
     <>
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              Quản lý khách hàng
-            </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Quản lý danh sách khách hàng, thuê bao và thông tin phương tiện.
-            </p>
-          </div>
-        </div>
+      <PageHeader
+        title="Quản lý khách hàng"
+        description="Quản lý danh sách khách hàng, thông tin định danh và phương tiện đăng ký."
+        actions={
+          <Button variant="primary" size="sm" onClick={handleOpenCreateModal} className="cursor-pointer">
+            + Thêm khách hàng mới
+          </Button>
+        }
+      />
 
-        {/* Bộ lọc 2 tầng + Popover tầng 3 */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
-          {/* Tầng 1: Search theo mã, tên, SĐT, email + Phím tắt Ctrl+K */}
-          <div className="relative flex items-center">
-            <span className="absolute left-3 text-slate-400 pointer-events-none flex items-center justify-center">
-              <Icon name="search" size="sm" />
-            </span>
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Tìm theo mã, tên, SĐT, email..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full text-xs pl-9 pr-16 py-2.5 border border-slate-300 rounded-lg bg-white hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors placeholder:text-slate-400 text-slate-800"
-            />
-            <div className="absolute right-2.5 flex items-center gap-1.5">
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchTerm("");
-                    setCurrentPage(1);
-                    searchInputRef.current?.focus();
-                  }}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
-                  title="Xóa tìm kiếm"
-                >
-                  <Icon name="close" size="xs" />
-                </button>
-              )}
-              <kbd
-                onClick={() => searchInputRef.current?.focus()}
-                className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-2xs font-mono font-medium text-slate-400 bg-slate-50 border border-slate-200 rounded shadow-2xs cursor-pointer select-none"
-                title="Nhấn Ctrl+K để tìm kiếm"
-              >
-                <span className="text-xs">Ctrl+K</span>
-              </kbd>
-            </div>
-          </div>
+      <CustomerFilters
+        searchTerm={searchTerm}
+        onSearchChange={(val) => {
+          setSearchTerm(val);
+          setCurrentPage(1);
+        }}
+        statusFilter={statusFilter}
+        onStatusChange={(val) => {
+          setStatusFilter(val);
+          setCurrentPage(1);
+        }}
+        packageFilter={packageFilter}
+        onPackageChange={(val) => {
+          setPackageFilter(val);
+          setCurrentPage(1);
+        }}
+        appliedAdvancedFilters={appliedAdvancedFilters}
+        draftFilters={draftFilters}
+        onDraftFilterChange={(field, val) => setDraftFilters((prev) => ({ ...prev, [field]: val }))}
+        isPopoverOpen={isPopoverOpen}
+        onTogglePopover={handleOpenPopover}
+        onApplyPopover={handleApplyPopover}
+        onCancelPopover={handleCancelPopover}
+        onClearPopover={handleClearPopoverDraft}
+        onResetAll={handleResetAll}
+        activeAdvancedCount={activeAdvancedCount}
+        searchInputRef={searchInputRef}
+        popoverRef={popoverRef}
+      />
 
-          {/* Tầng 2: [Tất cả trạng thái ▼] [Tất cả gói ▼] [+ Bộ lọc] [↻] */}
-          <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
-            {/* Dropdown: Tất cả trạng thái */}
-            <div className="relative">
-              <select
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="h-9 pl-3 pr-8 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg appearance-none hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer shadow-2xs"
-              >
-                <option value="">Tất cả trạng thái</option>
-                <option value="Đang hoạt động">Đang hoạt động</option>
-                <option value="Sắp hết hạn">Sắp hết hạn</option>
-                <option value="Tạm khóa">Tạm khóa</option>
-                <option value="Hết hạn">Hết hạn</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                <Icon name="chevronDown" size="xs" />
-              </div>
-            </div>
+      <CustomerDataTable
+        columns={columns}
+        paginatedList={paginatedList}
+        expandedRowId={expandedRowId}
+        onRowClick={(c) => setExpandedRowId((prev) => (prev === c.id ? null : c.id))}
+        onCloseExpanded={() => setExpandedRowId(null)}
+        isLoading={isLoading}
+        errorMessage={errorMessage}
+        onRetry={fetchCustomerList}
+        totalItems={customers.length}
+        totalPages={totalPages}
+        currentPage={currentPage}
+        onPageChange={setCurrentPage}
+        itemsPerPage={itemsPerPage}
+        onItemsPerPageChange={(val) => {
+          setItemsPerPage(Number(val));
+          setCurrentPage(1);
+        }}
+      />
 
-            {/* Dropdown: Tất cả gói */}
-            <div className="relative">
-              <select
-                value={packageFilter}
-                onChange={(e) => {
-                  setPackageFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="h-9 pl-3 pr-8 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg appearance-none hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer shadow-2xs"
-              >
-                <option value="">Tất cả gói</option>
-                <option value="Gói tháng">Gói tháng</option>
-                <option value="Gói quý">Gói quý</option>
-                <option value="Gói năm">Gói năm</option>
-                <option value="Vãng lai">Vãng lai</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                <Icon name="chevronDown" size="xs" />
-              </div>
-            </div>
+      <CustomerModal
+        isOpen={showAddModal}
+        onClose={() => {
+          setShowAddModal(false);
+          setEditingCustomerId(null);
+        }}
+        editingCustomerId={editingCustomerId}
+        customerData={newCustomer}
+        isSubmitting={isSubmitting}
+        onChange={(field, val) => setNewCustomer((curr) => ({ ...curr, [field]: val }))}
+        onSubmit={handleSubmitCustomer}
+      />
 
-            {/* [+ Bộ lọc] with Popover (Tầng 3) */}
-            <div className="relative" ref={popoverRef}>
-              <button
-                type="button"
-                onClick={handleOpenPopover}
-                className={`h-9 inline-flex items-center gap-1.5 px-3 rounded-lg border text-xs font-medium cursor-pointer transition-colors shadow-2xs ${
-                  isPopoverOpen || activeAdvancedCount > 0
-                    ? "bg-blue-50/70 border-blue-400 text-blue-700 font-semibold"
-                    : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400"
-                }`}
-              >
-                <Icon name="add" size="xs" />
-                <span>Bộ lọc</span>
-                {activeAdvancedCount > 0 && (
-                  <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-blue-600 text-white text-2xs font-bold leading-none">
-                    {activeAdvancedCount}
-                  </span>
-                )}
-              </button>
-
-              {/* Tầng 3: Popover hiển thị khi click [+ Bộ lọc] */}
-              {isPopoverOpen && (
-                <div
-                  className="absolute left-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-200 p-4 z-40 space-y-3.5"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <span className="text-xs font-bold text-slate-800">Bộ lọc chi tiết</span>
-                    {activeAdvancedCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleClearPopoverDraft}
-                        className="text-2xs font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
-                      >
-                        Đặt lại
-                      </button>
-                    )}
-                  </div>
-
-                  {/* + CCCD */}
-                  <div className="space-y-1">
-                    <label className="block text-2xs font-semibold text-slate-600">
-                      + CCCD:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Nhập số CCCD..."
-                      value={draftFilters.idNumber}
-                      onChange={(e) =>
-                        setDraftFilters((prev) => ({ ...prev, idNumber: e.target.value }))
-                      }
-                      onKeyDown={(e) => e.key === "Enter" && handleApplyPopover()}
-                      className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                    />
-                  </div>
-
-                  {/* + Ngày sinh */}
-                  <div className="space-y-1">
-                    <label className="block text-2xs font-semibold text-slate-600">
-                      + Ngày sinh:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="dd/mm/yyyy"
-                      value={draftFilters.birthday}
-                      onChange={(e) =>
-                        setDraftFilters((prev) => ({ ...prev, birthday: e.target.value }))
-                      }
-                      onKeyDown={(e) => e.key === "Enter" && handleApplyPopover()}
-                      className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                    />
-                  </div>
-
-                  {/* + Giới tính */}
-                  <div className="space-y-1">
-                    <label className="block text-2xs font-semibold text-slate-600">
-                      + Giới tính:
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={draftFilters.gender}
-                        onChange={(e) =>
-                          setDraftFilters((prev) => ({ ...prev, gender: e.target.value }))
-                        }
-                        className="w-full h-8.5 px-3 pr-8 text-xs bg-white border border-slate-300 rounded-lg appearance-none text-slate-700 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
-                      >
-                        <option value="">Tất cả giới tính</option>
-                        <option value="Nam">Nam</option>
-                        <option value="Nữ">Nữ</option>
-                        <option value="Khác">Khác</option>
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                        <Icon name="chevronDown" size="xs" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions: [Áp dụng] [Hủy] */}
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleCancelPopover}
-                    >
-                      Hủy
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="primary"
-                      size="sm"
-                      onClick={handleApplyPopover}
-                    >
-                      Áp dụng
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* [↻] Nút làm mới bộ lọc */}
-            <Button
-              type="button"
-              variant="secondary"
-              size="icon"
-              icon="refresh"
-              onClick={() => {
-                handleResetAll();
-                fetchCustomerList();
-              }}
-              title="Làm mới bộ lọc và dữ liệu"
-              aria-label="Làm mới bộ lọc và dữ liệu"
-            />
-          </div>
-        </div>
-
-        {/* Data Table Card: Danh sách khách hàng */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-          {/* Card Header */}
-          <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">
-                Bảng danh sách khách hàng
-              </h2>
-              <p className="text-2xs text-slate-500">
-                Thông tin cá nhân và quản lý tài khoản khách hàng
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                icon="add"
-                onClick={handleOpenCreateModal}
-              >
-                Thêm
-              </Button>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            {errorMessage && (
-              <div className="m-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Icon name="warning" size="sm" className="text-amber-600 shrink-0" />
-                  <span>{errorMessage}</span>
-                </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="xs"
-                  onClick={fetchCustomerList}
-                  className="bg-white border-amber-300 font-medium text-amber-900 hover:bg-amber-100/60 self-start sm:self-auto shrink-0 shadow-2xs"
-                >
-                  Thử lại
-                </Button>
-              </div>
-            )}
-            <DataTable
-              columns={columns}
-              rows={paginatedList}
-              rowKey="id"
-              onRowClick={handleRowClick}
-              renderCell={(row, col) => (col.renderCell ? col.renderCell(row) : (typeof col.accessor === "function" ? col.accessor(row) : row[col.accessor]))}
-              emptyMessage={
-                <div className="flex min-h-[180px] items-center justify-center">
-                  <EmptyState
-                    title={
-                      isLoading
-                        ? "Đang tải dữ liệu..."
-                        : errorMessage
-                          ? "Không thể tải danh sách khách hàng"
-                          : "Chưa có dữ liệu"
-                    }
-                    description={
-                      isLoading
-                        ? "Vui lòng đợi giây lát trong khi tải dữ liệu từ máy chủ."
-                        : errorMessage
-                          ? errorMessage
-                          : "Không tìm thấy khách hàng phù hợp với bộ lọc."
-                    }
-                    action={
-                      errorMessage ? (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          icon="refresh"
-                          onClick={fetchCustomerList}
-                          className="mt-3"
-                        >
-                          Tải lại dữ liệu
-                        </Button>
-                      ) : null
-                    }
-                  />
-                </div>
-              }
-            />
-          </div>
-
-          {customers.length > 0 && (
-            <div className="p-4 border-t border-slate-100">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-                itemsPerPage={itemsPerPage}
-                totalItems={customers.length}
-                onItemsPerPageChange={(value) => {
-                  setItemsPerPage(Number(value));
-                  setCurrentPage(1);
-                }}
-              />
-            </div>
-          )}
-
-          {/* Danh sách xe của khách hàng (hiển thị dưới cả phân trang) */}
-          {paginatedList.map((row) =>
-            expandedRowId === row.id && row.vehicles && row.vehicles.length > 0 ? (
-              <div key={`expanded-${row.id}`} className="bg-slate-50/50 border-t border-slate-200">
-                <div className="rounded-lg border border-slate-200 bg-white p-3 m-3.5">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-xs font-semibold text-slate-700">
-                      Danh sách xe của {row.name}
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={() => setExpandedRowId(null)}
-                      className="text-slate-400 hover:text-slate-600 text-xs px-1 cursor-pointer"
-                      title="Đóng"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-600">
-                      <thead className="bg-slate-50/75 border-b border-slate-200 text-2xs font-semibold text-slate-700 uppercase tracking-wider">
-                        <tr>
-                          <th className="py-2 px-3">Biển số</th>
-                          <th className="py-2 px-3">Trạng thái</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-normal">
-                        {row.vehicles.map((v) => (
-                          <tr key={v.id} className="hover:bg-slate-50/80">
-                            <td className="py-2.5 px-3 font-bold font-mono text-slate-900">
-                              {v.licensePlate}
-                            </td>
-                            <td className="py-2.5 px-3">{v.status}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            ) : null
-          )}
-        </div>
-
-        {/* Modal Thêm / Sửa khách hàng */}
-        <CustomerModal
-          isOpen={showAddModal}
-          onClose={() => {
-            setShowAddModal(false);
-            setEditingCustomerId(null);
-          }}
-          editingCustomerId={editingCustomerId}
-          customerData={newCustomer}
-          onChange={(field, value) =>
-            setNewCustomer((current) => ({
-              ...current,
-              [field]: value,
-            }))
-          }
-          onSubmit={handleSubmitCustomer}
-        />
+      <CustomerDeleteModals
+        customerToDelete={customerToDelete}
+        onCloseDelete={() => setCustomerToDelete(null)}
+        isDeleting={isDeleting}
+        onConfirmDelete={handleConfirmDelete}
+        customerBlockedFromDelete={customerBlockedFromDelete}
+        onCloseBlocked={() => setCustomerBlockedFromDelete(null)}
+      />
     </>
   );
 }

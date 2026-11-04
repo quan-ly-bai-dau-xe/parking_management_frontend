@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Icon from './Icon';
 import { ICON_NAMES, SIZE_MAP } from './iconConstants';
 
@@ -69,21 +70,57 @@ export const Colors = {
   ),
 };
 
-export const AllIconsGrid = {
-  name: 'All Icons Gallery',
+export const WrapperMode = {
+  name: 'Wrapper Mode (Inline SVG Children)',
   render: () => (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-      {ICON_NAMES.map((iconName) => (
-        <div
-          key={iconName}
-          className="flex flex-col items-center justify-center p-4 rounded-lg border border-slate-200 bg-white hover:border-blue-400 hover:shadow-xs transition-all text-slate-700"
-        >
-          <Icon name={iconName} size="lg" />
-          <span className="mt-2 text-xs font-medium text-slate-600 truncate w-full text-center">
-            {iconName}
-          </span>
-        </div>
-      ))}
+    <div className="flex items-center gap-4 p-4 border border-slate-200 rounded-lg bg-slate-50">
+      <Icon size="md" className="text-indigo-600">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </Icon>
+      <div className="text-xs text-slate-600">
+        <strong className="text-slate-900 block font-semibold mb-0.5">Icon Wrapper Mode:</strong>
+        Bọc trực tiếp thẻ <code>&lt;svg&gt;</code> qua <code>&lt;Icon size=&quot;md&quot;&gt;&lt;svg&gt;...&lt;/svg&gt;&lt;/Icon&gt;</code> giúp chuẩn hóa kích cỡ và accessibility mà không cần đăng ký registry.
+      </div>
     </div>
   ),
+};
+
+export const AllCommonIcons = {
+  name: 'All Common Icons Gallery',
+  render: () => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const filteredIcons = ICON_NAMES.filter((n) =>
+      n.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 max-w-sm">
+          <Icon name="search" size="sm" className="text-slate-400" />
+          <input
+            type="text"
+            placeholder="Tìm kiếm icon common (ví dụ: edit, vehicle, search)..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full text-xs px-3 py-1.5 border border-slate-300 rounded-md focus:outline-hidden focus:border-blue-500"
+          />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {filteredIcons.map((iconName) => (
+            <div
+              key={iconName}
+              className="flex flex-col items-center justify-center p-3 rounded-lg border border-slate-200 bg-white hover:border-blue-400 hover:shadow-xs transition-all text-slate-700"
+            >
+              <Icon name={iconName} size="lg" />
+              <span className="mt-2 text-xs font-medium text-slate-600 truncate w-full text-center">
+                {iconName}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  },
 };

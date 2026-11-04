@@ -42,7 +42,7 @@ function mapGetUserMediaError(err) {
  * @param {React.RefObject<HTMLVideoElement>} params.videoRef
  * @param {string|number|null} [params.gateId=null]
  */
-export function usePlateAutoDetect({ isOpen, videoRef, gateId = null }) {
+export function usePlateAutoDetect({ isOpen, videoRef, gateId = 1 }) {
   const [snapshot, setSnapshot] = useState({
     scanState: SCAN_STATES.IDLE,
     statusMessage: STATUS_MESSAGES.SEARCHING,

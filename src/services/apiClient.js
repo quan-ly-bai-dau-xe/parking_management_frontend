@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_UNAVAILABLE_MESSAGE =
+export const API_UNAVAILABLE_MESSAGE =
     "Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối và trạng thái backend.";
 
 export function getCookie(name) {
@@ -8,8 +8,8 @@ export function getCookie(name) {
         .split("; ")
         .find((item) => item.startsWith(`${name}=`));
 
-export const API_UNAVAILABLE_MESSAGE =
-  "Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối mạng hoặc hệ thống máy chủ rồi thử lại.";
+    return cookie ? cookie.split("=").slice(1).join("=") : null;
+}
 
 function createApiConnectionError(error) {
     const err = new Error(API_UNAVAILABLE_MESSAGE);
@@ -99,10 +99,19 @@ axiosInstance.interceptors.response.use(
 
         const { status, data } = error.response;
 
+        const validationMessage =
+            typeof data === "object" && data && !(data instanceof Blob)
+                ? Object.entries(data)
+                      .map(([field, value]) => {
+                          const detail = Array.isArray(value) ? value.join(", ") : String(value);
+                          return `${field}: ${detail}`;
+                      })
+                      .join("; ")
+                : "";
         const message =
             (typeof data === "object" &&
                 !(data instanceof Blob) &&
-                (data?.detail || data?.message)) ||
+                (data?.detail || data?.message || validationMessage)) ||
             `HTTP Error ${status}`;
 
         const err = new Error(message, { cause: error });
@@ -135,7 +144,8 @@ export async function apiClient(endpoint, options = {}) {
     const requestHeaders = { ...headers };
 
     // Explicitly set JSON content-type if body is provided and Content-Type was not specified
-    if (payload !== undefined) {
+    const isFormData = typeof FormData !== "undefined" && payload instanceof FormData;
+    if (payload !== undefined && !isFormData) {
         const hasContentType = Object.keys(requestHeaders).some(
             (key) => key.toLowerCase() === "content-type"
         );

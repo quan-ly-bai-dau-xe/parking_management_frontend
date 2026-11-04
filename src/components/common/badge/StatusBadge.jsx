@@ -22,8 +22,43 @@ export default function StatusBadge({
       badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
       dotClass: "bg-emerald-500",
     },
+    parking: {
+      label: "Đang đỗ",
+      badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      dotClass: "bg-emerald-500",
+    },
     active: {
       label: "Đang hoạt động",
+      badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      dotClass: "bg-emerald-500",
+    },
+    valid: {
+      label: "Còn hiệu lực",
+      badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      dotClass: "bg-emerald-500",
+    },
+    expiring: {
+      label: "Sắp hết hạn",
+      badgeClass: "bg-amber-50 text-amber-700 border-amber-200",
+      dotClass: "bg-amber-500",
+    },
+    expiring_soon: {
+      label: "Sắp hết hạn",
+      badgeClass: "bg-amber-50 text-amber-700 border-amber-200",
+      dotClass: "bg-amber-500",
+    },
+    expired: {
+      label: "Đã hết hạn",
+      badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
+      dotClass: "bg-rose-500",
+    },
+    cancelled: {
+      label: "Đã hủy",
+      badgeClass: "bg-slate-100 text-slate-600 border-slate-300",
+      dotClass: "bg-slate-400",
+    },
+    renewing: {
+      label: "Đang gia hạn",
       badgeClass: "bg-blue-50 text-blue-700 border-blue-200",
       dotClass: "bg-blue-500",
     },
@@ -33,6 +68,11 @@ export default function StatusBadge({
       dotClass: "bg-slate-400",
     },
     left: {
+      label: "Đã rời bãi",
+      badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
+      dotClass: "bg-slate-400",
+    },
+    inactive: {
       label: "Đã rời bãi",
       badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
       dotClass: "bg-slate-400",

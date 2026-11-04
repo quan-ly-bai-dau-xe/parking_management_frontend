@@ -63,9 +63,9 @@ Khi thêm page mới, chỉ đặt logic điều phối ở đây; tuân thủ q
    - `DataTable`: Component hiển thị bảng dữ liệu dùng chung, chuẩn hóa giao diện header, hàng và ô dữ liệu.
    - `TableActions`: Cụm nút thao tác (Xem, Sửa, Xóa) trên từng dòng dữ liệu trong bảng.
    - `Pagination`: Thanh điều hướng trang dùng chung (`currentPage`, `totalPages`, `onPageChange`), hiển thị dãy số trang và tự thu gọn các trang bị bỏ qua bằng dấu `…` (giữ luôn trang đầu/cuối), kèm dòng tóm tắt dạng *Hiển thị 1–10 / 78 bản ghi* khi truyền `totalItems` + `itemsPerPage`, hỗ trợ kích thước `sm`/`md`.
-   - `Button`: Thành phần nút bấm tái sử dụng với nhiều biến thể (primary, secondary, danger, outline) và hỗ trợ loading spinner.
-   - `Icon`: Biểu tượng chuẩn hoá tích hợp Lucide-react và danh mục ICON_REGISTRY tập trung.
-   - **Cấu trúc thư mục Component & Stories**: Mỗi UI primitive khi đi kèm Story hoặc các file bổ trợ được gom nhóm vào một thư mục riêng biệt (như `button/`, `icon/`, `badge/`, `table/`) bao gồm component chính, file `.stories.jsx`, constants/variants và file `index.js` re-export.
+   - `Button`: Thành phần nút bấm tái sử dụng với các biến thể (`primary`, `secondary`, `danger`, `outline`, `tableAction`), hỗ trợ `isLoading`.
+   - `Icon`: Biểu tượng chuẩn hoá đa chế độ: chế độ tên `name` (từ `ICON_REGISTRY` Lucide), chế độ component `icon` (feature icon), và chế độ wrapper (`children` inline SVG với kích thước và `aria-hidden` đồng nhất).
+   - **Cấu trúc thư mục Component & Stories**: Mỗi UI primitive khi đi kèm Story hoặc các file bổ trợ được gom nhóm vào một thư mục riêng biệt (như `button/`, `icon/`, `badge/`, `table/`) bao gồm component chính, file `.stories.jsx`, constants/variants và file `index.js` re-export. Storybook catalog chung toàn hệ thống (`AllIconsCatalog.stories.jsx`) đặt tại `src/stories/` để tra cứu cả common và feature icons.
    - `index.js`: Điểm re-export tập trung giúp import thuận tiện (ví dụ `import { StatusBadge, PageToolbar, DataTable, TableActions } from "@/components/common"`).
 
 2. **Domain-specific UI Components (`src/components/VehicleManagement/`, ...)**:

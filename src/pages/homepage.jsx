@@ -1,6 +1,6 @@
 // src/pages/Home.jsx
 import { useEffect, useState } from "react";
-import { dashboardService } from "../features/dashboardService";
+import { dashboardService } from "../services/dashboardService";
 import AppTopHeader from "../components/layout/AppTopHeader";
 import { BaseModal } from "../components/common/modal";
 

@@ -5,19 +5,12 @@ import { mockParkingHistory } from "../mocks/parkingHistoryData";
 const delay = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const dashboardService = {
-  /**
-   * 1. LẤY THÔNG TIN BÃI ĐỖ XE THEO TẦNG
-   * Trả về thông tin tầng, các khu và danh sách ô đỗ
-   */
   getFloorDetails: (floorId = "B1") => {
     return new Promise((resolve, reject) => {
       delay(200).then(() => {
         const floor = mockParkingFloors.find((f) => f.floorId === floorId);
         if (floor) {
-          resolve({
-            success: true,
-            data: floor,
-          });
+          resolve({ success: true, data: floor });
         } else {
           reject(new Error(`Không tìm thấy dữ liệu cho tầng ${floorId}`));
         }
@@ -25,9 +18,6 @@ export const dashboardService = {
     });
   },
 
-  /**
-   * Lấy danh sách ô đỗ cụ thể thuộc một Khu của Tầng
-   */
   getSlotsByZone: (floorId, zoneId) => {
     return new Promise((resolve, reject) => {
       delay(200).then(() => {
@@ -42,9 +32,6 @@ export const dashboardService = {
     });
   },
 
-  /**
-   * 2. LẤY DANH SÁCH LỊCH SỬ XE RA VÀO
-   */
   getAllHistory: () => {
     return new Promise((resolve) => {
       delay().then(() => {
@@ -57,30 +44,21 @@ export const dashboardService = {
     });
   },
 
-  /**
-   * Tìm kiếm và lọc lịch sử xe
-   * @param {Object} filterParams - { keyword, vehicleType, status }
-   * @returns {Promise<Array>}
-   */
   filterHistory: ({ keyword = "", vehicleType = "ALL", status = "ALL" }) => {
     return new Promise((resolve) => {
       delay(250).then(() => {
         const query = keyword.trim().toLowerCase();
 
         const filtered = mockParkingHistory.filter((item) => {
-          // Lọc theo từ khóa (Biển số hoặc Mã phiên)
           const matchKeyword =
             !query ||
             item.licensePlate.toLowerCase().includes(query) ||
             item.sessionCode.toLowerCase().includes(query);
 
-          // Lọc theo loại phương tiện
           const matchVehicle =
             vehicleType === "ALL" || item.vehicleType === vehicleType;
 
-          // Lọc theo trạng thái
-          const matchStatus =
-            status === "ALL" || item.status === status;
+          const matchStatus = status === "ALL" || item.status === status;
 
           return matchKeyword && matchVehicle && matchStatus;
         });
@@ -94,9 +72,6 @@ export const dashboardService = {
     });
   },
 
-  /**
-   * Lấy chi tiết 1 phiên đỗ xe theo ID
-   */
   getHistoryById: (id) => {
     return new Promise((resolve, reject) => {
       delay(200).then(() => {
@@ -110,9 +85,6 @@ export const dashboardService = {
     });
   },
 
-  /**
-   * 3. LẤY DANH SÁCH CẢNH BÁO BẤT THƯỜNG
-   */
   getAnomalyAlerts: () => {
     return new Promise((resolve) => {
       delay(250).then(() => {
@@ -124,32 +96,15 @@ export const dashboardService = {
     });
   },
 
-  /**
-   * TÍNH TOÁN 4 CHỈ SỐ THỐNG KÊ TỔNG QUAN (Mục 1)
-   * Tự động tổng hợp số liệu từ các tầng và lịch sử ra vào
-   */
+
   getOverviewMetrics: () => {
     return new Promise((resolve) => {
       delay(350).then(() => {
-
-        // Tổng số khu bãi trên toàn hệ thống
-        // eslint-disable-next-line no-unused-vars
-        const totalZones = mockParkingFloors.reduce(
-          (acc, floor) => acc + floor.zones.length,
-          0
-        );
-        // Tính tổng lượt xe vào và ra
-        // eslint-disable-next-line no-unused-vars
-        const inCount = mockParkingHistory.filter((l) => l.direction === "IN").length;
-        // eslint-disable-next-line no-unused-vars
-        const outCount = mockParkingHistory.filter((l) => l.direction === "OUT").length;
-
-        // Trả về đúng format 4 thẻ StatCard của nửa trên
         resolve({
           success: true,
           data: {
             totalLocations: {
-              count: 24, // Tổng số bãi / khu bãi đang kích hoạt
+              count: 24,
               statusText: "Khu bãi đang mở",
               growthText: "↗ +2 bãi mới",
               period: "Tháng này",
@@ -177,14 +132,11 @@ export const dashboardService = {
     });
   },
 
-  /**
-   * LẤY TOÀN BỘ DỮ LIỆU ĐỒNG THỜI KHI NẠP TRANG CHỦ
-   */
   loadInitialDashboard: (defaultFloor = "B1") => {
     return Promise.all([
       dashboardService.getOverviewMetrics(),
       dashboardService.getAnomalyAlerts(),
-      dashboardService.getAllHistory(), // <-- Sửa từ getTrafficLogs() thành getAllHistory()
+      dashboardService.getAllHistory(),
       dashboardService.getFloorDetails(defaultFloor),
     ]).then(([metrics, alerts, history, floorData]) => ({
       stats: metrics.data,

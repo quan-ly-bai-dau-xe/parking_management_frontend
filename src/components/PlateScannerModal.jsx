@@ -11,7 +11,7 @@ export default function PlateScannerModal({
   isOpen,
   onClose,
   onDetected,
-  gateId = null,
+  gateId = 1,
 }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
@@ -141,7 +141,9 @@ export default function PlateScannerModal({
   if (!isOpen) return null;
 
   const isResultVisible =
-    (scanState === SCAN_STATES.DETECTED || scanState === SCAN_STATES.APPLYING) &&
+    (scanState === SCAN_STATES.CONFIRMING ||
+      scanState === SCAN_STATES.DETECTED ||
+      scanState === SCAN_STATES.APPLYING) &&
     Boolean(detectedData);
   const isApplying = scanState === SCAN_STATES.APPLYING;
   const isReviewMode = detectedData?.review_status === "NEEDS_REVIEW";

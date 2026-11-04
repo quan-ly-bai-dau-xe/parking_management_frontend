@@ -51,7 +51,8 @@ Activate this workflow when any of the following events occur:
   - Follow the standard structure: Purpose, Trigger Conditions, Guardrails, Step-by-Step Procedure, and Verification Checklist.
 
 ### Step 3: Synchronization (Sync)
-- Mirror modified files from `.rulesync/` to corresponding targets under `.agents/`:
+- Run `npx rulesync generate` if instructed to do so or when using automated synchronization across IDE and agent targets.
+- Alternatively, mirror modified files directly from `.rulesync/` to corresponding targets under `.agents/`:
   - Rules: `.rulesync/rules/*` → `.agents/rules/*`
   - Skills: `.rulesync/skills/*` → `.agents/skills/*`
   - Root & Agents Config: Update `AGENTS.md` whenever core rule indexes or project boundaries change.
