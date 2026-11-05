@@ -8,6 +8,7 @@ export const PARKING_HISTORY_DEFAULTS = {
   PAGE_SIZE_OPTIONS: [5, 10, 20, 50],
   PLACEHOLDER_TEXT: "—",
   DEFAULT_QUICK_FILTER: "30days",
+  DEFAULT_STATUS_FILTER: "all",
   SEARCH_DEBOUNCE_MS: 350,
 };
 
@@ -27,16 +28,56 @@ export const QUICK_FILTER_LABELS = [
   { key: QUICK_FILTER_KEYS.CUSTOM, label: "Tùy chỉnh" },
 ];
 
+export const SESSION_STATUS_FILTER_OPTIONS = [
+  { value: "all", label: "Tất cả tình trạng" },
+  { value: "in_progress", label: "Đang trong bãi" },
+  { value: "completed", label: "Đã ra bãi" },
+];
+
 export const SESSION_STATUS_CONFIG = {
   COMPLETED: {
+    key: "completed",
     label: "Đã ra bãi",
-    badgeClass: "bg-slate-100 text-slate-600 border border-slate-200",
+    badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
+    dotClass: "bg-slate-400",
   },
   IN_PROGRESS: {
+    key: "in_progress",
     label: "Đang trong bãi",
-    badgeClass: "bg-amber-50 text-amber-700 border border-amber-200/60",
+    badgeClass: "bg-amber-50 text-amber-700 border-amber-200/80",
+    dotClass: "bg-amber-500",
+  },
+  CANCELLED: {
+    key: "cancelled",
+    label: "Đã hủy",
+    badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
+    dotClass: "bg-rose-500",
   },
 };
+
+/**
+ * Xác định cấu hình hiển thị tình trạng của một phiên gửi xe
+ * @param {Object} item - Thông tin phiên gửi xe
+ * @returns {typeof SESSION_STATUS_CONFIG[keyof typeof SESSION_STATUS_CONFIG]}
+ */
+export function getParkingSessionStatus(item) {
+  if (!item) return SESSION_STATUS_CONFIG.IN_PROGRESS;
+
+  const rawStatus = String(item.status || "").toLowerCase();
+  const isClosed =
+    Boolean(item.exitTime && item.exitTime !== PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT) ||
+    rawStatus === "completed" ||
+    rawStatus === "closed" ||
+    rawStatus === "left";
+
+  if (rawStatus === "cancelled") {
+    return SESSION_STATUS_CONFIG.CANCELLED;
+  }
+  if (isClosed) {
+    return SESSION_STATUS_CONFIG.COMPLETED;
+  }
+  return SESSION_STATUS_CONFIG.IN_PROGRESS;
+}
 
 export const PARKING_HISTORY_MESSAGES = {
   PAGE_TITLE: "Lịch sử ra/vào",

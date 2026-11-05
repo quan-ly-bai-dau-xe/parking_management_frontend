@@ -10,11 +10,12 @@ export const GRACE_PERIOD_MINUTES = 15;
 export const DAILY_MAX_CAP_VND = 100000;
 
 export function calculateParkingFee({
-  _vehicleType = "CAR",
+  vehicleType = "CAR",
   durationMinutes = 0,
   hasActiveTicket = false,
   isExempt = false,
 }) {
+  void vehicleType;
   if (hasActiveTicket || isExempt) {
     return {
       feeAmount: 0,

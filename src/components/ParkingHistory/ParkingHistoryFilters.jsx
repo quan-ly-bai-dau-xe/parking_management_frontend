@@ -1,10 +1,16 @@
-import { QUICK_FILTER_LABELS, QUICK_FILTER_KEYS } from "../../constants/parkingHistoryConstants";
+import {
+  QUICK_FILTER_LABELS,
+  QUICK_FILTER_KEYS,
+  SESSION_STATUS_FILTER_OPTIONS,
+} from "../../constants/parkingHistoryConstants";
 
 export default function ParkingHistoryFilters({
   sessionCode,
   setSessionCode,
   licensePlate,
   setLicensePlate,
+  statusFilter,
+  setStatusFilter,
   feeMin,
   setFeeMin,
   feeMax,
@@ -36,7 +42,7 @@ export default function ParkingHistoryFilters({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-x-5 gap-y-4 items-start">
         {/* Mã phiên đỗ */}
-        <div className="flex flex-col gap-1.5 lg:col-span-4">
+        <div className="flex flex-col gap-1.5 sm:col-span-1 lg:col-span-3">
           <label className="text-xs font-semibold text-slate-700">Mã phiên đỗ</label>
           <input
             type="text"
@@ -48,7 +54,7 @@ export default function ParkingHistoryFilters({
         </div>
 
         {/* Biển số xe */}
-        <div className="flex flex-col gap-1.5 lg:col-span-4">
+        <div className="flex flex-col gap-1.5 sm:col-span-1 lg:col-span-3">
           <label className="text-xs font-semibold text-slate-700">Biển số xe</label>
           <input
             type="text"
@@ -59,8 +65,24 @@ export default function ParkingHistoryFilters({
           />
         </div>
 
+        {/* Tình trạng phiên đỗ */}
+        <div className="flex flex-col gap-1.5 sm:col-span-1 lg:col-span-3">
+          <label className="text-xs font-semibold text-slate-700">Tình trạng</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+          >
+            {SESSION_STATUS_FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Cước phí */}
-        <div className="sm:col-span-2 lg:col-span-4 flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 sm:col-span-1 lg:col-span-3">
           <label className="text-xs font-semibold text-slate-700">Cước phí (từ - đến)</label>
           <div className="flex items-center gap-1">
             <input

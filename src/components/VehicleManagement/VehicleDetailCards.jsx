@@ -6,6 +6,7 @@ export default function VehicleDetailCards({
   selectedVehicle,
   handleOpenEditModal,
   handleViewTicket,
+  handleOpenAssignSlot,
   renderStatusBadge,
 }) {
   if (!selectedVehicle) return null;
@@ -102,17 +103,37 @@ export default function VehicleDetailCards({
                 if (isParked) {
                   if (hasSlot) {
                     return (
-                      <span className="font-semibold text-emerald-700 text-xs inline-flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        {slotDisplay}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-emerald-700 text-xs inline-flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          {slotDisplay}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAssignSlot?.(selectedVehicle)}
+                          className="px-1.5 py-0.5 rounded text-3xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors cursor-pointer"
+                          title="Đổi vị trí ô đỗ"
+                        >
+                          Đổi
+                        </button>
+                      </div>
                     );
                   }
                   return (
-                    <span className="font-semibold text-amber-700 text-xs inline-flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                      Chờ xếp ô (Đang đỗ)
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-amber-700 text-xs inline-flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        Chờ xếp ô (Đang đỗ)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAssignSlot?.(selectedVehicle)}
+                        className="px-2 py-0.5 rounded text-3xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 transition-colors cursor-pointer"
+                        title="Chỉ định ô đỗ thực tế"
+                      >
+                        + Gán ô
+                      </button>
+                    </div>
                   );
                 }
 

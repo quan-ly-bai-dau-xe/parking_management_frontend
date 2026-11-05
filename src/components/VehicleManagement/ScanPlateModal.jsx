@@ -27,18 +27,24 @@ const getEntryErrorMessage = (err) => {
   const backendMsg = err?.data?.message || err?.message;
   const errorCode = err?.data?.code;
 
-  if (err?.status === 409 || errorCode === "PROP-4.5.1-P07") {
+  if (errorCode === "MSG-4.5.2-M02" || backendMsg?.includes("đã có xe đk vé")) {
+    return (
+      "⚠️ Vị trí đỗ này đã có xe đăng ký vé và đang sử dụng. " +
+      "Hệ thống đã tự động chọn ô trống khả dụng khác, vui lòng kiểm tra và xác nhận lại."
+    );
+  }
+  if (errorCode === "PROP-4.5.2-P01" || backendMsg?.includes("đang bảo trì")) {
+    return "⚠️ Vị trí đỗ này đang bảo trì, vui lòng chọn vị trí khác.";
+  }
+  if (errorCode === "PROP-4.5.1-P08") {
+    return "⛔ Biển số xe nằm trong danh sách đen (Blacklist), không được phép vào bãi.";
+  }
+  if (errorCode === "PROP-4.5.1-P07" || backendMsg?.includes("phiên gửi đang mở")) {
     return (
       backendMsg ||
       "⚠️ Xe này đã có phiên gửi đang mở chưa hoàn thành. " +
       "Vui lòng bấm nút chuyển sang Làn Ra (Check-out) để giải quyết phiên đỗ."
     );
-  }
-  if (errorCode === "PROP-4.5.1-P08") {
-    return "⛔ Biển số xe nằm trong danh sách đen (Blacklist), không được phép vào bãi.";
-  }
-  if (errorCode === "PROP-4.5.2-P01") {
-    return "⚠️ Vị trí đỗ này đang bảo trì, vui lòng chọn vị trí khác.";
   }
   return backendMsg || "Không thể thực hiện check-in phương tiện. Vui lòng thử lại.";
 };
@@ -109,14 +115,22 @@ export default function ScanPlateModal({
       matchedVehicle?.vehicleType ||
       "CAR";
 
-    getAvailableSlotsForCheckIn({ vehicleTypeCode: vehicleType })
+    const vehiclePlate = detectedPlate || matchedVehicle?.licensePlate || "";
+
+    getAvailableSlotsForCheckIn({
+      vehicleTypeCode: vehicleType,
+      licensePlate: vehiclePlate,
+      filterReserved: true,
+    })
       .then((slots) => {
         if (!isMounted) return;
         setAvailableSlots(slots);
-        if (!matchedVehicle?.parkingSlot?.slotId && slots.length > 0) {
-          setSelectedSlotId(slots[0].id);
-        } else if (matchedVehicle?.parkingSlot?.slotId) {
+        if (matchedVehicle?.parkingSlot?.slotId) {
           setSelectedSlotId(matchedVehicle.parkingSlot.slotId);
+        } else if (slots.length > 0) {
+          setSelectedSlotId(slots[0].id);
+        } else {
+          setSelectedSlotId(null);
         }
       })
       .catch((err) => {
@@ -134,6 +148,8 @@ export default function ScanPlateModal({
     matchedVehicle?.id,
     matchedVehicle?.vehicleTypeCode,
     matchedVehicle?.parkingSlot?.slotId,
+    matchedVehicle?.licensePlate,
+    detectedPlate,
   ]);
 
   if (!isOpen) return null;
@@ -469,28 +485,32 @@ export default function ScanPlateModal({
       const licensePlate = detectedPlate || matchedVehicle?.licensePlate;
       const vehicleType = matchedVehicle?.vehicleType || "CAR";
 
-      // Xác định vị trí đỗ: ưu tiên ô vé tháng cố định -> ô operator chọn -> ô trống đầu tiên -> fallback 1
+      // Xác định vị trí đỗ:
+      // 1. Ô vé tháng cố định của chính xe này (nếu xe có vé tháng gán ô)
+      // 2. Ô operator chọn từ danh sách ô khả dụng (đã lọc sạch ô vé tháng của xe khác & ô bảo trì)
+      // 3. Ô trống khả dụng đầu tiên
+      const designatedSlotId = parkingSlot?.slotId;
       const chosenSlot =
         availableSlots.find((s) => s.id === Number(selectedSlotId)) ||
-        availableSlots[0] ||
+        (designatedSlotId ? null : availableSlots[0]) ||
         null;
 
       const targetSlotId =
-        parkingSlot?.slotId ||
+        designatedSlotId ||
         selectedSlotId ||
         chosenSlot?.id ||
-        1;
+        null;
 
       const targetSlotDisplay =
         chosenSlot?.display ||
         parkingSlot?.display ||
-        `Khu A · Tầng B1 · Slot A-01`;
+        (targetSlotId ? `Slot #${targetSlotId}` : "Chưa có vị trí");
 
       const targetSlotCode =
         chosenSlot?.code ||
         chosenSlot?.slotCode ||
         parkingSlot?.slot ||
-        "A-01";
+        (targetSlotId ? `Slot #${targetSlotId}` : "Chưa có vị trí");
 
       // Nếu xe đang có phiên đỗ cũ bị treo (hasOpenSession), tự động đóng phiên cũ trước để tránh lỗi 409
       let closedSessionNotice = "";
@@ -569,8 +589,16 @@ export default function ScanPlateModal({
       );
     } catch (err) {
       setErrorMessage(getEntryErrorMessage(err));
-      // Nếu lỗi 409 (xe đã có phiên mở chưa hoàn thành), cập nhật trạng thái xe thành parked
-      if (err?.status === 409) {
+      const backendMsg = err?.data?.message || err?.message || "";
+      const errorCode = err?.data?.code;
+      const isSlotConflict =
+        errorCode === "MSG-4.5.2-M02" ||
+        backendMsg.includes("đã có xe đk vé");
+
+      // Nếu lỗi 409 do xung đột ô vé tháng của xe khác, reset ô đã chọn để chọn ô trống khác
+      if (isSlotConflict) {
+        setSelectedSlotId(null);
+      } else if (err?.status === 409 && (errorCode === "PROP-4.5.1-P07" || backendMsg.includes("phiên gửi đang mở"))) {
         setMatchedVehicle((prev) => (prev ? { ...prev, status: "parked" } : prev));
       }
     } finally {

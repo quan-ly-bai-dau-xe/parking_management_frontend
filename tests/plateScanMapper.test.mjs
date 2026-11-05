@@ -10,6 +10,10 @@ import {
   mapSessionToFrontend,
   MAPPER_DEFAULTS,
 } from "../src/utils/parking/plateScanMapper.js";
+import {
+  getParkingSessionStatus,
+  SESSION_STATUS_CONFIG,
+} from "../src/constants/parkingHistoryConstants.js";
 
 test("formatDateTime and formatDate handle null/empty gracefully", () => {
   assert.equal(formatDateTime(null), "—");
@@ -205,4 +209,27 @@ test("mapParkingSession correctly marks status and fees for checked-out vs open 
   assert.notEqual(mappedClosed.exitTime, null);
   assert.equal(mappedClosed.feeNumber, 30000);
   assert.equal(mappedClosed.fee, "30.000đ");
+});
+
+test("getParkingSessionStatus classifies session status correctly", () => {
+  assert.equal(
+    getParkingSessionStatus({ status: "in_progress", exitTime: null }).key,
+    SESSION_STATUS_CONFIG.IN_PROGRESS.key
+  );
+  assert.equal(
+    getParkingSessionStatus({ status: "completed", exitTime: "26/10/2026 10:00" }).key,
+    SESSION_STATUS_CONFIG.COMPLETED.key
+  );
+  assert.equal(
+    getParkingSessionStatus({ status: "closed", exitTime: "—" }).key,
+    SESSION_STATUS_CONFIG.COMPLETED.key
+  );
+  assert.equal(
+    getParkingSessionStatus({ status: "cancelled" }).key,
+    SESSION_STATUS_CONFIG.CANCELLED.key
+  );
+  assert.equal(
+    getParkingSessionStatus(null).key,
+    SESSION_STATUS_CONFIG.IN_PROGRESS.key
+  );
 });

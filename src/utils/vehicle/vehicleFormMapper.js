@@ -1,4 +1,4 @@
-import { INITIAL_VEHICLE_FORM_STATE, DEFAULT_UNASSIGNED_SLOT_LABEL } from "../../constants/vehicleConstants";
+import { INITIAL_VEHICLE_FORM_STATE, DEFAULT_UNASSIGNED_SLOT_LABEL } from "../../constants/vehicleConstants.js";
 
 /**
  * mapVehicleToFormData

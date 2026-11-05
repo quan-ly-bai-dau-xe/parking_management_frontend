@@ -174,15 +174,27 @@ function extractParkingSlot(parkingPosition, source = {}, rawSession = {}, rawVe
     source.slot_code ||
     rawVehicle.slot_code ||
     rawTicket.slot_code ||
+    rawTicket.slot?.code ||
     MAPPER_DEFAULTS.UNASSIGNED_SLOT;
+
+  const slotId =
+    parkingPosition?.slot_id ||
+    rawSession.slot_id ||
+    rawSession.slotId ||
+    rawTicket.slot_id ||
+    rawTicket.slot?.id ||
+    null;
 
   return {
     slotCode,
     parkingPosition: parkingPosition || null,
     parkingSlot: {
       slot: slotCode,
-      display: parkingPosition?.display_text || rawSession.slot_display || slotCode,
-      slotId: parkingPosition?.slot_id || rawSession.slot_id || rawSession.slotId || null,
+      display:
+        parkingPosition?.display_text ||
+        rawSession.slot_display ||
+        (slotCode !== MAPPER_DEFAULTS.UNASSIGNED_SLOT ? slotCode : "Chưa có vị trí"),
+      slotId,
       floorName: parkingPosition?.floor_name || rawSession.floor_name || "",
       zoneCode: parkingPosition?.zone_code || rawSession.zone_code || "",
     },
@@ -277,9 +289,9 @@ export function validateAndMapSessions(rawData) {
   }
 
   return list.map((item) => {
-    const validItem = ParkingSessionSchema.parse(item);
-    return mapParkingSession(validItem);
-  });
+    const parsed = item && typeof item === "object" ? ParkingSessionSchema.safeParse(item) : null;
+    return parsed?.success ? mapParkingSession(parsed.data) : null;
+  }).filter(Boolean);
 }
 
 /**

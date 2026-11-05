@@ -1,3 +1,4 @@
+export { default as AssignSlotModal } from "./AssignSlotModal";
 export { default as CustomerSelectCombobox } from "./CustomerSelectCombobox";
 export { default as DeleteVehicleModal } from "./DeleteVehicleModal";
 export { default as EditVehicleModal } from "./EditVehicleModal";

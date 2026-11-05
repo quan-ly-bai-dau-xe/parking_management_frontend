@@ -29,6 +29,7 @@ export function useParkingHistory() {
   const [exitTimeTo, setExitTimeTo] = useState("");
   const [feeMin, setFeeMin] = useState("");
   const [feeMax, setFeeMax] = useState("");
+  const [statusFilter, setStatusFilter] = useState(PARKING_HISTORY_DEFAULTS.DEFAULT_STATUS_FILTER);
   const [filterByTime, setFilterByTime] = useState(false);
   const [dateFrom, setDateFrom] = useState(minDateISO);
   const [dateTo, setDateTo] = useState(todayISO);
@@ -78,6 +79,7 @@ export function useParkingHistory() {
   const handleResetFilters = useCallback(() => {
     setSessionCode("");
     setLicensePlate("");
+    setStatusFilter(PARKING_HISTORY_DEFAULTS.DEFAULT_STATUS_FILTER);
     setEntryTimeFrom("");
     setEntryTimeTo("");
     setExitTimeFrom("");
@@ -94,6 +96,7 @@ export function useParkingHistory() {
   const hasActiveFilters = Boolean(
     sessionCode ||
       licensePlate ||
+      statusFilter !== PARKING_HISTORY_DEFAULTS.DEFAULT_STATUS_FILTER ||
       entryTimeFrom ||
       entryTimeTo ||
       exitTimeFrom ||
@@ -110,9 +113,17 @@ export function useParkingHistory() {
       setIsLoading(true);
       setLoadError("");
       try {
+        let apiStatus = "";
+        if (statusFilter === "in_progress") {
+          apiStatus = "open";
+        } else if (statusFilter === "completed") {
+          apiStatus = "closed";
+        }
+
         const res = await getParkingSessions({
           session_code: sessionCode.trim(),
           license_plate: licensePlate.trim(),
+          status: apiStatus,
           entry_time_from: dateFrom ? `${dateFrom}T00:00:00` : "",
           entry_time_to: dateTo ? `${dateTo}T23:59:59` : "",
           exit_time_from: filterByTime ? exitTimeFrom : "",
@@ -145,6 +156,7 @@ export function useParkingHistory() {
   }, [
     sessionCode,
     licensePlate,
+    statusFilter,
     dateFrom,
     dateTo,
     filterByTime,
@@ -189,6 +201,8 @@ export function useParkingHistory() {
       setSessionCode: (val) => { setSessionCode(val); setCurrentPage(1); },
       licensePlate,
       setLicensePlate: (val) => { setLicensePlate(val); setCurrentPage(1); },
+      statusFilter,
+      setStatusFilter: (val) => { setStatusFilter(val); setCurrentPage(1); },
       feeMin,
       setFeeMin: (val) => { setFeeMin(val); setCurrentPage(1); },
       feeMax,

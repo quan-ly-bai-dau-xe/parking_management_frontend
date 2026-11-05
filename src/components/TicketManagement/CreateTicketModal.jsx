@@ -9,7 +9,7 @@ export default function CreateTicketModal({ isOpen, onClose, onSave }) {
     customer: "",
     vehicle: "",
     ticketType: "Vé tháng",
-    parkingSlot: "Tầng B1 - A-06",
+    parkingSlot: "Tầng B1 - A-11",
     startDate: "2026-05-01",
     endDate: "2026-06-01",
     price: "500000",
@@ -85,14 +85,14 @@ export default function CreateTicketModal({ isOpen, onClose, onSave }) {
       });
     });
 
-    // Bổ sung các slot mặc định nếu mock danh mục ngắn
+    // Bổ sung các slot mặc định chưa có vé đăng ký nếu mock danh mục ngắn
     if (options.length === 0) {
       return [
-        { value: "Tầng B1 - A-06", label: "Tầng B1 - Ô A-06", badge: "Tiêu chuẩn", subLabel: "Khu A" },
-        { value: "Tầng B1 - A-07", label: "Tầng B1 - Ô A-07", badge: "Tiêu chuẩn", subLabel: "Khu A" },
-        { value: "Tầng B1 - B-03", label: "Tầng B1 - Ô B-03", badge: "Ưu tiên", subLabel: "Khu B" },
-        { value: "Tầng B1 - C-04", label: "Tầng B1 - Ô C-04", badge: "Sạc điện", subLabel: "Khu C" },
-        { value: "Tầng B2 - A-05", label: "Tầng B2 - Ô A-05", badge: "Tiêu chuẩn", subLabel: "Khu A" },
+        { value: "Tầng B1 - A-11", label: "Tầng B1 - Ô A-11", badge: "Tiêu chuẩn", subLabel: "Khu A" },
+        { value: "Tầng B1 - A-12", label: "Tầng B1 - Ô A-12", badge: "Tiêu chuẩn", subLabel: "Khu A" },
+        { value: "Tầng B1 - B-06", label: "Tầng B1 - Ô B-06", badge: "Ưu tiên", subLabel: "Khu B" },
+        { value: "Tầng B1 - C-05", label: "Tầng B1 - Ô C-05", badge: "Sạc điện", subLabel: "Khu C" },
+        { value: "Tầng B2 - A-11", label: "Tầng B2 - Ô A-11", badge: "Tiêu chuẩn", subLabel: "Khu A" },
       ];
     }
     return options;

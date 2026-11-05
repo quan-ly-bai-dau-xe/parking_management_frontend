@@ -1,10 +1,13 @@
-import React, { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   exportVehiclesCsv,
   vehicleService,
 } from "../services/vehicleService";
-import { forceCloseSessionAndReleaseSlot } from "../services/parkingSessionService";
+import {
+  forceCloseSessionAndReleaseSlot,
+  assignSlotToSession,
+} from "../services/parkingSessionService";
 import { customerService } from "../services/customerService";
 import useVehicleData from "../hooks/useVehicleData";
 import usePagination from "../hooks/usePagination";
@@ -15,6 +18,7 @@ import { VEHICLE_DELETE_MESSAGES } from "../constants/vehicleConstants";
 
 import {
   ScanPlateModal,
+  AssignSlotModal,
   PageSectionHeader,
   EditVehicleModal,
   DeleteVehicleModal,
@@ -68,6 +72,7 @@ export default function VehicleManagement() {
   const [editingVehicleId, setEditingVehicleId] = useState(null);
   const [newVehicleDraft, setNewVehicleDraft] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [assignSlotVehicle, setAssignSlotVehicle] = useState(null);
 
   // Safe delete modal state
   const [deleteModalState, setDeleteModalState] = useState({
@@ -443,6 +448,59 @@ export default function VehicleManagement() {
 
   const renderStatusBadge = (status, label) => <StatusBadge status={status} label={label} />;
 
+  const handleOpenAssignSlot = useCallback((vehicle) => {
+    setAssignSlotVehicle(vehicle);
+  }, []);
+
+  const handleCloseAssignSlot = useCallback(() => {
+    setAssignSlotVehicle(null);
+  }, []);
+
+  const handleSaveAssignSlot = useCallback(
+    async ({ vehicle, slot }) => {
+      try {
+        await assignSlotToSession({
+          sessionId: vehicle.sessionId || vehicle.activeSession?.id,
+          licensePlate: vehicle.licensePlate,
+          vehicleId: vehicle.id,
+          slotId: slot.id,
+          slotData: slot,
+        });
+
+        toast.success(
+          `Đã xếp xe ${vehicle.licensePlate} vào ô ${slot.floor} · ${slot.zone} · ${slot.code}`
+        );
+
+        setVehicles((prev) =>
+          prev.map((v) => {
+            if (v.id === vehicle.id || v.licensePlate === vehicle.licensePlate) {
+              return {
+                ...v,
+                parkingSlot: {
+                  slotId: slot.id,
+                  slot: slot.code,
+                  display: `${slot.floor} · ${slot.zone} · Slot ${slot.code}`,
+                  floor: slot.floor,
+                  zone: slot.zone,
+                },
+                status: "parked",
+                statusDisplay: "Đang đỗ",
+              };
+            }
+            return v;
+          })
+        );
+
+        reloadVehicles();
+        refreshStats();
+      } catch (err) {
+        toast.error(err?.data?.message || err?.message || "Lỗi khi xếp ô đỗ cho phương tiện.");
+        throw err;
+      }
+    },
+    [toast, setVehicles, reloadVehicles, refreshStats]
+  );
+
   const renderTicketBadge = (ticket) => {
     if (!ticket || !ticket.expiresAt || ticket.expiresAt === "—") {
       return <span className="text-xs text-slate-400 font-normal">—</span>;
@@ -526,6 +584,7 @@ export default function VehicleManagement() {
           itemsPerPage={itemsPerPage}
           handleOpenEditModal={handleOpenEditModal}
           handleDeleteVehicle={handleDeleteVehicle}
+          handleOpenAssignSlot={handleOpenAssignSlot}
           renderTicketBadge={renderTicketBadge}
           renderStatusBadge={renderStatusBadge}
           isManager={isManager}
@@ -549,11 +608,19 @@ export default function VehicleManagement() {
       <VehicleDetailCards
         selectedVehicle={selectedVehicle}
         handleOpenEditModal={handleOpenEditModal}
+        handleOpenAssignSlot={handleOpenAssignSlot}
         handleViewTicket={(v) => setSelectedTicket({ vehicle: v, ...(v.ticket || {}) })}
         renderStatusBadge={renderStatusBadge}
       />
 
       {/* Modals */}
+      <AssignSlotModal
+        isOpen={Boolean(assignSlotVehicle)}
+        onClose={handleCloseAssignSlot}
+        vehicle={assignSlotVehicle}
+        onAssignSlot={handleSaveAssignSlot}
+      />
+
       <ScanPlateModal
         isOpen={isScanModalOpen}
         onClose={() => setIsScanModalOpen(false)}

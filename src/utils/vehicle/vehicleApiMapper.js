@@ -1,5 +1,5 @@
-import { formatIsoDateToDisplay } from "../formatDateTime";
-import { DEFAULT_UNASSIGNED_SLOT_LABEL } from "../../constants/vehicleConstants";
+import { formatIsoDateToDisplay } from "../formatDateTime.js";
+import { DEFAULT_UNASSIGNED_SLOT_LABEL } from "../../constants/vehicleConstants.js";
 
 /**
  * formatDate helper

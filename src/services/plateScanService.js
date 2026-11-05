@@ -79,6 +79,14 @@ export async function getParkingSessions(filters = {}) {
       const q = String(filters.license_plate).toLowerCase().trim();
       list = list.filter((s) => s.licensePlate?.toLowerCase().includes(q));
     }
+    if (filters.status) {
+      const st = String(filters.status).toLowerCase().trim();
+      if (st === "open" || st === "in_progress") {
+        list = list.filter((s) => s.status === "in_progress" || !s.exitTime || s.exitTime === "—");
+      } else if (st === "closed" || st === "completed") {
+        list = list.filter((s) => s.status === "completed" || (s.exitTime && s.exitTime !== "—"));
+      }
+    }
     if (filters.min_fee !== undefined && filters.min_fee !== "") {
       list = list.filter((s) => (s.feeNumber ?? 0) >= Number(filters.min_fee));
     }
