@@ -5,6 +5,7 @@
  * @param {Object} props
  * @param {'parked'|'active'|'in_transit'|'left'|'maintenance'|string} props.status - Status identifier
  * @param {string} [props.label] - Optional custom label to override default status text
+ * @param {string} [props.title] - Optional tooltip text
  * @param {boolean} [props.showDot=true] - Whether to show the status indicator dot
  * @param {'sm'|'md'} [props.size='sm'] - Badge size
  * @param {string} [props.className=''] - Additional custom classes
@@ -12,6 +13,7 @@
 export default function StatusBadge({
   status,
   label = "",
+  title = "",
   showDot = true,
   size = "sm",
   className = "",
@@ -19,18 +21,21 @@ export default function StatusBadge({
   const statusConfig = {
     parked: {
       label: "Đang đỗ",
+      tooltip: "Phương tiện đang có phiên đỗ mở thực tế trong bãi",
       badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
       dotClass: "bg-emerald-500",
     },
     parking: {
       label: "Đang đỗ",
+      tooltip: "Phương tiện đang có phiên đỗ mở thực tế trong bãi",
       badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
       dotClass: "bg-emerald-500",
     },
     active: {
       label: "Đang hoạt động",
-      badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      dotClass: "bg-emerald-500",
+      tooltip: "Phương tiện có vé đỗ còn hiệu lực nhưng hiện đang ở ngoài bãi",
+      badgeClass: "bg-blue-50 text-blue-700 border-blue-200",
+      dotClass: "bg-blue-500",
     },
     valid: {
       label: "Còn hiệu lực",
@@ -69,11 +74,13 @@ export default function StatusBadge({
     },
     left: {
       label: "Đã rời bãi",
+      tooltip: "Phương tiện đã rời bãi và không có vé hiệu lực",
       badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
       dotClass: "bg-slate-400",
     },
     inactive: {
       label: "Đã rời bãi",
+      tooltip: "Phương tiện đã rời bãi và không có vé hiệu lực",
       badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
       dotClass: "bg-slate-400",
     },
@@ -110,8 +117,11 @@ export default function StatusBadge({
       ? "px-3 py-1 text-xs"
       : "px-2.5 py-0.5 text-xs";
 
+  const displayTooltip = title || current.tooltip || displayLabel;
+
   return (
     <span
+      title={displayTooltip}
       className={`inline-flex items-center gap-1.5 rounded-full font-medium border ${current.badgeClass} ${sizeClasses} ${className}`}
     >
       {showDot && (

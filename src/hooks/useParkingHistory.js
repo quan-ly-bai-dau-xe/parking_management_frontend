@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import { getParkingSessions } from "../services/plateScanService";
 import { forceCloseSessionAndReleaseSlot } from "../services/parkingSessionService";
@@ -12,6 +13,10 @@ const toISODate = (d) => d.toISOString().slice(0, 10);
 
 export function useParkingHistory() {
   const toast = useToast();
+  const [searchParams] = useSearchParams();
+  const queryPlate = useMemo(() => {
+    return (searchParams.get("license_plate") || searchParams.get("plate") || "").trim();
+  }, [searchParams]);
 
   const today = useMemo(() => new Date(), []);
   const todayISO = useMemo(() => toISODate(today), [today]);
@@ -22,7 +27,7 @@ export function useParkingHistory() {
   }, [today]);
 
   const [sessionCode, setSessionCode] = useState("");
-  const [licensePlate, setLicensePlate] = useState("");
+  const [licensePlate, setLicensePlate] = useState(queryPlate);
   const [entryTimeFrom, setEntryTimeFrom] = useState("");
   const [entryTimeTo, setEntryTimeTo] = useState("");
   const [exitTimeFrom, setExitTimeFrom] = useState("");
@@ -105,6 +110,14 @@ export function useParkingHistory() {
       feeMax ||
       activeQuickFilter !== QUICK_FILTER_KEYS.LAST_30_DAYS
   );
+
+  // Đồng bộ licensePlate khi URL search param thay đổi
+  useEffect(() => {
+    if (queryPlate) {
+      setLicensePlate(queryPlate);
+      setCurrentPage(1);
+    }
+  }, [queryPlate]);
 
   // Fetch session data from backend with server-side filters & pagination
   useEffect(() => {

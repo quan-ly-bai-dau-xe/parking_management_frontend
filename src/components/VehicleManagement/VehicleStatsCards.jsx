@@ -29,6 +29,7 @@ export default function VehicleStatsCards({ stats }) {
       <StatCard
         title="Đang hoạt động"
         value={active}
+        tooltip="Phương tiện đang đỗ trong bãi hoặc đang sở hữu vé còn hiệu lực"
         color="emerald"
         icon={
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
