@@ -11,7 +11,7 @@ export default function PlateScannerModal({
   isOpen,
   onClose,
   onDetected,
-  gateId = null,
+  gateId = 1,
 }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
@@ -28,6 +28,7 @@ export default function PlateScannerModal({
   const {
     scanState,
     cameraError,
+    scanError,
     videoDevices,
     selectedDeviceId,
     changeCamera,
@@ -141,7 +142,9 @@ export default function PlateScannerModal({
   if (!isOpen) return null;
 
   const isResultVisible =
-    (scanState === SCAN_STATES.DETECTED || scanState === SCAN_STATES.APPLYING) &&
+    (scanState === SCAN_STATES.CONFIRMING ||
+      scanState === SCAN_STATES.DETECTED ||
+      scanState === SCAN_STATES.APPLYING) &&
     Boolean(detectedData);
   const isApplying = scanState === SCAN_STATES.APPLYING;
   const isReviewMode = detectedData?.review_status === "NEEDS_REVIEW";
@@ -283,14 +286,14 @@ export default function PlateScannerModal({
 
         {/* Result card & action footer */}
         <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 overflow-y-auto space-y-3.5">
-          {applyError && (
+          {(applyError || scanError) && (
             <div
               role="alert"
               data-testid="plate-apply-error"
               className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start gap-2"
             >
               <span className="font-bold text-rose-600 shrink-0">Lỗi:</span>
-              <span>{applyError}</span>
+              <span>{applyError || scanError}</span>
             </div>
           )}
 

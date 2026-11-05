@@ -27,7 +27,7 @@ export const APP_NAVIGATION_TABS = [
   { label: "Quản lý xe", path: ROUTES.VEHICLES },
   { label: "Lịch sử ra/vào", path: ROUTES.HISTORY },
   { label: "Sơ đồ bãi đậu xe", path: ROUTES.PARKING_LOT },
-  { label: "Quản lý loại vé", path: ROUTES.TICKETS, isPlaceholder: true },
+  { label: "Quản lý loại vé", path: ROUTES.TICKETS },
   { label: "Quản lý nhân viên", path: ROUTES.EMPLOYEES },
 ];
 

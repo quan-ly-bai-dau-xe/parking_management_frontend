@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from "react";
-import * as plateScanService from "../features/plateScanService";
+import * as plateScanService from "../services/plateScanService";
 
 /**
  * Custom hook for managing plate scan operations and state

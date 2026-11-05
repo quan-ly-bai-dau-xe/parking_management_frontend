@@ -486,21 +486,17 @@ export function createPlateAutoDetectMachine({
       return { action: 'skipped_rate_limit' };
     }
 
+    if (
+      lastResponseWas422 &&
+      previousThumbnail &&
+      thumbnail &&
+      isStaticScene(previousThumbnail, thumbnail, staticThreshold) &&
+      now - lastRequestAt < forcedHeartbeatMs
+    ) {
+      return { action: 'skipped_static_422' };
+    }
+
     if (thumbnail && thumbnail.length > 0) {
-      const isStatic =
-        previousThumbnail &&
-        lastResponseWas422 &&
-        isStaticScene(previousThumbnail, thumbnail, staticThreshold);
-
-      const isForcedHeartbeat =
-        lastResponseWas422 &&
-        lastRequestAt > 0 &&
-        now - lastRequestAt >= forcedHeartbeatMs;
-
-      if (isStatic && !isForcedHeartbeat) {
-        previousThumbnail = thumbnail;
-        return { action: 'skipped_static_422' };
-      }
       previousThumbnail = thumbnail;
     }
 
@@ -589,6 +585,7 @@ export function createPlateAutoDetectMachine({
         lastResponseWas422 = true;
         rawBoundingBox = null;
         scanState = SCAN_STATES.SEARCHING;
+        errorMessage = '';
         statusMessage = STATUS_MESSAGES.SEARCHING;
         emit();
         return { action: 'no_plate_422' };

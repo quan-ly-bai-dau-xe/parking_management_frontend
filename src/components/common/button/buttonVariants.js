@@ -10,6 +10,8 @@ export const BUTTON_VARIANTS = {
     "bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs hover:border-slate-400 focus-visible:ring-slate-400",
   outline:
     "bg-transparent hover:bg-slate-100 active:bg-slate-200 text-slate-700 border border-slate-200 focus-visible:ring-slate-400",
+  subtle:
+    "bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-transparent focus-visible:ring-slate-400",
   ghost:
     "bg-transparent hover:bg-slate-100 active:bg-slate-200 text-slate-700 border border-transparent focus-visible:ring-slate-400",
   danger:
@@ -42,6 +44,7 @@ export const BUTTON_SPINNER_COLORS = {
   primary: "text-white",
   secondary: "text-slate-600",
   outline: "text-slate-600",
+  subtle: "text-slate-600",
   ghost: "text-slate-600",
   danger: "text-white",
   dangerOutline: "text-rose-600",

@@ -25,8 +25,8 @@ Tài liệu này phân loại các **Component dùng chung** (đã có file riê
 | **AppLayout** | Component dùng chung | `src/components/layout/AppLayout.jsx` | Layout chuẩn bọc ngoài: chứa header và vùng nội dung chính (`Outlet` hoặc `children`) |
 | **AppTopHeader** | Component dùng chung | `src/components/layout/AppTopHeader.jsx` | Header điều hướng: danh sách menu, dropdown tài khoản và popover thông báo |
 | **Pagination** | Component dùng chung | `src/components/common/Pagination.jsx` | Thanh phân trang tích hợp cùng hook `usePagination` (hỗ trợ chọn page size, dấu rút gọn `…`) |
-| **Button** | Component dùng chung | `src/components/common/button/Button.jsx` (kèm Story) | Nút bấm chuẩn với variants: `primary`, `secondary`, `danger`, `outline`, hỗ trợ `isLoading` |
-| **Icon** | Component dùng chung | `src/components/common/icon/Icon.jsx` (kèm Story) | Biểu tượng Lucide tập trung: `name`, `size` (`xs`->`lg`, số px), gallery showcase |
+| **Button** | Component dùng chung | `src/components/common/button/Button.jsx` (kèm Story) | Nút bấm chuẩn với variants: `primary`, `secondary`, `danger`, `outline`, `tableAction`, hỗ trợ `isLoading` |
+| **Icon** | Component dùng chung | `src/components/common/icon/Icon.jsx` (kèm Story & Catalog) | Biểu tượng chuẩn hóa: hỗ trợ `name` (Lucide), `icon` (feature component), và wrapper mode bọc inline SVG (`children`) |
 | **Primary Action Button** | Pattern tham khảo | Class Tailwind toàn dự án | Nút hành động chính (`bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2.5 font-semibold`) |
 
 ---

@@ -107,10 +107,19 @@ axiosInstance.interceptors.response.use(
 
         const { status, data, headers: resHeaders } = error.response;
 
+        const validationMessage =
+            typeof data === "object" && data && !(data instanceof Blob)
+                ? Object.entries(data)
+                      .map(([field, value]) => {
+                          const detail = Array.isArray(value) ? value.join(", ") : String(value);
+                          return `${field}: ${detail}`;
+                      })
+                      .join("; ")
+                : "";
         const message =
             (typeof data === "object" &&
                 !(data instanceof Blob) &&
-                (data?.detail || data?.message)) ||
+                (data?.detail || data?.message || validationMessage)) ||
             `HTTP Error ${status}`;
 
         const err = new Error(message, { cause: error });

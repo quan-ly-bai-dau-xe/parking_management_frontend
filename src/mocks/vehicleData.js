@@ -7,7 +7,7 @@ export const mockVehicles = [
   {
     id: "XE0001",
     licensePlate: "51K-992.14",
-    vehicleType: "Ô tô", // Ô tô, Xe máy, Xe điện, Xe tải
+    vehicleType: "Ô tô", // Ô tô
     brand: "VinFast",
     model: "VF8",
     avatarIcon: "car-red", // indicator or svg type
@@ -103,7 +103,7 @@ export const mockVehicles = [
   {
     id: "XE0004",
     licensePlate: "43A-111.22",
-    vehicleType: "Xe điện",
+    vehicleType: "Ô tô",
     brand: "VinFast",
     model: "VF e34",
     avatarIcon: "car-cyan",
