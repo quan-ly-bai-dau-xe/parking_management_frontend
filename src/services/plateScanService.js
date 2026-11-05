@@ -1,4 +1,5 @@
-import { apiClient, axiosInstance } from "./apiClient.js";
+import { apiClient } from "./apiClient.js";
+import { mockParkingHistory } from "../mocks/parkingHistoryData.js";
 import {
   mapParkingSession,
   validateAndMapSessions,
@@ -6,6 +7,9 @@ import {
   mapVehicleLookupToVehicle,
   mapSessionToFrontend,
 } from "../utils/parking/plateScanMapper.js";
+
+const USE_MOCK =
+  import.meta.env?.VITE_USE_MOCK?.trim().toLowerCase() === "true";
 
 export {
   mapParkingSession,
@@ -65,16 +69,70 @@ export async function lookupVehicleByPlate(licensePlate) {
  * Lấy danh sách các phiên đỗ xe (Parking Sessions)
  */
 export async function getParkingSessions(filters = {}) {
-  const query = new URLSearchParams(filters).toString();
+  if (USE_MOCK) {
+    let list = [...mockParkingHistory];
+    if (filters.session_code) {
+      const q = String(filters.session_code).toLowerCase().trim();
+      list = list.filter((s) => s.sessionCode?.toLowerCase().includes(q));
+    }
+    if (filters.license_plate) {
+      const q = String(filters.license_plate).toLowerCase().trim();
+      list = list.filter((s) => s.licensePlate?.toLowerCase().includes(q));
+    }
+    if (filters.min_fee !== undefined && filters.min_fee !== "") {
+      list = list.filter((s) => (s.feeNumber ?? 0) >= Number(filters.min_fee));
+    }
+    if (filters.max_fee !== undefined && filters.max_fee !== "") {
+      list = list.filter((s) => (s.feeNumber ?? 0) <= Number(filters.max_fee));
+    }
+    const page = Number(filters.page) || 1;
+    const pageSize = Number(filters.page_size) || 10;
+    const total = list.length;
+    const start = (page - 1) * pageSize;
+    const paged = list.slice(start, start + pageSize);
+    const mapped = paged.map(mapParkingSession);
+    return {
+      items: mapped,
+      total,
+      page,
+      pageSize,
+      results: mapped,
+    };
+  }
+
+  const cleanFilters = {};
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      cleanFilters[key] = String(value).trim();
+    }
+  }
+  const query = new URLSearchParams(cleanFilters).toString();
   const url = `/api/v1/parking/sessions/${query ? `?${query}` : ""}`;
   const response = await apiClient(url);
-  return validateAndMapSessions(response);
+  const items = validateAndMapSessions(response);
+  const total = typeof response?.count === "number" ? response.count : items.length;
+  const page = Number(cleanFilters.page) || 1;
+  const pageSize = Number(cleanFilters.page_size) || items.length;
+
+  return {
+    items,
+    total,
+    page,
+    pageSize,
+    results: items,
+  };
 }
 
 /**
  * Lấy chi tiết 1 phiên đỗ xe
  */
 export async function getParkingSessionDetail(sessionId) {
+  if (USE_MOCK) {
+    const found = mockParkingHistory.find(
+      (item) => String(item.id) === String(sessionId) || item.sessionCode === sessionId
+    );
+    return found ? mapParkingSession(found) : null;
+  }
   const response = await apiClient(`/api/v1/parking/sessions/${sessionId}/`);
   return mapParkingSession(response);
 }

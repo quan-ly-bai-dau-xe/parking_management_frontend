@@ -88,7 +88,7 @@ axiosInstance.interceptors.response.use(
     (response) => response,
     (error) => {
         // Preserve canceled requests.
-        if (axios.isCancel(error)) {
+        if (axios.isCancel(error) || error.name === "AbortError" || error.code === "ERR_CANCELED") {
             return Promise.reject(error);
         }
 

@@ -41,6 +41,26 @@ export function normalizeSlot(rawSlot = {}) {
     rawSlot.license_plate ||
     null;
 
+  const isOccupied = status === "OCCUPIED";
+  const durationStr = String(rawSlot.duration || "");
+  const isOverstay = Boolean(
+    rawSlot.isOverstay ||
+      (isOccupied &&
+        (durationStr.includes(">48h") ||
+          durationStr.includes(">24h") ||
+          durationStr.includes("48h") ||
+          durationStr.includes("36h") ||
+          durationStr.includes("2 ngày") ||
+          durationStr.includes("3 ngày")))
+  );
+  const overstaySeverity =
+    rawSlot.overstaySeverity ||
+    (durationStr.includes("48h") || durationStr.includes("2 ngày")
+      ? "CRITICAL"
+      : isOverstay
+        ? "WARNING"
+        : null);
+
   return {
     ...rawSlot,
     id: rawSlot.id !== undefined && rawSlot.id !== null ? rawSlot.id : code,
@@ -55,6 +75,8 @@ export function normalizeSlot(rawSlot = {}) {
     plate,
     licensePlate: plate,
     duration: rawSlot.duration || null,
+    isOverstay,
+    overstaySeverity,
     reservedTime: rawSlot.reservedTime || rawSlot.reserved_time || null,
     reservedBy: rawSlot.reservedBy || rawSlot.reserved_by || null,
     parkingLot:

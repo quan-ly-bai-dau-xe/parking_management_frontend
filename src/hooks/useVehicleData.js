@@ -5,6 +5,8 @@ import {
   mapVehicleSearchItem,
 } from "../services/vehicleService";
 import { customerService } from "../services/customerService";
+import { getActiveSessions } from "../services/parkingLotService";
+import { DEFAULT_UNASSIGNED_SLOT_LABEL } from "../constants/vehicleConstants";
 
 export default function useVehicleData() {
   const [vehicles, setVehicles] = useState([]);
@@ -24,14 +26,15 @@ export default function useVehicleData() {
     refreshStats();
   }, [refreshStats]);
 
-  // Load and hydrate vehicles with customer phones
+  // Load and hydrate vehicles with customer phones and active parking slot
   const loadVehicles = useCallback(() => {
     setIsLoading(true);
     Promise.allSettled([
       fetchVehicles({ page_size: 100 }),
       customerService.getCustomers(),
+      getActiveSessions(),
     ])
-      .then(([vehiclesRes, customersRes]) => {
+      .then(([vehiclesRes, customersRes, sessionsRes]) => {
         const customerPhoneMap = new Map();
         if (customersRes.status === "fulfilled" && Array.isArray(customersRes.value)) {
           customersRes.value.forEach((cust) => {
@@ -40,6 +43,23 @@ export default function useVehicleData() {
               if (cust.id) customerPhoneMap.set(String(cust.id), phone);
               if (cust.customerCode) customerPhoneMap.set(cust.customerCode, phone);
               if (cust.name) customerPhoneMap.set(cust.name.trim().toLowerCase(), phone);
+            }
+          });
+        }
+
+        const openSessionMap = new Map();
+        if (sessionsRes.status === "fulfilled" && Array.isArray(sessionsRes.value)) {
+          sessionsRes.value.forEach((sess) => {
+            if (sess) {
+              const plateNorm = String(sess.license_plate || sess.licensePlate || "")
+                .replace(/[^A-Za-z0-9]/g, "")
+                .toUpperCase();
+              if (plateNorm) {
+                openSessionMap.set(plateNorm, sess);
+              }
+              if (sess.vehicle_id) {
+                openSessionMap.set(String(sess.vehicle_id), sess);
+              }
             }
           });
         }
@@ -61,6 +81,41 @@ export default function useVehicleData() {
                   "—";
 
             mappedItem.customer.phone = hydratedPhone;
+
+            // Đồng bộ phiên đỗ đang mở và ô đỗ thực tế
+            const plateNorm = String(mappedItem.licensePlate || "")
+              .replace(/[^A-Za-z0-9]/g, "")
+              .toUpperCase();
+            const matchedSession =
+              openSessionMap.get(plateNorm) ||
+              openSessionMap.get(String(mappedItem.id)) ||
+              openSessionMap.get(String(mappedItem.backendId));
+
+            if (matchedSession) {
+              mappedItem.status = "parked";
+              mappedItem.statusDisplay = "Đang đỗ";
+              const sessionSlot =
+                matchedSession.slot_display ||
+                matchedSession.display_text ||
+                matchedSession.slot_code ||
+                matchedSession.slotCode;
+
+              if (
+                sessionSlot &&
+                (!mappedItem.parkingSlot?.display ||
+                  mappedItem.parkingSlot.display === DEFAULT_UNASSIGNED_SLOT_LABEL ||
+                  mappedItem.parkingSlot.display === "Chưa có vị trí")
+              ) {
+                mappedItem.parkingSlot = {
+                  slotId: matchedSession.slot_id || matchedSession.slotId || null,
+                  slot: matchedSession.slot_code || matchedSession.slotCode || sessionSlot,
+                  display: sessionSlot,
+                  floor: matchedSession.floor_name || "",
+                  zone: matchedSession.zone_code || "",
+                };
+              }
+            }
+
             return mappedItem;
           });
 

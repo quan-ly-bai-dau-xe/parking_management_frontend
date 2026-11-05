@@ -1,33 +1,59 @@
 /**
- * Biểu phí mẫu tham chiếu (SRS & Thực tế: Ô tô 25.000đ/2h đầu + 10.000đ/h tiếp theo, Xe máy 5.000đ)
+ * Biểu phí chuẩn đồng bộ Backend API (OQ-85 & TL-50):
+ * - Đơn giá chuẩn cho ô tô vãng lai: 10.000đ/giờ (PARKING_HOURLY_RATE_VND).
+ * - Miễn phí hoàn toàn (0đ) đối với xe có vé tháng ACTIVE còn hiệu lực hoặc được miễn trừ đặc cách.
+ * - Thời gian ân hạn (Grace Period): Dưới 15 phút ra vào không tính cước (0đ).
+ * - Cơ chế bảo vệ Trần giá ngày (Daily Cap): Tối đa 100.000đ / chu kỳ 24h nhằm chống trừ tiền quá lớn khi đỗ xe qua đêm.
  */
-export function calculateParkingFee({ vehicleType = "CAR", durationMinutes = 0, hasActiveTicket = false }) {
-  if (hasActiveTicket) {
+export const DEFAULT_HOURLY_RATE_VND = 10000;
+export const GRACE_PERIOD_MINUTES = 15;
+export const DAILY_MAX_CAP_VND = 100000;
+
+export function calculateParkingFee({
+  _vehicleType = "CAR",
+  durationMinutes = 0,
+  hasActiveTicket = false,
+  isExempt = false,
+}) {
+  if (hasActiveTicket || isExempt) {
     return {
       feeAmount: 0,
-      feeFormatted: "0đ (Vé tháng / Cư dân)",
+      feeFormatted: "0đ (Miễn phí / Vé tháng)",
       isCoveredByTicket: true,
-      calculationBreakdown: "Phương tiện đã đăng ký vé tháng còn hiệu lực",
+      calculationBreakdown: isExempt
+        ? "Được miễn cước (Đặc cách / Sự cố kỹ thuật)"
+        : "Phương tiện đã đăng ký vé tháng còn hiệu lực",
+      hoursBilled: 0,
     };
   }
 
-  const isCar = String(vehicleType).toUpperCase().includes("CAR") || String(vehicleType).includes("Ô tô");
+  // Grace period: Ra vào dưới 15 phút (đón trả khách hoặc quay đầu) miễn phí
+  if (durationMinutes < GRACE_PERIOD_MINUTES) {
+    return {
+      feeAmount: 0,
+      feeFormatted: "0đ (Miễn phí dưới 15 phút)",
+      isCoveredByTicket: false,
+      calculationBreakdown: `Thời gian đỗ ${durationMinutes} phút thuộc diện ân hạn (< ${GRACE_PERIOD_MINUTES} phút)`,
+      hoursBilled: 0,
+    };
+  }
+
+  // Số giờ tính phí làm tròn lên từng giờ theo chuẩn OQ-85
   const hours = Math.max(1, Math.ceil(durationMinutes / 60));
+  const rawFee = hours * DEFAULT_HOURLY_RATE_VND;
 
-  let totalFee;
+  // Áp dụng trần tối đa theo ngày (24h) để tránh tính phí quá lớn khi gửi qua đêm
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  const cappedFee =
+    days * DAILY_MAX_CAP_VND + Math.min(DAILY_MAX_CAP_VND, remainingHours * DEFAULT_HOURLY_RATE_VND);
+  const totalFee = Math.min(rawFee, cappedFee);
+
   let breakdown;
-
-  if (isCar) {
-    if (hours <= 2) {
-      totalFee = 25000;
-      breakdown = "25.000đ (Block 2 giờ đầu)";
-    } else {
-      totalFee = 25000 + (hours - 2) * 10000;
-      breakdown = `25.000đ (2h đầu) + ${(hours - 2) * 10000}đ (${hours - 2}h tiếp)`;
-    }
+  if (totalFee < rawFee) {
+    breakdown = `${hours}h đỗ -> Áp dụng trần tối đa theo ngày (${DAILY_MAX_CAP_VND.toLocaleString("vi-VN")}đ/24h)`;
   } else {
-    totalFee = hours <= 4 ? 5000 : 10000;
-    breakdown = `${totalFee.toLocaleString("vi-VN")}đ (Gửi xe theo lượt)`;
+    breakdown = `${hours}h x ${DEFAULT_HOURLY_RATE_VND.toLocaleString("vi-VN")}đ/h (Đơn giá chuẩn OQ-85)`;
   }
 
   return {
@@ -35,6 +61,7 @@ export function calculateParkingFee({ vehicleType = "CAR", durationMinutes = 0, 
     feeFormatted: `${totalFee.toLocaleString("vi-VN")}đ`,
     isCoveredByTicket: false,
     calculationBreakdown: breakdown,
+    hoursBilled: hours,
   };
 }
 

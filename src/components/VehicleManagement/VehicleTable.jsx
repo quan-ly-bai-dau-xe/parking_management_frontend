@@ -2,6 +2,7 @@ import React from "react";
 import DataTable from "../common/table/DataTable";
 import TableActions from "../common/table/TableActions";
 import VehicleTicketTypeBadge from "./VehicleTicketTypeBadge";
+import { DEFAULT_UNASSIGNED_SLOT_LABEL } from "../../constants/vehicleConstants";
 
 export default function VehicleTable({
   paginatedVehicles,
@@ -74,11 +75,41 @@ export default function VehicleTable({
     },
     {
       header: "Vị trí đỗ",
-      accessor: (row) => (
-        <span className="font-medium text-slate-800">
-          {row.parkingSlot?.display || row.parkingSlot?.slot || "—"}
-        </span>
-      ),
+      accessor: (row) => {
+        const isParked = row.status === "parked";
+        const slotDisplay = row.parkingSlot?.display || row.parkingSlot?.slot;
+        const hasSlot =
+          slotDisplay &&
+          slotDisplay !== DEFAULT_UNASSIGNED_SLOT_LABEL &&
+          slotDisplay !== "Chưa có vị trí" &&
+          slotDisplay !== "—";
+
+        if (isParked) {
+          if (hasSlot) {
+            return (
+              <span className="font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 text-xs inline-flex items-center gap-1.5 shadow-2xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {slotDisplay}
+              </span>
+            );
+          }
+          return (
+            <span
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs"
+              title="Xe đang đỗ trong bãi nhưng chưa được chỉ định ô đỗ"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              Chờ xếp ô (Đang đỗ)
+            </span>
+          );
+        }
+
+        return (
+          <span className="font-medium text-slate-500 text-xs">
+            {hasSlot ? slotDisplay : "—"}
+          </span>
+        );
+      },
     },
     {
       header: "Trạng thái",

@@ -15,6 +15,8 @@ export default function ParkingLotFilters({
   setSelectedFloor,
   selectedZone,
   setSelectedZone,
+  floorOptions = PARKING_FLOOR_OPTIONS,
+  zoneOptions = PARKING_ZONE_OPTIONS,
   searchQuery,
   setSearchQuery,
   statusFilter,
@@ -32,12 +34,15 @@ export default function ParkingLotFilters({
     if (onToggleViewMode) onToggleViewMode(mode);
   };
 
+  const defaultFloor = floorOptions?.[0]?.value || "B1";
+  const defaultZone = zoneOptions?.[0]?.value || "A";
+
   const hasActiveFilters = Boolean(
     searchQuery ||
     statusFilter ||
     vehicleTypeFilter ||
-    (selectedFloor && selectedFloor !== "B1") ||
-    (selectedZone && selectedZone !== "A")
+    (selectedFloor && selectedFloor !== defaultFloor) ||
+    (selectedZone && selectedZone !== defaultZone)
   );
 
   return (
@@ -55,7 +60,7 @@ export default function ParkingLotFilters({
           label="Tầng"
           value={selectedFloor}
           onChange={(e) => setSelectedFloor(e?.target ? e.target.value : e)}
-          options={PARKING_FLOOR_OPTIONS}
+          options={floorOptions}
           placeholder=""
         />
 
@@ -63,7 +68,7 @@ export default function ParkingLotFilters({
           label="Khu vực"
           value={selectedZone}
           onChange={(e) => setSelectedZone(e?.target ? e.target.value : e)}
-          options={PARKING_ZONE_OPTIONS}
+          options={zoneOptions}
           placeholder=""
         />
 

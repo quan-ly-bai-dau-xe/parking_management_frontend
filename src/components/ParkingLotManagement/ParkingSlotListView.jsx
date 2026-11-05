@@ -1,9 +1,27 @@
 import { useMemo } from "react";
-import { CheckCircle2, Car, Clock, Wrench, Eye, Pencil, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  Car,
+  Clock,
+  Wrench,
+  Eye,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+} from "lucide-react";
 import DataTable from "../common/table/DataTable";
 import Button from "../common/button/Button";
 
-function renderStatusBadge(status, statusText) {
+function renderStatusBadge(status, statusText, isOverstay = false) {
+  if (status === "OCCUPIED" && isOverstay) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-300">
+        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 animate-pulse" />
+        {statusText || "Đang đỗ"} (Quá giờ)
+      </span>
+    );
+  }
+
   switch (status) {
     case "AVAILABLE":
       return (
@@ -78,8 +96,9 @@ export default function ParkingSlotListView({
       },
       {
         header: "Trạng thái",
-        minWidth: 140,
-        accessor: (slot) => renderStatusBadge(slot.status, slot.statusText),
+        minWidth: 160,
+        accessor: (slot) =>
+          renderStatusBadge(slot.status, slot.statusText, slot.isOverstay),
       },
       {
         header: "Biển số xe",
@@ -94,7 +113,14 @@ export default function ParkingSlotListView({
         header: "Thời gian / Ghi chú",
         minWidth: 160,
         accessor: (slot) => (
-          <span className="text-slate-500 text-xs">
+          <span
+            className={`text-xs ${
+              slot.isOverstay
+                ? "font-bold text-amber-700 flex items-center gap-1"
+                : "text-slate-500"
+            }`}
+          >
+            {slot.isOverstay && <AlertTriangle className="w-3 h-3 text-amber-500" />}
             {slot.duration || slot.reservedTime || slot.note || "—"}
           </span>
         ),
@@ -146,12 +172,28 @@ export default function ParkingSlotListView({
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden space-y-0">
-      <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-slate-800">Danh sách ô đỗ xe</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-800">
+              Danh sách ô đỗ: Tầng {selectedFloor} — Phân khu {selectedZone}
+            </h3>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              {slots.length} ô
+            </span>
+          </div>
           <p className="text-xs text-slate-400">
-            Hiển thị {slots.length} ô đỗ trong phân khu đang chọn
+            Chi tiết các vị trí đỗ xe tại Tầng {selectedFloor} - Khu {selectedZone}
           </p>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs font-semibold">
+          <span className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-800 border border-blue-200/80">
+            Tầng: <strong>{selectedFloor}</strong>
+          </span>
+          <span className="px-2.5 py-1 rounded-md bg-purple-50 text-purple-800 border border-purple-200/80">
+            Khu vực: <strong>Khu {selectedZone}</strong>
+          </span>
         </div>
       </div>
 

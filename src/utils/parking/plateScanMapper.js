@@ -2,10 +2,33 @@ import { ParkingSessionSchema } from "../../schemas/parkingSessionSchema.js";
 import { formatIsoDateToDisplay } from "../formatDateTime.js";
 
 /**
+ * Hằng số cấu hình mặc định dùng chung cho mapper
+ */
+export const MAPPER_DEFAULTS = {
+  EMPTY_PLACEHOLDER: "—",
+  UNASSIGNED_SLOT: "Chưa xếp chỗ",
+  GUEST_CUSTOMER: "Khách vãng lai",
+  UNREGISTERED_CUSTOMER: "Chưa đăng ký",
+  DEFAULT_TICKET_TYPE: "Vé lượt",
+  DEFAULT_VEHICLE_TYPE: "Ô tô",
+  DEFAULT_VEHICLE_TYPE_CODE: "CAR",
+  DEFAULT_VEHICLE_TYPE_ID: 1,
+  ENTRY_GATE_DEFAULT: "Cổng vào",
+  EXIT_GATE_DEFAULT: "Cổng ra",
+  STATUS_IN_PROGRESS: "in_progress",
+  STATUS_COMPLETED: "completed",
+  STATUS_PARKED: "parked",
+  STATUS_ACTIVE: "active",
+  STATUS_EXPIRED: "expired",
+  STATUS_NONE: "none",
+  DURATION_ONGOING: "Đang gửi",
+};
+
+/**
  * Định dạng datetime sang tiếng Việt (dd/MM/yyyy HH:mm)
  */
 export function formatDateTime(value) {
-  if (!value) return "—";
+  if (!value) return MAPPER_DEFAULTS.EMPTY_PLACEHOLDER;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("vi-VN", {
@@ -21,7 +44,7 @@ export function formatDateTime(value) {
 }
 
 export function formatDate(value) {
-  if (!value) return "—";
+  if (!value) return MAPPER_DEFAULTS.EMPTY_PLACEHOLDER;
   return formatIsoDateToDisplay(value) || value;
 }
 
@@ -31,41 +54,37 @@ export function formatDate(value) {
 export function resolveMediaUrl(url) {
   if (!url) return null;
   const trimmed = String(url).trim();
-  if (!trimmed) return null;
+  if (
+    !trimmed ||
+    trimmed === "null" ||
+    trimmed === "undefined" ||
+    trimmed === "none" ||
+    trimmed === "N/A" ||
+    trimmed === "-" ||
+    trimmed === "[object Object]"
+  ) {
+    return null;
+  }
 
   if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("data:")) {
     return trimmed;
   }
 
   const backendBaseUrl =
-    import.meta.env.VITE_BACKEND_URL?.trim();
-
-  const cleanBase = backendBaseUrl.replace(/\/+$/, "");
+    (typeof import.meta !== "undefined" && import.meta?.env?.VITE_BACKEND_URL?.trim()) ||
+    (typeof globalThis !== "undefined" && globalThis.process?.env?.VITE_BACKEND_URL?.trim()) ||
+    "";
+  const cleanBase = backendBaseUrl ? backendBaseUrl.replace(/\/+$/, "") : "";
   const slashPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-  return `${cleanBase}${slashPath}`;
+  return cleanBase ? `${cleanBase}${slashPath}` : slashPath;
 }
 
 /**
- * mapParkingSession
+ * Helper tách biệt logic tính toán phí gửi xe
  */
-export function mapParkingSession(raw) {
-  const sessionCode = raw.session_code || raw.sessionCode || "—";
-  const licensePlate = raw.license_plate || raw.licensePlate || "—";
-
-  const rawEntryImage =
-    raw.entry_image_url ||
-    raw.plate_image_url ||
-    raw.entry_plate_image_url ||
-    raw.plateImageUrl;
-
-  const rawExitImage =
-    raw.exit_image_url ||
-    raw.exit_plate_image_url ||
-    raw.exitPlateImageUrl;
-
-  const rawFee = raw.fee ?? raw.fee_amount ?? raw.feeNumber;
+function parseFee(rawFee) {
   let feeNumber = 0;
-  let feeDisplay = "—";
+  let feeDisplay = MAPPER_DEFAULTS.EMPTY_PLACEHOLDER;
 
   if (rawFee !== null && rawFee !== undefined) {
     if (typeof rawFee === "number") {
@@ -78,22 +97,148 @@ export function mapParkingSession(raw) {
     }
   }
 
+  return { feeNumber, feeDisplay };
+}
+
+/**
+ * Helper chuẩn hóa thông tin khách hàng (Customer Information)
+ */
+function extractCustomer(rawCustomer = {}, rawVehicle = {}) {
+  const id = rawCustomer.id || rawVehicle.customer_id || null;
+  const name =
+    rawCustomer.full_name ||
+    rawCustomer.name ||
+    rawVehicle.customer_name ||
+    MAPPER_DEFAULTS.GUEST_CUSTOMER;
+  const phone =
+    rawCustomer.phone ||
+    rawVehicle.customer_phone ||
+    MAPPER_DEFAULTS.EMPTY_PLACEHOLDER;
+  const code = rawCustomer.code || rawCustomer.customerCode || "";
+
+  return { id, name, phone, code };
+}
+
+/**
+ * Helper chuẩn hóa thông tin vé (Ticket Information)
+ */
+function extractTicket(rawTicket = {}, source = {}, hasPlate = false) {
+  const defaultFallbackType = hasPlate
+    ? MAPPER_DEFAULTS.DEFAULT_TICKET_TYPE
+    : MAPPER_DEFAULTS.UNREGISTERED_CUSTOMER;
+
+  const ticketType =
+    source.ticket_type ||
+    rawTicket.package_name ||
+    rawTicket.ticket_type_name ||
+    rawTicket.type_display ||
+    defaultFallbackType;
+
+  let ticketStatus = MAPPER_DEFAULTS.STATUS_NONE;
+  if (rawTicket.status) {
+    ticketStatus = String(rawTicket.status).toLowerCase();
+  } else if (
+    rawTicket.is_active ||
+    source.has_active_ticket ||
+    (typeof rawTicket.status === "string" && rawTicket.status.toUpperCase() === "ACTIVE")
+  ) {
+    ticketStatus = MAPPER_DEFAULTS.STATUS_ACTIVE;
+  } else if (rawTicket.is_expired) {
+    ticketStatus = MAPPER_DEFAULTS.STATUS_EXPIRED;
+  }
+
+  const effectiveTo = rawTicket.effective_to ? formatDate(rawTicket.effective_to) : null;
+  const hasActiveTicket = Boolean(
+    source.has_active_ticket ||
+    rawTicket.is_active ||
+    ticketStatus === MAPPER_DEFAULTS.STATUS_ACTIVE
+  );
+
+  return {
+    type: ticketType,
+    status: ticketStatus,
+    effectiveTo,
+    hasActiveTicket,
+  };
+}
+
+/**
+ * Helper chuẩn hóa thông tin vị trí đỗ xe (Parking Slot & Position)
+ */
+function extractParkingSlot(parkingPosition, source = {}, rawSession = {}, rawVehicle = {}, rawTicket = {}) {
+  const slotCode =
+    parkingPosition?.slot_code ||
+    parkingPosition?.display_text ||
+    rawSession.slot_display ||
+    rawSession.slot_code ||
+    source.slot_code ||
+    rawVehicle.slot_code ||
+    rawTicket.slot_code ||
+    MAPPER_DEFAULTS.UNASSIGNED_SLOT;
+
+  return {
+    slotCode,
+    parkingPosition: parkingPosition || null,
+    parkingSlot: {
+      slot: slotCode,
+      display: parkingPosition?.display_text || rawSession.slot_display || slotCode,
+      slotId: parkingPosition?.slot_id || rawSession.slot_id || rawSession.slotId || null,
+      floorName: parkingPosition?.floor_name || rawSession.floor_name || "",
+      zoneCode: parkingPosition?.zone_code || rawSession.zone_code || "",
+    },
+  };
+}
+
+/**
+ * mapParkingSession: Chuẩn hóa phiên đỗ xe từ Backend API sang FE Model
+ */
+export function mapParkingSession(raw) {
+  if (!raw) return null;
+
+  const sessionCode = raw.session_code || raw.sessionCode || MAPPER_DEFAULTS.EMPTY_PLACEHOLDER;
+  const licensePlate = raw.license_plate || raw.licensePlate || MAPPER_DEFAULTS.EMPTY_PLACEHOLDER;
+
+  const rawEntryImage =
+    raw.entry_image_url ||
+    raw.plate_image_url ||
+    raw.entry_plate_image_url ||
+    raw.plateImageUrl;
+
+  const rawExitImage =
+    raw.exit_image_url ||
+    raw.exit_plate_image_url ||
+    raw.exitPlateImageUrl;
+
+  const { feeNumber, feeDisplay } = parseFee(raw.fee ?? raw.fee_amount ?? raw.feeNumber);
+
   const entryTime = raw.entryTime || formatDateTime(raw.entry_time);
   const exitTime = raw.exitTime || (raw.exit_time ? formatDateTime(raw.exit_time) : null);
 
   const duration =
     raw.duration ||
+    raw.duration_text ||
+    raw.durationText ||
     (raw.duration_minutes !== undefined && raw.duration_minutes !== null
       ? `${raw.duration_minutes} phút`
       : exitTime
-        ? "—"
-        : "Đang gửi");
+        ? MAPPER_DEFAULTS.EMPTY_PLACEHOLDER
+        : MAPPER_DEFAULTS.DURATION_ONGOING);
 
-  let status = "in_progress";
-  if (raw.status) {
+  let status = MAPPER_DEFAULTS.STATUS_IN_PROGRESS;
+  const rawStatus = (raw.status || "").toLowerCase();
+  if (
+    rawStatus === "completed" ||
+    rawStatus === "closed" ||
+    rawStatus === "left" ||
+    raw.is_completed
+  ) {
+    status = MAPPER_DEFAULTS.STATUS_COMPLETED;
+  } else if (rawStatus === "in_progress" || rawStatus === "open") {
+    status = MAPPER_DEFAULTS.STATUS_IN_PROGRESS;
+  } else if (raw.status) {
     status = raw.status;
   } else if (exitTime || raw.exit_time) {
-    status = "completed";
+    status = MAPPER_DEFAULTS.STATUS_COMPLETED;
   }
 
   return {
@@ -103,9 +248,9 @@ export function mapParkingSession(raw) {
     vehicleType: raw.vehicleType || raw.vehicle_type_name || (raw.vehicle_type_id === 1 ? "Ô tô" : "Ô tô điện"),
     entryTime,
     exitTime,
-    entryGate: raw.entry_gate_name || raw.entry_gate || raw.entryGate || "Cổng vào",
-    exitGate: raw.exit_gate_name || raw.exit_gate || raw.exitGate || (exitTime ? "Cổng ra" : "—"),
-    slotCode: raw.slot_code || raw.slotCode || "—",
+    entryGate: raw.entry_gate_name || raw.entry_gate || raw.entryGate || MAPPER_DEFAULTS.ENTRY_GATE_DEFAULT,
+    exitGate: raw.exit_gate_name || raw.exit_gate || raw.exitGate || (exitTime ? MAPPER_DEFAULTS.EXIT_GATE_DEFAULT : MAPPER_DEFAULTS.EMPTY_PLACEHOLDER),
+    slotCode: raw.slot_code || raw.slotCode || MAPPER_DEFAULTS.EMPTY_PLACEHOLDER,
     floorName: raw.floor_name || raw.floorName || "",
     zoneName: raw.zone_code || raw.zoneName || "",
     plateImageUrl: resolveMediaUrl(rawEntryImage),
@@ -116,7 +261,7 @@ export function mapParkingSession(raw) {
     feeNumber,
     status,
     hasActiveTicket: Boolean(raw.has_active_ticket ?? raw.hasActiveTicket),
-    ticketType: raw.ticket_type_name || raw.ticketType || "Vé lượt",
+    ticketType: raw.ticket_type_name || raw.ticketType || MAPPER_DEFAULTS.DEFAULT_TICKET_TYPE,
   };
 }
 
@@ -137,6 +282,9 @@ export function validateAndMapSessions(rawData) {
   });
 }
 
+/**
+ * mapPlateScanToVehicle: Chuẩn hóa kết quả quét OCR biển số xe
+ */
 export function mapPlateScanToVehicle(scanResult) {
   if (!scanResult) return null;
 
@@ -156,88 +304,74 @@ export function mapPlateScanToVehicle(scanResult) {
     scanResult.detected_plate ||
     "";
 
-  const rawConfidence = scanResult.best_candidate?.confidence ?? scanResult.confidence ?? 0.95;
-  const numConfidence = Number(rawConfidence);
-  const confidencePercent = !Number.isNaN(numConfidence)
-    ? numConfidence <= 1.0
-      ? numConfidence * 100
-      : numConfidence
-    : 95;
-  const confidence = Math.round(confidencePercent);
-
-  const isRecognized = Boolean(rawPlate && rawPlate !== "—");
-
-  const vehicleId = rawVehicle.id || scanResult.vehicle_id || null;
-  const customerId = rawCustomer.id || rawVehicle.customer_id || null;
-
-  const ticketType =
-    scanResult.ticket_type ||
-    rawTicket.package_name ||
-    rawTicket.type_display ||
-    rawTicket.ticket_type_name ||
-    (rawPlate ? "Vé lượt" : "Chưa đăng ký");
-
-  let ticketStatus = "none";
-  if (rawTicket.status) {
-    ticketStatus = rawTicket.status.toLowerCase();
-  } else if (rawTicket.is_active || scanResult.has_active_ticket) {
-    ticketStatus = "active";
-  } else if (rawTicket.is_expired) {
-    ticketStatus = "expired";
+  // AI confidence: không tự sinh số ảo, giữ nguyên hoặc tính phần trăm chính xác
+  const rawConfidence = scanResult.best_candidate?.confidence ?? scanResult.confidence;
+  let confidence = null;
+  if (rawConfidence !== undefined && rawConfidence !== null) {
+    const num = Number(rawConfidence);
+    if (!Number.isNaN(num)) {
+      confidence = Math.round(num <= 1.0 ? num * 100 : num);
+    }
   }
 
-  const parkingPosition = lookup.parking_position || scanResult.parking_position || rawSession.parking_position || null;
-  const slotCode =
-    parkingPosition?.slot_code ||
-    scanResult.slot_code ||
-    rawSession.slot_code ||
-    rawVehicle.slot_code ||
-    rawTicket.slot_code ||
-    "Chưa xếp chỗ";
+  const isRecognized = Boolean(rawPlate && rawPlate !== MAPPER_DEFAULTS.EMPTY_PLACEHOLDER);
+  const vehicleId = rawVehicle.id || scanResult.vehicle_id || null;
 
-  const customerName = rawCustomer.full_name || rawCustomer.name || rawVehicle.customer_name || "Khách vãng lai";
-  const customerPhone = rawCustomer.phone || rawVehicle.customer_phone || "—";
-  const model = rawVehicle.model_name || rawVehicle.model || (rawPlate ? "Xe vãng lai" : "—");
-  const brand = rawVehicle.brand || "—";
-  const color = rawVehicle.color || "—";
+  // Trích xuất Customer, Ticket và Parking Slot qua helper dùng chung
+  const customer = extractCustomer(rawCustomer, rawVehicle);
+  const ticket = extractTicket(rawTicket, scanResult, Boolean(rawPlate));
+  const parkingPosition = lookup.parking_position || scanResult.parking_position || rawSession.parking_position || null;
+  const { slotCode, parkingSlot } = extractParkingSlot(parkingPosition, scanResult, rawSession, rawVehicle, rawTicket);
+
+  const model = rawVehicle.model_name || rawVehicle.model || (rawPlate ? "Xe vãng lai" : MAPPER_DEFAULTS.EMPTY_PLACEHOLDER);
+  const brand = rawVehicle.brand || MAPPER_DEFAULTS.EMPTY_PLACEHOLDER;
+  const color = rawVehicle.color || MAPPER_DEFAULTS.EMPTY_PLACEHOLDER;
 
   return {
-    licensePlate: rawPlate || "—",
+    licensePlate: rawPlate || MAPPER_DEFAULTS.EMPTY_PLACEHOLDER,
     confidence,
     isRecognized,
     vehicleId,
-    customerId,
-    customerName,
-    customerPhone,
-    customer: {
-      id: customerId,
-      name: customerName,
-      phone: customerPhone,
-      code: rawCustomer.code || "",
-    },
+    // Đồng bộ flat keys trực tiếp từ Single Source of Truth
+    customerId: customer.id,
+    customerName: customer.name,
+    customerPhone: customer.phone,
+    customerCode: customer.code,
+    customer,
     model,
     brand,
     color,
-    vehicleType: rawVehicle.vehicle_type_name || rawVehicle.vehicle_type || scanResult.vehicle_type || "Ô tô",
-    vehicleTypeId: rawVehicle.vehicle_type_id || scanResult.vehicle_type_id || 1,
-    vehicleTypeCode: rawVehicle.vehicle_type_code || "CAR",
-    ticketType,
-    ticketStatus,
+    vehicleType: rawVehicle.vehicle_type_name || rawVehicle.vehicle_type || scanResult.vehicle_type || MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE,
+    vehicleTypeId: rawVehicle.vehicle_type_id || scanResult.vehicle_type_id || MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE_ID,
+    vehicleTypeCode: rawVehicle.vehicle_type_code || MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE_CODE,
+    ticketType: ticket.type,
+    ticketStatus: ticket.status,
+    ticketExpiration: ticket.effectiveTo,
     ticket: {
-      type: ticketType,
-      status: ticketStatus,
-      effectiveTo: rawTicket.effective_to ? formatDate(rawTicket.effective_to) : null,
+      type: ticket.type,
+      status: ticket.status,
+      effectiveTo: ticket.effectiveTo,
     },
-    ticketExpiration: rawTicket.effective_to ? formatDate(rawTicket.effective_to) : null,
-    hasActiveTicket: Boolean(scanResult.has_active_ticket || rawTicket.is_active),
+    hasActiveTicket: ticket.hasActiveTicket,
     slotCode,
     parkingPosition,
-    status: scanResult.vehicle_status || rawVehicle.status || (rawSession.id ? "parked" : "active"),
+    parkingSlot,
+    status:
+      scanResult.vehicle_status ||
+      rawVehicle.status ||
+      (rawSession.id && !rawSession.exit_time && rawSession.status !== "completed" && rawSession.status !== "closed"
+        ? MAPPER_DEFAULTS.STATUS_PARKED
+        : ticket.hasActiveTicket
+        ? MAPPER_DEFAULTS.STATUS_ACTIVE
+        : MAPPER_DEFAULTS.STATUS_LEFT),
     imageUrl: resolveMediaUrl(scanResult.image_url || scanResult.plate_image_url),
     rawScan: scanResult,
   };
 }
 
+/**
+ * mapVehicleLookupToVehicle: Chuẩn hóa kết quả tra cứu phương tiện theo biển số
+ */
 export function mapVehicleLookupToVehicle(lookupResult) {
   if (!lookupResult) return null;
 
@@ -248,83 +382,65 @@ export function mapVehicleLookupToVehicle(lookupResult) {
   const rawSession = lookupResult.open_session || lookupResult.active_session || {};
   const parkingPosition = lookupResult.parking_position || rawSession.parking_position || null;
 
-  const ticketType =
-    rawTicket.package_name ||
-    rawTicket.ticket_type_name ||
-    rawTicket.type_display ||
-    "Vé lượt";
+  // Trích xuất Customer, Ticket và Parking Slot
+  const customer = extractCustomer(rawCustomer, rawVehicle);
+  const ticket = extractTicket(rawTicket, lookupResult, Boolean(rawPlate));
+  const { slotCode, parkingSlot } = extractParkingSlot(parkingPosition, lookupResult, rawSession, rawVehicle, rawTicket);
 
-  let ticketStatus = "none";
-  if (rawTicket.status) {
-    ticketStatus = rawTicket.status.toLowerCase();
-  } else if (rawTicket.is_active || lookupResult.has_active_ticket) {
-    ticketStatus = "active";
-  } else if (rawTicket.is_expired) {
-    ticketStatus = "expired";
-  }
-
-  const slotCode =
-    parkingPosition?.slot_code ||
-    parkingPosition?.display_text ||
-    rawSession.slot_code ||
-    rawTicket.slot_code ||
-    lookupResult.slot_code ||
-    "Chưa xếp chỗ";
+  const isSessionOpen = Boolean(
+    rawSession.id &&
+    !rawSession.exit_time &&
+    rawSession.status !== "completed" &&
+    rawSession.status !== "closed"
+  );
 
   return {
-    licensePlate: rawPlate || "—",
+    licensePlate: rawPlate || MAPPER_DEFAULTS.EMPTY_PLACEHOLDER,
     confidence: 100,
     isRecognized: Boolean(rawPlate),
     vehicleId: rawVehicle.id || lookupResult.id,
-    customerId: rawCustomer.id,
-    customerName: rawCustomer.full_name || rawCustomer.name || "Khách vãng lai",
-    customerPhone: rawCustomer.phone || "—",
-    customerCode: rawCustomer.code || "",
-    customer: {
-      id: rawCustomer.id,
-      name: rawCustomer.full_name || rawCustomer.name || "Khách vãng lai",
-      phone: rawCustomer.phone || "—",
-      code: rawCustomer.code || "",
-    },
-    model: rawVehicle.model_name || rawVehicle.model || lookupResult.model_name || "—",
-    brand: rawVehicle.brand || lookupResult.brand || "—",
-    color: rawVehicle.color || lookupResult.color || "—",
-    vehicleType: rawVehicle.vehicle_type || lookupResult.vehicle_type_name || "Ô tô",
-    vehicleTypeId: rawVehicle.vehicle_type_id || lookupResult.vehicle_type_id || 1,
-    vehicleTypeCode: rawVehicle.vehicle_type_code || lookupResult.vehicle_type_code || "CAR",
-    ticketType,
-    ticketStatus,
+    // Đồng bộ flat keys trực tiếp từ Single Source of Truth
+    customerId: customer.id,
+    customerName: customer.name,
+    customerPhone: customer.phone,
+    customerCode: customer.code,
+    customer,
+    model: rawVehicle.model_name || rawVehicle.model || lookupResult.model_name || MAPPER_DEFAULTS.EMPTY_PLACEHOLDER,
+    brand: rawVehicle.brand || lookupResult.brand || MAPPER_DEFAULTS.EMPTY_PLACEHOLDER,
+    color: rawVehicle.color || lookupResult.color || MAPPER_DEFAULTS.EMPTY_PLACEHOLDER,
+    vehicleType: rawVehicle.vehicle_type || lookupResult.vehicle_type_name || MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE,
+    vehicleTypeId: rawVehicle.vehicle_type_id || lookupResult.vehicle_type_id || MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE_ID,
+    vehicleTypeCode: rawVehicle.vehicle_type_code || lookupResult.vehicle_type_code || MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE_CODE,
+    ticketType: ticket.type,
+    ticketStatus: ticket.status,
+    ticketExpiration: ticket.effectiveTo,
     ticket: {
-      type: ticketType,
-      status: ticketStatus,
-      effectiveTo: rawTicket.effective_to ? formatDate(rawTicket.effective_to) : null,
+      type: ticket.type,
+      status: ticket.status,
+      effectiveTo: ticket.effectiveTo,
     },
-    ticketExpiration: rawTicket.effective_to ? formatDate(rawTicket.effective_to) : null,
-    hasActiveTicket: Boolean(lookupResult.has_active_ticket || rawTicket.is_active || (rawTicket.status && rawTicket.status.toUpperCase() === "ACTIVE")),
+    hasActiveTicket: ticket.hasActiveTicket,
     slotCode,
-    parkingPosition: parkingPosition,
-    parkingSlot: {
-      slot: slotCode,
-      display: parkingPosition?.display_text || slotCode,
-      slotId: parkingPosition?.slot_id || null,
-      floorName: parkingPosition?.floor_name || "",
-      zoneCode: parkingPosition?.zone_code || "",
-    },
-    status: rawSession.id ? "parked" : (lookupResult.status || "active"),
+    parkingPosition,
+    parkingSlot,
+    status: isSessionOpen
+      ? MAPPER_DEFAULTS.STATUS_PARKED
+      : (lookupResult.status || (ticket.hasActiveTicket ? MAPPER_DEFAULTS.STATUS_ACTIVE : MAPPER_DEFAULTS.STATUS_LEFT)),
     rawLookup: lookupResult,
   };
 }
 
+/**
+ * mapSessionToFrontend: Adapter đảm bảo tương thích dữ liệu phiên đỗ xe cho màn hình Frontend.
+ * Tận dụng trực tiếp mapParkingSession để tránh duplicate key và duplicate mapping logic.
+ */
 export function mapSessionToFrontend(session) {
   if (!session) return null;
-  return {
-    id: session.id,
-    sessionCode: session.sessionCode || session.session_code,
-    licensePlate: session.licensePlate || session.license_plate,
-    entryTime: session.entryTime || formatDate(session.entry_time),
-    exitTime: session.exitTime || (session.exit_time ? formatDate(session.exit_time) : null),
-    slotCode: session.slotCode || session.slot_code || "—",
-    fee: session.fee,
-    status: session.status,
-  };
+
+  // Tránh re-mapping nếu đối tượng đã được chuẩn hóa bởi mapParkingSession
+  if (session.sessionCode !== undefined && session.plateImageUrl !== undefined) {
+    return session;
+  }
+
+  return mapParkingSession(session);
 }

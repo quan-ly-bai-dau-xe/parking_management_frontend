@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BaseModal } from "../common/modal";
 import { FormInput, FormSelect } from "../common/form";
 import Button from "../common/button/Button";
@@ -14,6 +14,8 @@ export default function AddSlotModal({
   onClose,
   selectedFloor = "B1",
   selectedZone = "A",
+  floorOptions = PARKING_FLOOR_OPTIONS,
+  zoneOptions = PARKING_ZONE_OPTIONS,
   onAdd,
 }) {
   const [formData, setFormData] = useState({
@@ -27,6 +29,17 @@ export default function AddSlotModal({
     note: "",
   });
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData((prev) => ({
+        ...prev,
+        floor: selectedFloor || floorOptions?.[0]?.value || "B1",
+        zone: selectedZone || zoneOptions?.[0]?.value || "A",
+      }));
+      setError("");
+    }
+  }, [isOpen, selectedFloor, selectedZone, floorOptions, zoneOptions]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -85,7 +98,7 @@ export default function AddSlotModal({
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, floor: e.target.value }))
             }
-            options={PARKING_FLOOR_OPTIONS}
+            options={floorOptions}
           />
           <FormSelect
             label="Khu vực"
@@ -93,7 +106,7 @@ export default function AddSlotModal({
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, zone: e.target.value }))
             }
-            options={PARKING_ZONE_OPTIONS}
+            options={zoneOptions}
           />
         </div>
 

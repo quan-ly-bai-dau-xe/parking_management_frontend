@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Download,
   Plus,
@@ -28,23 +29,100 @@ export default function ParkingLotManagement() {
   const toast = useToast();
 
   // 1. Quản lý trạng thái bộ lọc
-  const [selectedFloor, setSelectedFloor] = useState("B1");
-  const [selectedZone, setSelectedZone] = useState("A");
+  const [searchParams] = useSearchParams();
+  const floorParam = searchParams.get("floor");
+  const zoneParam = searchParams.get("zone");
+  const slotParam = searchParams.get("slot");
+  const filterParam = searchParams.get("filter");
+
+  const [selectedFloor, setSelectedFloor] = useState(floorParam || "B1");
+  const [selectedZone, setSelectedZone] = useState(zoneParam || "A");
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(
+    filterParam === "overstay" ? "OVERSTAY" : ""
+  );
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState("");
+
+  // Tự động đồng bộ URL params khi query string thay đổi
+  useEffect(() => {
+    if (floorParam && floorParam !== selectedFloor) {
+      setSelectedFloor(floorParam);
+    }
+    if (zoneParam && zoneParam !== selectedZone) {
+      setSelectedZone(zoneParam);
+    }
+    if (filterParam === "overstay") {
+      setStatusFilter("OVERSTAY");
+    }
+  }, [floorParam, zoneParam, filterParam]);
 
   // 2. Quản lý chế độ xem (Matrix View vs List View)
   const [viewMode, setViewMode] = useState("matrix");
 
-  // 3. Quản lý cấu trúc bãi ở chân trang
+  // 3. Quản lý cấu trúc bãi ở chân trang (Single Source of Truth cho tầng & phân khu)
   const [structureList, setStructureList] = useState(INITIAL_STRUCTURE_LIST);
+
+  // 3b. Derive floorOptions và zoneOptions từ structureList
+  const floorOptions = useMemo(() => {
+    const floors = structureList.filter((item) => item.type === "Tầng");
+    if (floors.length === 0) return [{ value: "B1", label: "Tầng B1" }];
+    return floors.map((f) => ({
+      value: f.code || f.name.replace(/^Tầng\s*/i, ""),
+      label: f.name,
+    }));
+  }, [structureList]);
+
+  const zoneOptions = useMemo(() => {
+    const zones = structureList.filter((item) => item.type === "Khu");
+    if (zones.length === 0) return [{ value: "A", label: "Khu A" }];
+    return zones.map((z) => ({
+      value: z.code || z.name.replace(/^Khu\s*/i, ""),
+      label: z.name,
+    }));
+  }, [structureList]);
+
+  // 3c. Tự động chuyển floor/zone đang chọn nếu bị xóa khỏi cấu trúc bãi
+  useEffect(() => {
+    if (floorOptions.length > 0 && !floorOptions.some((f) => f.value === selectedFloor)) {
+      setSelectedFloor(floorOptions[0].value);
+    }
+  }, [floorOptions, selectedFloor]);
+
+  useEffect(() => {
+    if (zoneOptions.length > 0 && !zoneOptions.some((z) => z.value === selectedZone)) {
+      setSelectedZone(zoneOptions[0].value);
+    }
+  }, [zoneOptions, selectedZone]);
+
+  // Đặt lại ô đang chọn khi chuyển tầng hoặc khu vực để panel chi tiết cập nhật chuẩn theo tầng/khu mới
+  useEffect(() => {
+    setSelectedSlot(null);
+  }, [selectedFloor, selectedZone]);
 
   // 4. Quản lý modal thao tác ô đỗ xe & cấu trúc
   const [isEditSlotModalOpen, setIsEditSlotModalOpen] = useState(false);
   const [isAddSlotModalOpen, setIsAddSlotModalOpen] = useState(false);
   const [isDeleteSlotModalOpen, setIsDeleteSlotModalOpen] = useState(false);
   const [slotToDelete, setSlotToDelete] = useState(null);
+
+  // 4b. Quản lý nhật ký hoạt động gần đây tại chân trang
+  const [activities, setActivities] = useState([
+    {
+      id: "act-1",
+      color: "bg-blue-500",
+      text: "Khởi tạo sơ đồ bãi xe Smart Mobility thành công.",
+    },
+    {
+      id: "act-2",
+      color: "bg-emerald-500",
+      text: "Khu A - Tầng B1 đã hoàn tất tải dữ liệu ô đỗ xe.",
+    },
+    {
+      id: "act-3",
+      color: "bg-amber-500",
+      text: "Ô A-04 được xác nhận đặt trước bởi khách hàng VIP.",
+    },
+  ]);
 
   const [structureModalConfig, setStructureModalConfig] = useState({
     isOpen: false,
@@ -102,7 +180,6 @@ export default function ParkingLotManagement() {
           note: matched.note || matched.notes || "—",
         };
       }
-      return selectedSlot;
     }
 
     if (localSlots.length > 0) {
@@ -127,6 +204,20 @@ export default function ParkingLotManagement() {
     return null;
   }, [selectedSlot, localSlots, selectedFloor, selectedZone]);
 
+  // Tự động chọn ô đỗ khi URL truyền slot parameter (ví dụ từ liên kết thông báo)
+  useEffect(() => {
+    if (slotParam && localSlots.length > 0) {
+      const target = localSlots.find(
+        (s) =>
+          String(s.code || s.label || s.id || s.slotId).toUpperCase() ===
+          slotParam.toUpperCase()
+      );
+      if (target) {
+        setSelectedSlot(target);
+      }
+    }
+  }, [slotParam, localSlots]);
+
   // 7. Thống kê nhanh từ dữ liệu thực tế (dựa trên localSlots)
   const stats = useMemo(() => {
     const total = localSlots.length;
@@ -135,7 +226,8 @@ export default function ParkingLotManagement() {
     const reservedOrMaint = localSlots.filter(
       (s) => s.status === "RESERVED" || s.status === "MAINTENANCE"
     ).length;
-    return { total, available, occupied, reservedOrMaint };
+    const overstayCount = localSlots.filter((s) => s.isOverstay).length;
+    return { total, available, occupied, reservedOrMaint, overstayCount };
   }, [localSlots]);
 
   // 8. Lọc ô đỗ xe theo điều kiện tìm kiếm và tiêu chí lọc
@@ -151,7 +243,9 @@ export default function ParkingLotManagement() {
           .includes(q);
         if (!matchLabel && !matchPlate) return false;
       }
-      if (statusFilter && slot.status !== statusFilter) {
+      if (statusFilter === "OVERSTAY") {
+        if (!slot.isOverstay) return false;
+      } else if (statusFilter && slot.status !== statusFilter) {
         return false;
       }
       if (vehicleTypeFilter) {
@@ -167,44 +261,61 @@ export default function ParkingLotManagement() {
     return localSlots.filter(matchesFilter);
   }, [localSlots, matchesFilter]);
 
-  // Phân chia theo dãy A, B và C cho Matrix View
-  const { rowASlots, rowBSlots, rowCSlots } = useMemo(() => {
-    const a = localSlots.filter(
-      (s) =>
-        s.row === "A" ||
-        (!s.row && String(s.label || s.code || "").startsWith("A"))
-    );
-    const b = localSlots.filter(
-      (s) =>
-        s.row === "B" ||
-        (!s.row && String(s.label || s.code || "").startsWith("B"))
-    );
-    const c = localSlots.filter(
-      (s) =>
-        s.row === "C" ||
-        (!s.row && String(s.label || s.code || "").startsWith("C"))
-    );
-
-    // Fallback linh hoạt nếu cấu trúc ô không đặt tên theo tiền tố A/B/C
-    if (a.length === 0 && b.length === 0 && c.length === 0 && localSlots.length > 0) {
-      const mid = Math.ceil(localSlots.length / 2);
+  // Phân chia theo dãy và nhãn cho Matrix View (Đồng bộ chuẩn 3 dãy x 8 ô cho mọi tầng/khu)
+  const { rowASlots, rowBSlots, rowCSlots, rowLabels } = useMemo(() => {
+    if (localSlots.length === 0) {
       return {
-        rowASlots: localSlots.slice(0, mid),
-        rowBSlots: localSlots.slice(mid),
+        rowASlots: [],
+        rowBSlots: [],
         rowCSlots: [],
+        rowLabels: {
+          a: `DÃY 1: ${selectedZone}-01 - ${selectedZone}-08 (XE Ô TÔ TIÊU CHUẨN)`,
+          b: `DÃY 2: ${selectedZone}-09 - ${selectedZone}-16 (XE ƯU TIÊN)`,
+          c: `DÃY 3: ${selectedZone}-17 - ${selectedZone}-24 (KHU VỰC MỞ RỘNG / SẠC ĐIỆN)`,
+        },
       };
     }
-    return { rowASlots: a, rowBSlots: b, rowCSlots: c };
-  }, [localSlots]);
+
+    // Sắp xếp các ô theo số thứ tự để đảm bảo luôn hiển thị đúng trật tự từ 1 đến N
+    const sorted = [...localSlots].sort((x, y) => {
+      const numX = parseInt(String(x.label || x.code || "").replace(/\D+/g, "") || "0", 10);
+      const numY = parseInt(String(y.label || y.code || "").replace(/\D+/g, "") || "0", 10);
+      if (numX !== numY) return numX - numY;
+      return String(x.label || x.code || "").localeCompare(String(y.label || y.code || ""));
+    });
+
+    const slotsPerRow = 8;
+    const rA = sorted.slice(0, slotsPerRow);
+    const rB = sorted.slice(slotsPerRow, slotsPerRow * 2);
+    const rC = sorted.slice(slotsPerRow * 2, slotsPerRow * 3);
+
+    const firstA = rA[0]?.label || `${selectedZone}-01`;
+    const lastA = rA[rA.length - 1]?.label || `${selectedZone}-08`;
+    const firstB = rB[0]?.label || `${selectedZone}-09`;
+    const lastB = rB[rB.length - 1]?.label || `${selectedZone}-16`;
+    const firstC = rC[0]?.label || `${selectedZone}-17`;
+    const lastC = rC[rC.length - 1]?.label || `${selectedZone}-24`;
+
+    return {
+      rowASlots: rA,
+      rowBSlots: rB,
+      rowCSlots: rC,
+      rowLabels: {
+        a: `DÃY 1: ${firstA} - ${lastA} (XE Ô TÔ TIÊU CHUẨN)`,
+        b: `DÃY 2: ${firstB} - ${lastB} (XE ƯU TIÊN)`,
+        c: rC.length > 0 ? `DÃY 3: ${firstC} - ${lastC} (KHU VỰC MỞ RỘNG / SẠC ĐIỆN)` : "",
+      },
+    };
+  }, [localSlots, selectedZone]);
 
   // 9. Đặt lại toàn bộ bộ lọc
   const handleResetFilters = useCallback(() => {
     setSearchQuery("");
     setStatusFilter("");
     setVehicleTypeFilter("");
-    setSelectedFloor("B1");
-    setSelectedZone("A");
-  }, []);
+    if (floorOptions.length > 0) setSelectedFloor(floorOptions[0].value);
+    if (zoneOptions.length > 0) setSelectedZone(zoneOptions[0].value);
+  }, [floorOptions, zoneOptions]);
 
   // 10. Chọn ô đỗ
   const handleSelectSlot = useCallback(
@@ -278,6 +389,54 @@ export default function ParkingLotManagement() {
       }
     },
     [updateSlotStatus, toast]
+  );
+
+  // 11b. Xác nhận đã kiểm tra ô đỗ quá giờ
+  const handleAcknowledgeOverstay = useCallback(
+    (slot) => {
+      if (!slot) return;
+      const slotCode = String(slot.label || slot.code || slot.id);
+      setLocalSlots((prev) =>
+        prev.map((s) => {
+          if (String(s.label || s.code || s.id) === slotCode) {
+            return {
+              ...s,
+              isOverstay: false,
+              overstayAcknowledged: true,
+              note: s.note ? `${s.note} | Đã kiểm tra` : "Đã kiểm tra thực tế",
+            };
+          }
+          return s;
+        })
+      );
+      setSelectedSlot((prev) =>
+        prev && String(prev.label || prev.code || prev.id) === slotCode
+          ? {
+              ...prev,
+              isOverstay: false,
+              overstayAcknowledged: true,
+              note: prev.note ? `${prev.note} | Đã kiểm tra` : "Đã kiểm tra thực tế",
+            }
+          : prev
+      );
+      toast.success(
+        `Đã xác nhận kiểm tra thực tế cho ô đỗ ${slotCode}. Cảnh báo quá giờ đã được xử lý.`
+      );
+    },
+    [toast]
+  );
+
+  // 11c. Báo vi phạm ô đỗ quá giờ
+  const handleReportViolation = useCallback(
+    (slot) => {
+      if (!slot) return;
+      const plate = slot.plate || slot.licensePlate || "Chưa rõ biển số";
+      const slotCode = String(slot.label || slot.code || slot.id);
+      toast.warning(
+        `Đã lập biên bản ghi nhận vi phạm đỗ quá giờ cho xe ${plate} tại vị trí ${slotCode}.`
+      );
+    },
+    [toast]
   );
 
   // 12. Chỉnh sửa chi tiết ô đỗ
@@ -442,25 +601,77 @@ export default function ParkingLotManagement() {
     });
   }, []);
 
+  // Hàm hỗ trợ cuộn mượt lên vị trí sơ đồ ma trận
+  const scrollToMatrixView = useCallback(() => {
+    const el = document.getElementById("parking-lot-matrix-view");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
+  const handleSelectFloor = useCallback(
+    (floorCode) => {
+      if (!floorCode) return;
+      const code = String(floorCode).trim().toUpperCase();
+      setSelectedFloor(code);
+      scrollToMatrixView();
+      toast.info(`Đang xem sơ đồ Tầng ${code}.`);
+    },
+    [scrollToMatrixView, toast]
+  );
+
+  const handleSelectZone = useCallback(
+    (zoneCode) => {
+      if (!zoneCode) return;
+      const code = String(zoneCode).trim().toUpperCase();
+      setSelectedZone(code);
+      scrollToMatrixView();
+      toast.info(`Đang xem sơ đồ Khu ${code}.`);
+    },
+    [scrollToMatrixView, toast]
+  );
+
   const handleSaveStructureItem = useCallback(
     (itemData) => {
       if (structureModalConfig.mode === "edit_item") {
         setStructureList((prev) =>
           prev.map((it) =>
             it === structureModalConfig.initialData
-              ? { ...it, name: itemData.name }
+              ? { ...it, ...itemData }
               : it
           )
         );
         toast.success(`Đã cập nhật danh mục "${itemData.name}".`);
       } else {
         setStructureList((prev) => [...prev, itemData]);
+
+        // ĐỒNG BỘ TỨC THÌ: Chuyển ngay bộ lọc & sơ đồ sang Tầng/Khu mới tạo
+        if (itemData.type === "Tầng") {
+          setSelectedFloor(itemData.code);
+        } else if (itemData.type === "Khu") {
+          setSelectedZone(itemData.code);
+        }
+
+        setTimeout(() => {
+          scrollToMatrixView();
+        }, 150);
+
+        // Ghi nhận hoạt động vào nhật ký
+        setActivities((prev) => [
+          {
+            id: `act-${Date.now()}`,
+            color: itemData.type === "Tầng" ? "bg-blue-500" : "bg-purple-500",
+            text: `Đã thêm ${itemData.type} "${itemData.name}" (Mã: ${itemData.code}) vào cấu trúc bãi.`,
+          },
+          ...prev.slice(0, 4),
+        ]);
+
         toast.success(
-          `Đã thêm ${itemData.type} "${itemData.name}" vào cấu trúc bãi xe.`
+          `Đã thêm ${itemData.type} "${itemData.name}" vào cấu trúc và chuyển sơ đồ đến ${itemData.name}.`
         );
       }
     },
-    [structureModalConfig, toast]
+    [structureModalConfig, scrollToMatrixView, toast]
   );
 
   const handleEditStructure = useCallback((item) => {
@@ -480,6 +691,16 @@ export default function ParkingLotManagement() {
     setStructureList((prev) =>
       prev.filter((it) => it !== deleteStructureTarget)
     );
+
+    setActivities((prev) => [
+      {
+        id: `act-${Date.now()}`,
+        color: "bg-rose-500",
+        text: `Đã xóa ${deleteStructureTarget.name} khỏi cấu trúc bãi xe.`,
+      },
+      ...prev.slice(0, 4),
+    ]);
+
     toast.success(`Đã xóa ${deleteStructureTarget.name} khỏi cấu trúc bãi.`);
     setDeleteStructureTarget(null);
   }, [deleteStructureTarget, toast]);
@@ -569,6 +790,8 @@ export default function ParkingLotManagement() {
         setSelectedFloor={setSelectedFloor}
         selectedZone={selectedZone}
         setSelectedZone={setSelectedZone}
+        floorOptions={floorOptions}
+        zoneOptions={zoneOptions}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         statusFilter={statusFilter}
@@ -583,8 +806,27 @@ export default function ParkingLotManagement() {
       {/* 4. Hàng 4 thẻ thống kê nhanh (Metric Cards) */}
       <ParkingLotStatsCards stats={stats} />
 
+      {/* Banner cảnh báo nhanh nếu có ô đỗ quá giờ */}
+      {stats.overstayCount > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs shadow-2xs">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
+            <span>
+              Phát hiện <strong>{stats.overstayCount}</strong> vị trí có phương tiện đỗ quá giờ quy định (&gt;24h / 48h).
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusFilter(statusFilter === "OVERSTAY" ? "" : "OVERSTAY")}
+            className="font-bold text-amber-700 hover:text-amber-800 underline cursor-pointer"
+          >
+            {statusFilter === "OVERSTAY" ? "Hiển thị tất cả vị trí" : "Lọc riêng các ô quá giờ"}
+          </button>
+        </div>
+      )}
+
       {/* 5. Khu vực trung tâm: Sơ đồ ma trận / Bảng danh sách & Panel chi tiết */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div id="parking-lot-matrix-view" className="grid grid-cols-1 lg:grid-cols-12 gap-6 scroll-mt-6">
         <div className="lg:col-span-9">
           {isLoading ? (
             <div className="bg-white rounded-xl border border-slate-200 p-16 flex flex-col items-center justify-center text-center shadow-2xs">
@@ -628,9 +870,13 @@ export default function ParkingLotManagement() {
               rowASlots={rowASlots}
               rowBSlots={rowBSlots}
               rowCSlots={rowCSlots}
+              rowLabels={rowLabels}
+              selectedFloor={selectedFloor}
+              selectedZone={selectedZone}
               selectedSlot={activeSelectedSlot}
               onSelectSlot={handleSelectSlot}
               matchesFilter={matchesFilter}
+              onAddSlot={() => setIsAddSlotModalOpen(true)}
             />
           )}
         </div>
@@ -642,6 +888,8 @@ export default function ParkingLotManagement() {
             onUpdateStatus={handleUpdateSlotStatus}
             onEditSlot={handleOpenEditSlot}
             onDeleteSlot={handleOpenDeleteSlot}
+            onAcknowledgeOverstay={handleAcknowledgeOverstay}
+            onReportViolation={handleReportViolation}
           />
         </div>
       </div>
@@ -649,9 +897,16 @@ export default function ParkingLotManagement() {
       {/* 6. Chân trang: Cấu trúc bãi & Hoạt động gần đây */}
       <ParkingLotStructureAndActivity
         structureList={structureList}
+        selectedFloor={selectedFloor}
+        selectedZone={selectedZone}
+        onSelectFloor={handleSelectFloor}
+        onSelectZone={handleSelectZone}
         onConfigureStructure={handleOpenAddFloor}
+        onAddFloor={handleOpenAddFloor}
+        onAddZone={handleOpenAddZone}
         onEditStructure={handleEditStructure}
         onDeleteStructure={handleDeleteStructure}
+        activities={activities}
       />
 
       {/* 7. Các modals hỗ trợ thao tác người dùng */}
@@ -667,6 +922,8 @@ export default function ParkingLotManagement() {
         onClose={() => setIsAddSlotModalOpen(false)}
         selectedFloor={selectedFloor}
         selectedZone={selectedZone}
+        floorOptions={floorOptions}
+        zoneOptions={zoneOptions}
         onAdd={handleAddSlot}
       />
 

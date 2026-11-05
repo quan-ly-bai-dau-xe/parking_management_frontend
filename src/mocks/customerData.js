@@ -66,7 +66,7 @@ export const mockCustomers = [
       {
         id: "XE0012",
         licensePlate: "75V-56297",
-        vehicleType: "Ô tô điện",
+        vehicleType: "Ô tô",
         status: "Đang đỗ",
       },
     ],
@@ -138,13 +138,13 @@ export const mockCustomers = [
       {
         id: "XE0005",
         licensePlate: "92E-750.51",
-        vehicleType: "Ô tô điện",
+        vehicleType: "Ô tô",
         status: "Đang đỗ",
       },
       {
         id: "XE0015",
         licensePlate: "30H-504.96",
-        vehicleType: "Ô tô điện",
+        vehicleType: "Ô tô",
         status: "Đang đỗ",
       },
     ],
@@ -216,13 +216,13 @@ export const mockCustomers = [
       {
         id: "XE0008",
         licensePlate: "92V-27566",
-        vehicleType: "Ô tô điện",
+        vehicleType: "Ô tô",
         status: "Đang đỗ",
       },
       {
         id: "XE0018",
         licensePlate: "76C-752.60",
-        vehicleType: "Ô tô điện",
+        vehicleType: "Ô tô",
         status: "Đang đỗ",
       },
     ],
@@ -314,7 +314,7 @@ export const mockCustomers = [
       {
         id: "XE0022",
         licensePlate: "43P-163.22",
-        vehicleType: "Ô tô điện",
+        vehicleType: "Ô tô",
         status: "Đang đỗ",
       },
     ],
@@ -354,7 +354,7 @@ export const mockCustomers = [
       {
         id: "XE0028",
         licensePlate: "43A-57382",
-        vehicleType: "Ô tô điện",
+        vehicleType: "Ô tô",
         status: "Đang đỗ",
       },
     ],
@@ -394,7 +394,7 @@ export const mockCustomers = [
       {
         id: "XE0030",
         licensePlate: "75D-216.14",
-        vehicleType: "Ô tô điện",
+        vehicleType: "Ô tô",
         status: "Đang đỗ",
       },
     ],

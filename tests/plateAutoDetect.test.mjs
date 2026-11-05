@@ -491,16 +491,22 @@ test('9. apiClient FormData multipart boundary support, AbortError passthrough, 
 
   const origDoc = globalThis.document;
   const origFetch = globalThis.fetch;
+  const { axiosInstance } = await import('../src/services/apiClient.js');
+  const origAxiosRequest = axiosInstance.request;
   globalThis.document = { cookie: 'csrftoken=test-csrf-token' };
 
+  const origAdapter = axiosInstance.defaults.adapter;
   try {
     let capturedReq = null;
-    globalThis.fetch = async (url, init) => {
-      capturedReq = { url, init };
-      return new Response(JSON.stringify(makeScanResponse('51K99214', 97.5)), {
+    axiosInstance.defaults.adapter = async (config) => {
+      capturedReq = config;
+      return {
         status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
+        statusText: 'OK',
+        headers: {},
+        config,
+        data: makeScanResponse('51K99214', 97.5),
+      };
     };
 
     const res = await scanPlate({
@@ -510,12 +516,14 @@ test('9. apiClient FormData multipart boundary support, AbortError passthrough, 
     });
     assert.equal(res.plate_final, '51K99214');
     assert.equal(capturedReq.url, '/api/v1/parking/plate-scans/');
-    assert.equal(capturedReq.init.headers['Content-Type'], undefined);
-    assert.equal(capturedReq.init.headers['X-CSRFToken'], 'test-csrf-token');
-    assert.equal(capturedReq.init.body.get('preview'), 'true');
-    assert.equal(capturedReq.init.body.get('gate_id'), '3');
+    // Ensure FormData does not manually fix Content-Type to application/json
+    assert.notEqual(capturedReq.headers['Content-Type'], 'application/json');
+    assert.equal(capturedReq.headers['X-CSRFToken'], 'test-csrf-token');
+    const body = capturedReq.data || capturedReq.body;
+    assert.equal(body.get('preview'), 'true');
+    assert.equal(body.get('gate_id'), '3');
 
-    globalThis.fetch = async () => {
+    axiosInstance.defaults.adapter = async () => {
       const abortErr = new Error('The operation was aborted.');
       abortErr.name = 'AbortError';
       throw abortErr;
@@ -527,6 +535,7 @@ test('9. apiClient FormData multipart boundary support, AbortError passthrough, 
   } finally {
     globalThis.document = origDoc;
     globalThis.fetch = origFetch;
+    axiosInstance.defaults.adapter = origAdapter;
   }
 });
 

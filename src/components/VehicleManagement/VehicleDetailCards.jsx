@@ -89,9 +89,39 @@ export default function VehicleDetailCards({
             </div>
             <div>
               <span className="text-2xs text-slate-400 block">Vị trí đỗ xe</span>
-              <span className="font-semibold text-emerald-700">
-                {selectedVehicle.parkingSlot?.display || selectedVehicle.parkingSlot?.slot || DEFAULT_UNASSIGNED_SLOT_LABEL}
-              </span>
+              {(() => {
+                const isParked = selectedVehicle.status === "parked";
+                const slotDisplay =
+                  selectedVehicle.parkingSlot?.display || selectedVehicle.parkingSlot?.slot;
+                const hasSlot =
+                  slotDisplay &&
+                  slotDisplay !== DEFAULT_UNASSIGNED_SLOT_LABEL &&
+                  slotDisplay !== "Chưa có vị trí" &&
+                  slotDisplay !== "—";
+
+                if (isParked) {
+                  if (hasSlot) {
+                    return (
+                      <span className="font-semibold text-emerald-700 text-xs inline-flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        {slotDisplay}
+                      </span>
+                    );
+                  }
+                  return (
+                    <span className="font-semibold text-amber-700 text-xs inline-flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      Chờ xếp ô (Đang đỗ)
+                    </span>
+                  );
+                }
+
+                return (
+                  <span className="font-semibold text-slate-500 text-xs">
+                    {hasSlot ? slotDisplay : "Ngoài bãi"}
+                  </span>
+                );
+              })()}
             </div>
             <div>
               <span className="text-2xs text-slate-400 block">Ngày đăng ký</span>

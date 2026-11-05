@@ -486,8 +486,16 @@ export function createPlateAutoDetectMachine({
       return { action: 'skipped_rate_limit' };
     }
 
-    // Luôn cho phép gửi frame mới để camera tiếp tục quét liên tục.
-    // Việc chống request chồng nhau và giới hạn tần suất đã được xử lý bên trên.
+    if (
+      lastResponseWas422 &&
+      previousThumbnail &&
+      thumbnail &&
+      isStaticScene(previousThumbnail, thumbnail, staticThreshold) &&
+      now - lastRequestAt < forcedHeartbeatMs
+    ) {
+      return { action: 'skipped_static_422' };
+    }
+
     if (thumbnail && thumbnail.length > 0) {
       previousThumbnail = thumbnail;
     }
@@ -554,8 +562,7 @@ export function createPlateAutoDetectMachine({
         const bestFrame = selectBestCandidateFrame(candidateFrames, stability.stablePlate);
         bestFrameBlob = bestFrame ? bestFrame.blob : captured.blob;
         detectedData = bestFrame ? bestFrame.scanResult : responseData;
-        // Giữ dữ liệu ổn định để xác nhận, nhưng tiếp tục vòng quét realtime.
-        scanState = SCAN_STATES.CONFIRMING;
+        scanState = SCAN_STATES.DETECTED;
         statusMessage = STATUS_MESSAGES.DETECTED;
         emit();
         return { action: 'detected', data: detectedData };
@@ -578,8 +585,8 @@ export function createPlateAutoDetectMachine({
         lastResponseWas422 = true;
         rawBoundingBox = null;
         scanState = SCAN_STATES.SEARCHING;
-        errorMessage = err?.message || 'Ảnh không hợp lệ hoặc không đạt yêu cầu nhận diện.';
-        statusMessage = errorMessage;
+        errorMessage = '';
+        statusMessage = STATUS_MESSAGES.SEARCHING;
         emit();
         return { action: 'no_plate_422' };
       }

@@ -90,10 +90,17 @@ export default function VehicleFormFields({
           <span className="text-2xs font-semibold text-slate-700">Vị trí đỗ xe hiện tại:</span>
           <span
             className={`text-xs font-bold ${
-              formData.parkingSlotCode ? "text-emerald-700" : "text-slate-500 font-normal"
+              formData.parkingSlotCode
+                ? "text-emerald-700"
+                : formData.status === "parked"
+                ? "text-amber-700"
+                : "text-slate-500 font-normal"
             }`}
           >
-            {formData.parkingSlotCode || AUTO_ASSIGN_SLOT_NOTE}
+            {formData.parkingSlotCode ||
+              (formData.status === "parked"
+                ? "Chờ xếp ô (Đang đỗ)"
+                : AUTO_ASSIGN_SLOT_NOTE)}
           </span>
         </div>
         <p className="text-2xs text-slate-500 mt-1">

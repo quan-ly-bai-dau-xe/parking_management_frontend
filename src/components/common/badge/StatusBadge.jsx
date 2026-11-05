@@ -84,13 +84,26 @@ export default function StatusBadge({
     },
   };
 
-  const current = statusConfig[status] || {
-    label: label || status || "Không xác định",
+  const normalizedStatus =
+    typeof status === "object" && status !== null
+      ? (status.value || status.status || status.label || "")
+      : status;
+  const normalizedLabel =
+    typeof label === "object" && label !== null
+      ? (label.label || label.name || label.value || "")
+      : label;
+
+  const current = statusConfig[normalizedStatus] || {
+    label: normalizedLabel || normalizedStatus || "Không xác định",
     badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
     dotClass: "bg-slate-400",
   };
 
-  const displayLabel = label || current.label;
+  const rawDisplayLabel = normalizedLabel || current.label;
+  const displayLabel =
+    typeof rawDisplayLabel === "object" && rawDisplayLabel !== null
+      ? (rawDisplayLabel.label || rawDisplayLabel.name || rawDisplayLabel.value || "Không xác định")
+      : rawDisplayLabel;
 
   const sizeClasses =
     size === "md"

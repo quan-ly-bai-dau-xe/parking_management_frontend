@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   exportVehiclesCsv,
@@ -161,6 +161,30 @@ export default function VehicleManagement() {
       detailSection.scrollIntoView({ behavior: "smooth" });
     }
   };
+
+  const handleCheckInSuccess = useCallback(
+    async (checkInResult, updatedVehicle) => {
+      if (updatedVehicle) {
+        setVehicles((prev) =>
+          prev.map((v) =>
+            v.id === updatedVehicle.id ||
+            v.licensePlate === updatedVehicle.licensePlate
+              ? {
+                  ...v,
+                  ...updatedVehicle,
+                  status: "parked",
+                  statusDisplay: "Đang đỗ",
+                }
+              : v
+          )
+        );
+        setSelectedVehicleId(updatedVehicle.id);
+      }
+      await reloadVehicles();
+      refreshStats();
+    },
+    [reloadVehicles, refreshStats, setVehicles]
+  );
 
   const editingVehicle = useMemo(() => {
     if (newVehicleDraft) return newVehicleDraft;
@@ -535,6 +559,7 @@ export default function VehicleManagement() {
         onClose={() => setIsScanModalOpen(false)}
         vehicles={vehicles}
         onVehicleMatched={handleVehicleMatchedFromScan}
+        onCheckInSuccess={handleCheckInSuccess}
       />
 
       <EditVehicleModal

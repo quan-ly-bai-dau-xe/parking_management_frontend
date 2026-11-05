@@ -63,6 +63,7 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = 1 }) {
   const [isTabVisible, setIsTabVisible] = useState(() =>
     typeof document !== 'undefined' ? !document.hidden : true
   );
+  const [cameraDeviceError, setCameraDeviceError] = useState('');
 
   const streamRef = useRef(null);
   const captureCanvasRef = useRef(null);
@@ -162,8 +163,10 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = 1 }) {
       if (!isMounted) return;
 
       stopCameraTracks();
+      setCameraDeviceError('');
 
       if (typeof window !== 'undefined' && !window.isSecureContext) {
+        setCameraDeviceError('Trình duyệt chỉ cho phép mở camera trên kết nối bảo mật (HTTPS hoặc localhost).');
         machine.setFatalError(
           'Trình duyệt chỉ cho phép mở camera trên kết nối bảo mật (HTTPS hoặc localhost).'
         );
@@ -171,6 +174,7 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = 1 }) {
       }
 
       if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraDeviceError('Trình duyệt hiện tại không hỗ trợ truy cập camera (MediaDevices.getUserMedia).');
         machine.setFatalError(
           'Trình duyệt hiện tại không hỗ trợ truy cập camera (MediaDevices.getUserMedia).'
         );
@@ -206,13 +210,17 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = 1 }) {
             }
           } catch (fallbackErr) {
             if (isMounted) {
-              machine.setFatalError(mapGetUserMediaError(fallbackErr));
+              const errorMsg = mapGetUserMediaError(fallbackErr);
+              setCameraDeviceError(errorMsg);
+              machine.setFatalError(errorMsg);
             }
             return;
           }
         } else {
           if (isMounted) {
-            machine.setFatalError(mapGetUserMediaError(firstErr));
+            const errorMsg = mapGetUserMediaError(firstErr);
+            setCameraDeviceError(errorMsg);
+            machine.setFatalError(errorMsg);
           }
           return;
         }
@@ -225,6 +233,7 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = 1 }) {
 
       const handleTrackEnded = () => {
         stopCameraTracks();
+        setCameraDeviceError('Thiết bị camera đã bị ngắt kết nối.');
         machine.setFatalError('Thiết bị camera đã bị ngắt kết nối.');
       };
       handleTrackEndedRef.current = handleTrackEnded;
@@ -233,8 +242,10 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = 1 }) {
       });
 
       streamRef.current = stream;
+      setCameraDeviceError('');
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.play?.().catch(() => {});
       }
       machine.startSearching();
       updateVideoDevices();
@@ -341,7 +352,8 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = 1 }) {
 
   return {
     scanState: snapshot.scanState,
-    cameraError: snapshot.errorMessage,
+    cameraError: cameraDeviceError,
+    scanError: snapshot.scanState === SCAN_STATES.ERROR ? snapshot.errorMessage : '',
     videoDevices,
     selectedDeviceId,
     changeCamera,

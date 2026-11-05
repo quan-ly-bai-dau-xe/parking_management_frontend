@@ -6,14 +6,18 @@ import {
   Car,
   Clock,
   Wrench,
+  AlertTriangle,
 } from "lucide-react";
 import Button from "../common/button/Button";
+import OverstayAlertBanner from "./OverstayAlertBanner";
 
 export default function SlotDetailPanel({
   selectedSlot,
   onUpdateStatus,
   onEditSlot,
   onDeleteSlot,
+  onAcknowledgeOverstay,
+  onReportViolation,
 }) {
   const handleStatusChange = (newStatus) => {
     if (onUpdateStatus && selectedSlot) {
@@ -82,12 +86,30 @@ export default function SlotDetailPanel({
             </span>
           </div>
           <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${badgeStyle.wrapper}`}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+              selectedSlot?.isOverstay
+                ? "bg-amber-100 text-amber-900 border border-amber-300"
+                : badgeStyle.wrapper
+            }`}
           >
-            {badgeStyle.icon}
+            {selectedSlot?.isOverstay ? (
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+            ) : (
+              badgeStyle.icon
+            )}
             {selectedSlot?.statusText || "Đang đỗ"}
+            {selectedSlot?.isOverstay ? " (Quá giờ)" : ""}
           </span>
         </div>
+
+        {/* Banner cảnh báo nếu xe đỗ quá giờ */}
+        {selectedSlot?.isOverstay && (
+          <OverstayAlertBanner
+            slot={selectedSlot}
+            onAcknowledge={onAcknowledgeOverstay}
+            onReportViolation={onReportViolation}
+          />
+        )}
 
         {/* Thuộc tính ô đỗ */}
         <div className="space-y-2.5 text-xs">
@@ -115,6 +137,20 @@ export default function SlotDetailPanel({
               {selectedSlot?.licensePlate}
             </span>
           </div>
+          {selectedSlot?.duration && (
+            <div className="flex items-center justify-between py-1 border-b border-slate-50">
+              <span className="text-slate-400">Thời gian đỗ</span>
+              <span
+                className={`font-mono text-xs font-semibold ${
+                  selectedSlot?.isOverstay
+                    ? "text-rose-600 font-bold"
+                    : "text-slate-800"
+                }`}
+              >
+                {selectedSlot?.duration}
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between py-1 border-b border-slate-50">
             <span className="text-slate-400">Loại xe</span>
             <span className="font-semibold text-slate-800">

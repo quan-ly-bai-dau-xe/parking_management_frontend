@@ -1,4 +1,4 @@
-// import React from "react"; // Not needed with automatic JSX runtime
+import { isValidElement } from "react";
 
 /**
  * Reusable data table component.
@@ -68,11 +68,20 @@ export default function DataTable({
                   }`}
                 >
                   {columns.map((col, i) => {
-                    const content = renderCell
+                    const rawContent = renderCell
                       ? renderCell(row, col)
                       : typeof col.accessor === "function"
                       ? col.accessor(row, rowIndex)
                       : row[col.accessor];
+
+                    const content =
+                      rawContent !== null &&
+                      typeof rawContent === "object" &&
+                      !isValidElement(rawContent) &&
+                      !Array.isArray(rawContent)
+                        ? (rawContent.label ?? rawContent.name ?? rawContent.value ?? JSON.stringify(rawContent))
+                        : rawContent;
+
                     return (
                       <td
                         key={i}

@@ -17,7 +17,11 @@ export function mapVehicleSearchItem(item) {
   if (!item) return null;
 
   const rawTicket = item.current_ticket || item.currentTicket || item.ticket;
-  const rawSession = item.active_session || item.activeSession || item.session;
+  const rawSession =
+    item.active_session ||
+    item.activeSession ||
+    item.session ||
+    item.open_session;
   const rawCustomer = item.customer || {};
 
   const rawTypeName =
@@ -49,7 +53,14 @@ export function mapVehicleSearchItem(item) {
 
   let status = "left";
   const rawStatus = (item.status || "").toLowerCase();
-  if (rawStatus === "parked" || rawSession || item.is_parked) {
+  const isSessionOpen = Boolean(
+    rawSession &&
+    !rawSession.exit_time &&
+    rawSession.status !== "completed" &&
+    rawSession.status !== "closed" &&
+    !rawSession.is_closed
+  );
+  if (rawStatus === "parked" || isSessionOpen || item.is_parked) {
     status = "parked";
   } else if (rawStatus === "active" || rawTicket?.is_active) {
     status = "active";
@@ -118,8 +129,11 @@ export function mapVehicleSearchItem(item) {
   const slotCode =
     item.current_slot ||
     item.parking_slot_code ||
+    rawSession?.slot_display ||
+    rawSession?.display_text ||
     rawSession?.slot_code ||
     rawTicket?.slot_code ||
+    item.parking_position?.display_text ||
     item.parking_position?.slot_code ||
     "";
 
@@ -168,6 +182,7 @@ export function mapVehicleSearchItem(item) {
       totalVehicles: rawCustomer.totalVehicles ?? rawCustomer.vehicles_count ?? (item.customer_id ? 1 : 0),
     },
     parkingSlot: {
+      slotId: item.parking_position?.slot_id || rawSession?.slot_id || rawSession?.slotId || null,
       slot: slotCode || DEFAULT_UNASSIGNED_SLOT_LABEL,
       display: slotCode || DEFAULT_UNASSIGNED_SLOT_LABEL,
       floor: item.parking_position?.floor_name || rawSession?.floor_name || "",

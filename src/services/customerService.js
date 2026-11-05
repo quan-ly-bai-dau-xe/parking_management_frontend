@@ -19,7 +19,7 @@ function mapCustomerVehicle(item) {
     id: String(item.id),
     licensePlate: item.licensePlate || item.license_plate || "",
     status: item.status || "",
-    vehicleType: typeName || (item.vehicle_type_id === 2 ? "Ô tô điện" : "Ô tô"),
+    vehicleType: typeName || "Ô tô",
   };
 }
 

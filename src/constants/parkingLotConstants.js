@@ -17,9 +17,17 @@ export const PARKING_ZONE_OPTIONS = [
 export const SLOT_STATUS_OPTIONS = [
   { value: "AVAILABLE", label: "Trống" },
   { value: "OCCUPIED", label: "Đang đỗ" },
+  { value: "OVERSTAY", label: "Cảnh báo quá giờ" },
   { value: "RESERVED", label: "Đã đặt trước" },
   { value: "MAINTENANCE", label: "Bảo trì" },
 ];
+
+export const OVERSTAY_THRESHOLDS = {
+  WARNING_HOURS: 24,
+  CRITICAL_HOURS: 48,
+  WARNING_LABEL: "Đỗ quá 24h",
+  CRITICAL_LABEL: "Đỗ quá 48h",
+};
 
 export const VEHICLE_TYPE_OPTIONS = [
   { value: "STANDARD", label: "Ô tô tiêu chuẩn" },
@@ -27,10 +35,10 @@ export const VEHICLE_TYPE_OPTIONS = [
 ];
 
 export const INITIAL_STRUCTURE_LIST = [
-  { type: "Tầng", name: "Tầng B1" },
-  { type: "Tầng", name: "Tầng B2" },
-  { type: "Tầng", name: "Tầng F1" },
-  { type: "Khu", name: "Khu A" },
-  { type: "Khu", name: "Khu B" },
-  { type: "Khu", name: "Khu C" },
+  { id: "floor-B1", type: "Tầng", code: "B1", name: "Tầng B1" },
+  { id: "floor-B2", type: "Tầng", code: "B2", name: "Tầng B2" },
+  { id: "floor-F1", type: "Tầng", code: "F1", name: "Tầng F1" },
+  { id: "zone-A", type: "Khu", code: "A", name: "Khu A" },
+  { id: "zone-B", type: "Khu", code: "B", name: "Khu B" },
+  { id: "zone-C", type: "Khu", code: "C", name: "Khu C" },
 ];

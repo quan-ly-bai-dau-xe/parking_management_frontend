@@ -4,7 +4,7 @@ import { TICKET_TYPE_STYLES } from "../../constants/vehicleConstants";
 export default function VehicleTicketTypeBadge({ ticketType }) {
   const normalizedType =
     typeof ticketType === "object" && ticketType !== null
-      ? (ticketType.name || ticketType.code || "")
+      ? (ticketType.label || ticketType.name || ticketType.code || ticketType.value || "")
       : (ticketType ?? "");
 
   const rawType = String(normalizedType).trim();
