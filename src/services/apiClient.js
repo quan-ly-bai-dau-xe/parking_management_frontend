@@ -1,15 +1,18 @@
 import axios from "axios";
 
-const API_UNAVAILABLE_MESSAGE =
-    "Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối và trạng thái backend.";
+export const API_UNAVAILABLE_MESSAGE =
+    "Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối mạng hoặc hệ thống máy chủ rồi thử lại.";
 
 export function getCookie(name) {
+    if (typeof document === "undefined" || !document.cookie) {
+        return null;
+    }
     const cookie = document.cookie
         .split("; ")
         .find((item) => item.startsWith(`${name}=`));
 
-export const API_UNAVAILABLE_MESSAGE =
-  "Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối mạng hoặc hệ thống máy chủ rồi thử lại.";
+    return cookie ? cookie.split("=").slice(1).join("=") : null;
+}
 
 function createApiConnectionError(error) {
     const err = new Error(API_UNAVAILABLE_MESSAGE);
@@ -87,8 +90,13 @@ axiosInstance.interceptors.request.use(async (config) => {
 axiosInstance.interceptors.response.use(
     (response) => response,
     (error) => {
-        // Preserve canceled requests.
-        if (axios.isCancel(error)) {
+        // Preserve canceled / aborted requests.
+        if (
+            axios.isCancel(error) ||
+            error?.name === "AbortError" ||
+            error?.code === "ERR_CANCELED"
+        ) {
+            error.name = "AbortError";
             return Promise.reject(error);
         }
 
@@ -97,7 +105,7 @@ axiosInstance.interceptors.response.use(
             return Promise.reject(createApiConnectionError(error));
         }
 
-        const { status, data } = error.response;
+        const { status, data, headers: resHeaders } = error.response;
 
         const message =
             (typeof data === "object" &&
@@ -109,6 +117,29 @@ axiosInstance.interceptors.response.use(
         err.code = error.code;
         err.status = status;
         err.data = data;
+        err.headers = resHeaders;
+
+        const retryAfterHeader =
+            resHeaders?.["retry-after"] ||
+            resHeaders?.["Retry-After"] ||
+            (typeof resHeaders?.get === "function"
+                ? resHeaders.get("retry-after")
+                : undefined);
+
+        if (retryAfterHeader) {
+            const parsedRetry = parseInt(retryAfterHeader, 10);
+            if (!Number.isNaN(parsedRetry) && parsedRetry > 0) {
+                err.retryAfter = parsedRetry;
+            } else {
+                const retryDateMs = Date.parse(retryAfterHeader);
+                if (!Number.isNaN(retryDateMs)) {
+                    err.retryAfter = Math.max(
+                        1,
+                        Math.ceil((retryDateMs - Date.now()) / 1000)
+                    );
+                }
+            }
+        }
 
         return Promise.reject(err);
     }
@@ -134,14 +165,23 @@ export async function apiClient(endpoint, options = {}) {
 
     const requestHeaders = { ...headers };
 
+    const isFormData =
+        typeof FormData !== "undefined" && payload instanceof FormData;
+
     // Explicitly set JSON content-type if body is provided and Content-Type was not specified
-    if (payload !== undefined) {
+    if (payload !== undefined && !isFormData) {
         const hasContentType = Object.keys(requestHeaders).some(
             (key) => key.toLowerCase() === "content-type"
         );
         if (!hasContentType) {
             requestHeaders["Content-Type"] = "application/json";
         }
+    }
+
+    if (isFormData) {
+        // Prevent Axios from forcing application/x-www-form-urlencoded or application/json,
+        // allowing the browser/client to generate the multipart boundary.
+        requestHeaders["Content-Type"] = null;
     }
 
     const response = await axiosInstance.request({

@@ -19,7 +19,7 @@ import {
   scaleBoundingBox,
   selectBestCandidateFrame,
 } from '../src/utils/plateAutoDetect.js';
-import { API_UNAVAILABLE_MESSAGE, apiClient } from '../src/services/apiClient.js';
+import { API_UNAVAILABLE_MESSAGE, apiClient, axiosInstance } from '../src/services/apiClient.js';
 import { scanPlate } from '../src/services/plateScanService.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -482,7 +482,7 @@ test('8. State machine aborts in-flight request on stop/close and handles author
   assert.ok(confirmedRes.data.image_url);
 });
 
-test('9. apiClient FormData multipart boundary support, AbortError passthrough, and review reason mapping', async () => {
+test('9. apiClient FormData multipart boundary support, AbortError passthrough, 503 Retry-After, and review reason mapping', async () => {
   assert.deepEqual(formatReviewReasons(['LOW_CHAR_CONFIDENCE', 'POSITION_CORRECTED', 'CUSTOM']), [
     'Độ tin cậy ký tự thấp',
     'Đã tự động sửa ký tự theo quy tắc',
@@ -491,16 +491,20 @@ test('9. apiClient FormData multipart boundary support, AbortError passthrough, 
 
   const origDoc = globalThis.document;
   const origFetch = globalThis.fetch;
+  const origAdapter = axiosInstance.defaults.adapter;
   globalThis.document = { cookie: 'csrftoken=test-csrf-token' };
 
   try {
     let capturedReq = null;
-    globalThis.fetch = async (url, init) => {
-      capturedReq = { url, init };
-      return new Response(JSON.stringify(makeScanResponse('51K99214', 97.5)), {
+    axiosInstance.defaults.adapter = async (config) => {
+      capturedReq = config;
+      return {
+        data: makeScanResponse('51K99214', 97.5),
         status: 200,
+        statusText: 'OK',
         headers: { 'content-type': 'application/json' },
-      });
+        config,
+      };
     };
 
     const res = await scanPlate({
@@ -510,12 +514,21 @@ test('9. apiClient FormData multipart boundary support, AbortError passthrough, 
     });
     assert.equal(res.plate_final, '51K99214');
     assert.equal(capturedReq.url, '/api/v1/parking/plate-scans/');
-    assert.equal(capturedReq.init.headers['Content-Type'], undefined);
-    assert.equal(capturedReq.init.headers['X-CSRFToken'], 'test-csrf-token');
-    assert.equal(capturedReq.init.body.get('preview'), 'true');
-    assert.equal(capturedReq.init.body.get('gate_id'), '3');
+    assert.equal(capturedReq.headers.toJSON?.()['Content-Type'], undefined);
+    assert.equal(capturedReq.headers['X-CSRFToken'], 'test-csrf-token');
+    assert.equal(capturedReq.data.get('preview'), 'true');
+    assert.equal(capturedReq.data.get('gate_id'), '3');
 
-    globalThis.fetch = async () => {
+    // AbortError passthrough verification via signal
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(
+      () => apiClient('/api/v1/parking/plate-scans/', { method: 'GET', signal: controller.signal }),
+      (err) => err.name === 'AbortError'
+    );
+
+    // AbortError passthrough verification via thrown DOM/fetch AbortError
+    axiosInstance.defaults.adapter = async () => {
       const abortErr = new Error('The operation was aborted.');
       abortErr.name = 'AbortError';
       throw abortErr;
@@ -524,9 +537,47 @@ test('9. apiClient FormData multipart boundary support, AbortError passthrough, 
       () => apiClient('/api/v1/parking/plate-scans/', { method: 'GET' }),
       (err) => err.name === 'AbortError'
     );
+
+    // 503 Retry-After header exposure verification (supports both lowercase and capitalized)
+    axiosInstance.defaults.adapter = async (config) => {
+      const error = new Error('Request failed with status code 503');
+      error.response = {
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: { 'Retry-After': '5' },
+        data: { detail: 'Service temporarily overloaded' },
+        config,
+      };
+      throw error;
+    };
+    await assert.rejects(
+      () => apiClient('/api/v1/parking/plate-scans/', { method: 'GET' }),
+      (err) => {
+        assert.equal(err.status, 503);
+        assert.equal(err.retryAfter, 5);
+        assert.equal(err.headers['Retry-After'], '5');
+        return true;
+      }
+    );
+
+    // Network failure produces API_UNAVAILABLE error with exported message
+    axiosInstance.defaults.adapter = async () => {
+      const error = new Error('Network Error');
+      error.code = 'ERR_NETWORK';
+      throw error;
+    };
+    await assert.rejects(
+      () => apiClient('/api/v1/parking/plate-scans/', { method: 'GET' }),
+      (err) => {
+        assert.equal(err.code, 'API_UNAVAILABLE');
+        assert.equal(err.message, API_UNAVAILABLE_MESSAGE);
+        return true;
+      }
+    );
   } finally {
     globalThis.document = origDoc;
     globalThis.fetch = origFetch;
+    axiosInstance.defaults.adapter = origAdapter;
   }
 });
 
