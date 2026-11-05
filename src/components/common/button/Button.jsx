@@ -13,7 +13,7 @@ import {
  * @param {Object} props
  * @param {React.ReactNode} [props.children] - Button content / label
  * @param {'button'|'submit'|'reset'} [props.type='button'] - HTML button type
- * @param {'primary'|'secondary'|'outline'|'ghost'|'danger'|'dangerOutline'} [props.variant='primary'] - Visual style variant
+ * @param {'primary'|'secondary'|'outline'|'subtle'|'ghost'|'danger'|'dangerOutline'} [props.variant='primary'] - Visual style variant
  * @param {'xs'|'sm'|'md'|'lg'|'icon'|'icon-sm'|'icon-xs'} [props.size='md'] - Button size
  * @param {boolean} [props.disabled=false] - Whether the button is disabled
  * @param {boolean} [props.loading=false] - Loading state with spinner
