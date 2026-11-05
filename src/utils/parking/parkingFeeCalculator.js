@@ -13,10 +13,12 @@ export function calculateParkingFee({
   vehicleType = "CAR",
   durationMinutes = 0,
   hasActiveTicket = false,
+  hasValidTicket = false,
   isExempt = false,
 }) {
   void vehicleType;
-  if (hasActiveTicket || isExempt) {
+  const isTicketValid = Boolean(hasActiveTicket || hasValidTicket);
+  if (isTicketValid || isExempt) {
     return {
       feeAmount: 0,
       feeFormatted: "0đ (Miễn phí / Vé tháng)",

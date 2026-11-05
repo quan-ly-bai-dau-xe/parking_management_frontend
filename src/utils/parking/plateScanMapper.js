@@ -163,6 +163,26 @@ function extractTicket(rawTicket = {}, source = {}, hasPlate = false) {
 }
 
 /**
+ * isVehicleTicketActive: Kiểm tra trạng thái hiệu lực của vé phương tiện (Vé tháng / Vé đăng ký)
+ * Ngăn chặn hoàn toàn false-positive đối với vé lượt hoặc xe vãng lai.
+ */
+export function isVehicleTicketActive(matchedVehicle, hasValidTicket = false) {
+  if (Boolean(hasValidTicket)) return true;
+  if (!matchedVehicle) return false;
+  if (matchedVehicle.hasActiveTicket) return true;
+  if (matchedVehicle.ticketState === "active") return true;
+  if (matchedVehicle.ticket?.is_valid === true) return true;
+  if (
+    matchedVehicle.ticket?.type &&
+    matchedVehicle.ticket?.type !== MAPPER_DEFAULTS.DEFAULT_TICKET_TYPE &&
+    matchedVehicle.ticket?.status === "active"
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Helper chuẩn hóa thông tin vị trí đỗ xe (Parking Slot & Position)
  */
 function extractParkingSlot(parkingPosition, source = {}, rawSession = {}, rawVehicle = {}, rawTicket = {}) {
@@ -224,6 +244,7 @@ export function mapParkingSession(raw) {
   const { feeNumber, feeDisplay } = parseFee(raw.fee ?? raw.fee_amount ?? raw.feeNumber);
 
   const entryTime = raw.entryTime || formatDateTime(raw.entry_time);
+  const entryTimeRaw = raw.entryTimeRaw || raw.entry_time || null;
   const exitTime = raw.exitTime || (raw.exit_time ? formatDateTime(raw.exit_time) : null);
 
   const duration =
@@ -259,6 +280,7 @@ export function mapParkingSession(raw) {
     licensePlate,
     vehicleType: raw.vehicleType || raw.vehicle_type_name || (raw.vehicle_type_id === 1 ? "Ô tô" : "Ô tô điện"),
     entryTime,
+    entryTimeRaw,
     exitTime,
     entryGate: raw.entry_gate_name || raw.entry_gate || raw.entryGate || MAPPER_DEFAULTS.ENTRY_GATE_DEFAULT,
     exitGate: raw.exit_gate_name || raw.exit_gate || raw.exitGate || (exitTime ? MAPPER_DEFAULTS.EXIT_GATE_DEFAULT : MAPPER_DEFAULTS.EMPTY_PLACEHOLDER),

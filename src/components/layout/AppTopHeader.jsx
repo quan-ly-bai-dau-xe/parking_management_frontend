@@ -3,7 +3,7 @@ import { APP_NAVIGATION_TABS, ROUTES, resolveNavigationPath } from "../../config
 import { authService } from "../../services/authService";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useNavigate, useLocation } from "react-router-dom";
-import PlateScannerModal from "../PlateScannerModal";
+import GateCameraControlModal from "../VehicleManagement/GateCameraControlModal";
 
 const INITIAL_NOTIFICATIONS = [
   { id: 1, tone: "red", title: "Xe 51A-12345 đỗ quá giờ tại B1-A12", detail: "10:15 - 31/10/2024", unread: true },
@@ -362,7 +362,7 @@ export default function AppTopHeader({
     </header>
 
     {/* Component Modal Camera Quét Biển Số */}
-      <PlateScannerModal
+      <GateCameraControlModal
         isOpen={isScanModalOpen}
         onClose={() => setIsScanModalOpen(false)}
         onDetected={handlePlateDetected}

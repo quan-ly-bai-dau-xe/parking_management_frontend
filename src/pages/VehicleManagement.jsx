@@ -160,10 +160,21 @@ export default function VehicleManagement() {
   };
 
   const handleVehicleMatchedFromScan = (matchedVehicle) => {
-    setSelectedVehicleId(matchedVehicle.id);
-    const detailSection = document.getElementById("vehicle-detail-section");
+    if (!matchedVehicle) return;
+    const plateToSearch = typeof matchedVehicle === 'string'
+      ? matchedVehicle
+      : (matchedVehicle.licensePlate || matchedVehicle.plate || '');
+    if (matchedVehicle.id) {
+      setSelectedVehicleId(matchedVehicle.id);
+    }
+    if (plateToSearch) {
+      setFilters((prev) => ({ ...prev, search: plateToSearch }));
+      setCurrentPage(1);
+    }
+    setIsScanModalOpen(false);
+    const detailSection = document.getElementById('vehicle-detail-section');
     if (detailSection) {
-      detailSection.scrollIntoView({ behavior: "smooth" });
+      detailSection.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
