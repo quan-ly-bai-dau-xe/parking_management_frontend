@@ -596,3 +596,64 @@ export async function assignSlotToSession({
     data: resultData,
   };
 }
+
+export const parkingSessionService = {
+  /**
+   * Lấy danh sách cổng barrier để lấy đúng gate_id theo hướng IN / OUT
+   * GET /api/v1/parking/gates/?direction=IN | OUT
+   */
+  async getGates(direction) {
+    const params = direction ? { direction, is_active: true } : { is_active: true };
+    return await apiClient("/api/v1/parking/gates/", {
+      method: "GET",
+      params,
+    });
+  },
+
+  /**
+   * Check-in phương tiện vào bãi (Ghi nhận lịch sử xe vào)
+   * POST /api/v1/parking/sessions/check-in/
+   * @param {Object} data
+   * @param {string} data.license_plate
+   * @param {number} [data.entry_gate_id]
+   * @param {string} [data.recognition_source="AI"]
+   * @param {string|number} [data.ai_confidence]
+   * @param {string} [data.entry_image_url]
+   */
+  async checkIn(data) {
+    return await apiClient("/api/v1/parking/sessions/check-in/", {
+      method: "POST",
+      data: {
+        license_plate: data.license_plate,
+        entry_gate_id: data.entry_gate_id || 1,
+        recognition_source: data.recognition_source || "AI",
+        ai_confidence: data.ai_confidence ? String(data.ai_confidence) : undefined,
+        entry_image_url: data.entry_image_url || null,
+        override_blacklist: Boolean(data.override_blacklist),
+      },
+    });
+  },
+
+  /**
+   * Check-out phương tiện rời bãi (Ghi nhận lịch sử xe ra & tính phí)
+   * POST /api/v1/parking/sessions/check-out/
+   * @param {Object} data
+   * @param {string} [data.license_plate]
+   * @param {string} [data.session_code]
+   * @param {number} [data.exit_gate_id]
+   * @param {string} [data.payment_method="CASH"] - 'CASH' | 'VIETQR'
+   * @param {string} [data.exit_image_url]
+   */
+  async checkOut(data) {
+    return await apiClient("/api/v1/parking/sessions/check-out/", {
+      method: "POST",
+      data: {
+        license_plate: data.license_plate || undefined,
+        session_code: data.session_code || undefined,
+        exit_gate_id: data.exit_gate_id || 2,
+        payment_method: data.payment_method || "CASH",
+        exit_image_url: data.exit_image_url || null,
+      },
+    });
+  },
+};
