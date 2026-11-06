@@ -10,6 +10,10 @@ import { ROUTES, PLACEHOLDER_PATHS, resolveNavigationPath } from "./config/navig
 import Home from "./pages/homepage";
 import ParkingLot from "./pages/ParkingLotManagement";
 import Ticket from "./pages/TicketManagement";
+import CameraScanPage from "./pages/CameraScannerPage";
+import RegisterPage from "./pages/RegisterPage";
+import OnboardingProfilePage from "./pages/OnBoardProfile";
+import CustomerProfilePage from "./pages/CustomerProfilePage";
 
 // Cấu hình các route có giao diện dạng Layout chuẩn
 const LAYOUT_ROUTES = [
@@ -110,6 +114,14 @@ export default function App() {
       />
 
       <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
+
+      <Route path={ROUTES.CAMERA_SCANNER} element={<CameraScanPage />} />
+
+      <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
+
+      <Route path={ROUTES.ONBOARD} element={<OnboardingProfilePage />} />
+
+      <Route path={ROUTES.CUSTOMER_PROFILE} element={<CustomerProfilePage />} />
 
       {/* Tự động render các trang sử dụng AppLayout */}
       {LAYOUT_ROUTES.map(({ path, component }) => (

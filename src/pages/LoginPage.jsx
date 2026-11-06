@@ -324,8 +324,8 @@ export default function Login() {
             <div className="text-center text-sm text-slate-600">
               Chưa có tài khoản?{" "}
               <a
-                href="#register"
-                onClick={(e) => e.preventDefault()}
+                href={ROUTES.REGISTER}
+                onClick={(e) => {e.preventDefault(); navigate(ROUTES.REGISTER);}}
                 className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors ml-0.5"
               >
                 Đăng ký ngay

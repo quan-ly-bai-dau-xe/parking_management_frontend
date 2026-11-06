@@ -6,6 +6,7 @@ import {
   scaleBoundingBox,
 } from "../utils/plateAutoDetect";
 import { usePlateAutoDetect } from "../hooks/usePlateAutoDetect";
+import { ROUTES } from "../config/navigation";
 
 export default function PlateScannerModal({
   isOpen,
@@ -454,9 +455,22 @@ export default function PlateScannerModal({
                     </div>
                   </div>
                 ) : (
-                  <p className="text-slate-500 italic">
-                    Phương tiện chưa đăng ký trong hệ thống (Khách vãng lai).
-                  </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-amber-50/80 rounded-xl border border-amber-200/80">
+                    <p className="text-amber-800 text-xs font-medium">
+                      Biển số này chưa được đăng ký trong hệ thống (Khách vãng lai).
+                    </p>
+                    <a
+                      href={ROUTES.REGISTER}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleClose();
+                        navigate(ROUTES.REGISTER);
+                      }}
+                      className="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition shadow-2xs shrink-0 self-start sm:self-auto"
+                    >
+                      Đăng ký tài khoản ngay
+                    </a>
+                  </div>
                 )}
               </div>
             </div>
