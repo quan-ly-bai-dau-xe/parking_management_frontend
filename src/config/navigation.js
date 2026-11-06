@@ -12,6 +12,10 @@ export const ROUTES = {
   TICKETS: "/tickets",
   EMPLOYEES: "/employees",
   NOTIFICATIONS: "/notifications",
+  CAMERA_SCANNER: "/camera-scanner",
+  REGISTER: "/register",
+  ONBOARD: "/onboard",
+  CUSTOMER_PROFILE: "/profile",
 };
 
 export const DEFAULT_PATH = ROUTES.HOME;
@@ -29,6 +33,7 @@ export const APP_NAVIGATION_TABS = [
   { label: "Sơ đồ bãi đậu xe", path: ROUTES.PARKING_LOT },
   { label: "Quản lý loại vé", path: ROUTES.TICKETS },
   { label: "Quản lý nhân viên", path: ROUTES.EMPLOYEES },
+  { label: "Quét camera", path: ROUTES.CAMERA_SCANNER },
 ];
 
 /**
@@ -50,6 +55,7 @@ export const LEGACY_HASH_TO_PATH = {
   "#parking-lot": ROUTES.PARKING_LOT,
   "#tickets": ROUTES.TICKETS,
   "#employees": ROUTES.EMPLOYEES,
+  "#camera": ROUTES.CAMERA_SCANNER,
 };
 
 /**
