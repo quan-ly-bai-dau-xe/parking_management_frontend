@@ -49,26 +49,31 @@ export const TICKET_STATUS_CONFIG = {
 export const VEHICLE_STATUS_CONFIG = {
   parked: {
     label: "Đang đỗ",
+    tooltip: "Phương tiện đang có phiên đỗ mở thực tế trong bãi",
     badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
     dotClass: "bg-emerald-500",
   },
   active: {
     label: "Đang hoạt động",
+    tooltip: "Phương tiện có vé đỗ còn hiệu lực nhưng hiện đang ở ngoài bãi",
     badgeClass: "bg-blue-50 text-blue-700 border-blue-200",
     dotClass: "bg-blue-500",
   },
   left: {
     label: "Đã rời bãi",
+    tooltip: "Phương tiện đã rời bãi và không có vé hiệu lực",
     badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
     dotClass: "bg-slate-400",
   },
   inactive: {
     label: "Đã rời bãi",
+    tooltip: "Phương tiện đã rời bãi và không có vé hiệu lực",
     badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
     dotClass: "bg-slate-400",
   },
   parking: {
     label: "Đang đỗ",
+    tooltip: "Phương tiện đang có phiên đỗ mở thực tế trong bãi",
     badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
     dotClass: "bg-emerald-500",
   },

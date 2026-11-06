@@ -157,3 +157,42 @@ test("HISTORY-07: getParkingSessions handles API failure gracefully", async () =
     axiosInstance.request = originalRequest;
   }
 });
+
+test("HISTORY-08: URL search query params (license_plate / plate) filter history sessions", async () => {
+  const originalRequest = axiosInstance.request;
+  let capturedConfig = null;
+
+  try {
+    axiosInstance.request = async (config) => {
+      capturedConfig = config;
+      return {
+        data: {
+          count: 2,
+          results: [
+            makeMockRawBackendSession({ id: 801, license_plate: "43A-999.99" }),
+            makeMockRawBackendSession({ id: 802, license_plate: "43A-999.99" }),
+          ],
+        },
+      };
+    };
+
+    // Simulate URLSearchParams with license_plate from plate scan navigation (/history?license_plate=43A-999.99)
+    const searchParams = new URLSearchParams("license_plate=43A-999.99");
+    const queryPlate = (searchParams.get("license_plate") || searchParams.get("plate") || "").trim();
+
+    assert.equal(queryPlate, "43A-999.99");
+
+    const res = await getParkingSessions({
+      license_plate: queryPlate,
+      page: 1,
+      page_size: 10,
+    });
+
+    assert.equal(res.total, 2);
+    assert.equal(res.items.length, 2);
+    assert.equal(res.items[0].licensePlate, "43A-999.99");
+    assert.ok(capturedConfig.url.includes("license_plate=43A-999.99"));
+  } finally {
+    axiosInstance.request = originalRequest;
+  }
+});

@@ -31,6 +31,7 @@ const colorStyles = {
  * @param {import('react').ReactNode} [props.icon] - Icon element
  * @param {'blue'|'emerald'|'amber'|'rose'|'slate'|'violet'} [props.color='blue'] - Card theme color
  * @param {string} [props.subtext] - Secondary description or period label
+ * @param {string} [props.tooltip] - Optional tooltip text on hover
  * @param {string} [props.className] - Additional classes
  */
 export default function StatCard({
@@ -39,12 +40,14 @@ export default function StatCard({
   icon,
   color = "blue",
   subtext,
+  tooltip,
   className = "",
 }) {
   const colorConfig = colorStyles[color] || colorStyles.blue;
 
   return (
     <div
+      title={tooltip || title}
       className={`bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex items-center gap-3.5 ${className}`}
     >
       {icon && (
