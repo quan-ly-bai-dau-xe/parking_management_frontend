@@ -4,7 +4,6 @@ import { authService } from "../../services/authService";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useNavigate, useLocation } from "react-router-dom";
 
-// Tabs dành riêng cho Khách hàng
 export const CUSTOMER_NAVIGATION_TABS = [
   {
     key: "overview",
@@ -37,13 +36,13 @@ const NOTIFICATION_DOT_CLASSES = {
 };
 
 export default function AppTopHeader({
-  variant = "admin", // 'admin' (mặc định) hoặc 'customer'
-  onOpenScanModal,
-  gateId = null,
-  showCamera,       // Có thể ghi đè thủ công nếu muốn
-  showHelp,         // Có thể ghi đè thủ công nếu muốn
+  variant = "admin",
+  entryGateId = 1,
+  exitGateId = 2,
+  showCamera,
+  showHelp,
   onHelpClick,
-  tabs,             // Nếu không truyền, sẽ tự chọn tabs theo variant
+  tabs,
   activePath,
   activeTabHref,
   brandName = "Smart Parking",
@@ -53,12 +52,10 @@ export default function AppTopHeader({
   const location = useLocation();
   const { displayName, role: displayRole } = useCurrentUser();
 
-  // Xác định cờ hiển thị theo variant nếu không được set cụ thể
   const isCustomer = variant === "customer";
   const shouldShowCamera = showCamera !== undefined ? showCamera : !isCustomer;
   const shouldShowHelp = showHelp !== undefined ? showHelp : isCustomer;
 
-  // Tự động phân giải bộ tabs
   const effectiveTabs = tabs !== undefined
     ? tabs
     : (isCustomer ? CUSTOMER_NAVIGATION_TABS : APP_NAVIGATION_TABS);
@@ -96,10 +93,11 @@ export default function AppTopHeader({
     navigate(ROUTES.LOGIN);
   };
 
-  const handleCameraClick = () => {
-    if (onOpenScanModal) onOpenScanModal();
-    const targetUrl = gateId ? `/camera-scanner?gateId=${gateId}` : "/camera-scanner";
-    window.open(targetUrl, "_blank", "noopener,noreferrer");
+  // Mở tab máy quét theo chế độ Làn vào (IN) hoặc Làn ra (OUT)
+  const handleOpenScanner = (mode) => {
+    const gateId = mode === "in" ? entryGateId : exitGateId;
+    const scannerUrl = `/camera-scanner?mode=${mode}&gateId=${gateId}`;
+    window.open(scannerUrl, "_blank", "noopener,noreferrer");
   };
 
   const unreadCount = notifications.filter((item) => item.unread).length;
@@ -121,24 +119,41 @@ export default function AppTopHeader({
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* 1. Nút Camera (Mặc định ở Admin) */}
+          <div className="flex items-center gap-2.5">
+            {/* TÁCH LÀM 2 NÚT CAMERA: LÀN VÀO VÀ LÀN RA */}
             {shouldShowCamera && (
-              <button
-                type="button"
-                onClick={handleCameraClick}
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 text-xs font-semibold text-slate-700 shadow-2xs transition-all cursor-pointer"
-                title="Quét biển số xe từ hình ảnh camera"
-              >
-                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span>Camera</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Nút 1: Camera Quét Xe Vào */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenScanner("in")}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50/50 hover:bg-emerald-100 hover:text-emerald-800 text-xs font-semibold text-emerald-700 shadow-2xs transition-all cursor-pointer"
+                  title="Mở camera barrier làn xe vào (Check-in)"
+                >
+                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>Camera vào</span>
+                </button>
+
+                {/* Nút 2: Camera Quét Xe Ra */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenScanner("out")}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50/50 hover:bg-blue-100 hover:text-blue-800 text-xs font-semibold text-blue-700 shadow-2xs transition-all cursor-pointer"
+                  title="Mở camera barrier làn xe ra (Check-out)"
+                >
+                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>Camera ra</span>
+                </button>
+              </div>
             )}
 
-            {/* 2. Nút Trợ giúp (Mặc định ở Customer) */}
+            {/* Nút Trợ giúp */}
             {shouldShowHelp && (
               <button
                 type="button"
@@ -195,18 +210,6 @@ export default function AppTopHeader({
                         </div>
                       </button>
                     ))}
-                  </div>
-                  <div className="px-4 pt-2 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsNotificationOpen(false);
-                        navigate(ROUTES.NOTIFICATIONS);
-                      }}
-                      className="w-full text-center text-xs font-semibold text-blue-600 hover:text-blue-700 py-1 cursor-pointer"
-                    >
-                      Xem tất cả thông báo
-                    </button>
                   </div>
                 </div>
               )}
@@ -273,7 +276,7 @@ export default function AppTopHeader({
         </div>
       </div>
 
-      {/* Tabs navigation: Switch kiểu dáng gạch chân (Admin) hoặc dạng Pill (Customer) */}
+      {/* Tabs navigation */}
       {effectiveTabs && effectiveTabs.length > 0 && (
         <div className="border-t border-slate-100 bg-white">
           <div className={`w-full px-4 sm:px-6 lg:px-10 ${isCustomer ? "py-2" : ""}`}>
