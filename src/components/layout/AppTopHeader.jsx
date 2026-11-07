@@ -3,8 +3,7 @@ import { APP_NAVIGATION_TABS, ROUTES, resolveNavigationPath } from "../../config
 import { authService } from "../../services/authService";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useNavigate, useLocation } from "react-router-dom";
-
-export const CUSTOMER_NAVIGATION_TABS = [
+const CUSTOMER_NAVIGATION_TABS = [
   {
     key: "overview",
     label: "Tổng quan",
@@ -20,6 +19,9 @@ export const CUSTOMER_NAVIGATION_TABS = [
   { key: "history", label: "Lịch sử ra/vào", path: "/customer/history" },
   { key: "profile", label: "Thông tin cá nhân", path: "/customer/profile" },
 ];
+
+import PlateScannerModal from "../PlateScannerModal";
+import GateCameraControlModal from "../VehicleManagement/GateCameraControlModal";
 
 const INITIAL_NOTIFICATIONS = [
   { id: 1, tone: "red", title: "Xe 51A-12345 đỗ quá giờ tại B1-A12", detail: "10:15 - 31/10/2024", unread: true },
@@ -47,6 +49,8 @@ export default function AppTopHeader({
   activeTabHref,
   brandName = "Smart Parking",
   onTabClick,
+  onOpenScanModal,
+  onPlateDetected,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -64,6 +68,13 @@ export default function AppTopHeader({
   const currentActivePath = resolveNavigationPath(rawActive);
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isScannerModalOpen, setIsScannerModalOpen] = React.useState(false);
+  const [isGateControlModalOpen, setIsGateControlModalOpen] = React.useState(false);
+  const [gateModalPlate, setGateModalPlate] = React.useState("");
+  const [gateModalMode, setGateModalMode] = useState("entry");
+  const [gateModalGateId, setGateModalGateId] = useState(entryGateId || 1);
+  const lastHandledScanRef = useRef("");
+
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const dropdownRef = useRef(null);
@@ -82,6 +93,24 @@ export default function AppTopHeader({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  React.useEffect(() => {
+    const handleOpenGateModal = (event) => {
+      setIsScannerModalOpen(false);
+      setGateModalPlate(event?.detail?.plate || "");
+      setIsGateControlModalOpen(true);
+    };
+
+    if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      window.addEventListener("open-gate-control-modal", handleOpenGateModal);
+    }
+
+    return () => {
+      if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
+        window.removeEventListener("open-gate-control-modal", handleOpenGateModal);
+      }
+    };
+  }, []);
+
   const handleLogout = () => {
     authService.logout();
     setIsDropdownOpen(false);
@@ -95,15 +124,105 @@ export default function AppTopHeader({
 
   // Mở tab máy quét theo chế độ Làn vào (IN) hoặc Làn ra (OUT)
   const handleOpenScanner = (mode) => {
+    if (onOpenScanModal) {
+      onOpenScanModal();
+    }
     const gateId = mode === "in" ? entryGateId : exitGateId;
     const scannerUrl = `/camera-scanner?mode=${mode}&gateId=${gateId}`;
     window.open(scannerUrl, "_blank", "noopener,noreferrer");
   };
 
+  const handlePlateDetectedFromScanner = (plate, scanResult) => {
+    setIsScannerModalOpen(false);
+    setGateModalPlate(plate || "");
+    setGateModalMode("entry");
+    setIsGateControlModalOpen(true);
+    if (onPlateDetected) {
+      onPlateDetected(plate, scanResult);
+    }
+  };
+
+  const handleGateModalClose = () => {
+    setIsGateControlModalOpen(false);
+    setGateModalPlate("");
+  };
+
+  // Lắng nghe sự kiện quét biển số từ tab máy quét độc lập (/camera-scanner)
+  useEffect(() => {
+    const handleScanMessage = (msg) => {
+      if (!msg || typeof msg !== "object") return;
+      if (msg.type !== "PLATE_SCANNED_SUCCESS") return;
+      const rawPlate = (typeof msg.plate === "string" ? msg.plate : String(msg.plate || "")).trim();
+      if (!rawPlate) return;
+
+      // Khử trùng lặp (Deduplication) khi cả BroadcastChannel và storage event cùng kích hoạt
+      const scanId = msg.scanId || `${rawPlate}_${msg.timestamp || Date.now()}`;
+      if (lastHandledScanRef.current === scanId) return;
+      lastHandledScanRef.current = scanId;
+
+      const mappedMode = msg.mode === "out" || msg.mode === "exit" ? "exit" : "entry";
+      const resolvedGateId = msg.gateId || (mappedMode === "exit" ? exitGateId : entryGateId);
+
+      setIsScannerModalOpen(false); // [Challenger 2]: Ngăn chặn mở đúp 2 modal song song
+      setGateModalPlate(rawPlate);
+      setGateModalMode(mappedMode);
+      setGateModalGateId(resolvedGateId);
+      setIsGateControlModalOpen(true);
+
+      if (onPlateDetected) {
+        onPlateDetected(rawPlate, msg.resultData || msg);
+      }
+    };
+
+    let channel = null;
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        channel = new BroadcastChannel("smart_parking_plate_scan");
+        channel.onmessage = (event) => {
+          try {
+            handleScanMessage(event?.data);
+          } catch (err) {
+            console.warn("BroadcastChannel message error:", err);
+          }
+        };
+      }
+    } catch (err) {
+      console.warn("BroadcastChannel error:", err);
+    }
+
+    const handleStorage = (event) => {
+      if (event.key !== "smart_parking_latest_scan" || !event.newValue) return;
+      try {
+        const parsed = JSON.parse(event.newValue);
+        handleScanMessage(parsed);
+      } catch (err) {
+        console.warn("Invalid localStorage scan payload:", err);
+      }
+    };
+
+    if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      window.addEventListener("storage", handleStorage);
+    }
+
+    return () => {
+      if (channel) {
+        try {
+          channel.close();
+        } catch (err) {
+          void err;
+        }
+      }
+      if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
+        window.removeEventListener("storage", handleStorage);
+      }
+    };
+  }, [entryGateId, exitGateId, onPlateDetected]);
+
   const unreadCount = notifications.filter((item) => item.unread).length;
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur-sm shadow-2xs font-sans">
+    <>
+      <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur-sm shadow-2xs font-sans">
       <div className="w-full px-4 sm:px-6 lg:px-10">
         <div className="flex h-16 items-center justify-between gap-4">
           
@@ -321,5 +440,23 @@ export default function AppTopHeader({
         </div>
       )}
     </header>
-  );
+
+    {/* 1. Modal Quét Biển Số trên Header (Camera Laptop) */}
+    <PlateScannerModal
+      isOpen={isScannerModalOpen}
+      onClose={() => setIsScannerModalOpen(false)}
+      onDetected={handlePlateDetectedFromScanner}
+      gateId={entryGateId || 1}
+    />
+
+    {/* 2. Modal Kiểm Soát Cổng Vào / Ra */}
+    <GateCameraControlModal
+      isOpen={isGateControlModalOpen}
+      onClose={handleGateModalClose}
+      initialPlate={gateModalPlate}
+      initialLane={gateModalMode}
+      gateId={gateModalGateId}
+    />
+  </>
+);
 }

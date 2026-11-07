@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { ConfirmModal, Pagination } from "../components/common";
 import { useParkingHistory } from "../hooks/useParkingHistory";
 import { PARKING_HISTORY_MESSAGES } from "../constants/parkingHistoryConstants";
@@ -7,6 +8,25 @@ import ParkingImageModal from "../components/ParkingHistory/ParkingImageModal";
 
 export default function ParkingHistory() {
   const { filters, table, modals } = useParkingHistory();
+
+  // Đồng bộ tức thì giữa GateCameraControlModal và trang Lịch sử ra/vào (G-FE-04, Mục 7)
+  const fetchSessions = table.onRefresh;
+
+  useEffect(() => {
+    const handleSessionChanged = () => {
+      fetchSessions();
+    };
+
+    if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      window.addEventListener("parking-session-changed", handleSessionChanged);
+    }
+
+    return () => {
+      if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
+        window.removeEventListener("parking-session-changed", handleSessionChanged);
+      }
+    };
+  }, [fetchSessions]);
 
   return (
     <div>
