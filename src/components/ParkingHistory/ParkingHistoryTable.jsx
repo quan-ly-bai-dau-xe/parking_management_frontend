@@ -5,6 +5,7 @@ import {
   getParkingSessionStatus,
 } from "../../constants/parkingHistoryConstants";
 import ParkingSessionThumbnail from "./ParkingSessionThumbnail";
+import { formatLicensePlateForDisplay } from "../../utils/plateFormatter";
 
 export default function ParkingHistoryTable({
   items,
@@ -59,16 +60,16 @@ export default function ParkingHistoryTable({
                   key={item.id}
                   className="px-4 py-3.5 grid grid-cols-7 gap-4 items-center text-xs text-slate-700 hover:bg-slate-50/80 transition-colors"
                 >
-                  <div className="col-span-1 font-medium text-slate-900">{item.sessionCode}</div>
+                  <div className="col-span-1 font-medium text-slate-900">{item.sessionCode || item.session_code}</div>
                   <div className="col-span-1 font-semibold text-blue-600 font-mono tracking-wide">
-                    {item.licensePlate}
+                    {formatLicensePlateForDisplay(item.licensePlate || item.license_plate)}
                   </div>
                   <div className="col-span-1 text-slate-600">
-                    {item.entryTime || PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT}
+                    {item.entryTime || item.entry_time || PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT}
                   </div>
                   <div className="col-span-1 text-slate-600">{formattedExitTime}</div>
                   <div className="col-span-1 text-slate-600">
-                    {item.duration || PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT}
+                    {item.duration || item.duration_text || PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT}
                   </div>
                   <div className="col-span-1">
                     {isOngoing ? (
@@ -104,7 +105,9 @@ export default function ParkingHistoryTable({
                     )}
                   </div>
                   <div className="col-span-1 flex justify-between items-center">
-                    <span className="font-semibold text-emerald-600">{item.fee || "0đ"}</span>
+                    <span className="font-semibold text-emerald-600">
+                      {item.fee || (item.fee_amount !== undefined && item.fee_amount !== null ? `${item.fee_amount}đ` : "0đ")}
+                    </span>
                     <ParkingSessionThumbnail item={item} onPreview={onPreviewImage} />
                   </div>
                 </div>

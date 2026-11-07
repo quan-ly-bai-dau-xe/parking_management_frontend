@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { PARKING_HISTORY_DEFAULTS } from "../../constants/parkingHistoryConstants";
 
 /**
  * Thumbnail hình ảnh đối soát với chẩn đoán lỗi rõ ràng và UI fallback sạch.
@@ -10,7 +9,35 @@ export default function ParkingSessionThumbnail({ item, onPreview }) {
   const hasError = failedUrl === imageUrl;
 
   if (!imageUrl) {
-    return <span className="text-slate-400 text-xs">{PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT}</span>;
+    return (
+      <span
+        className="flex h-10 w-14 flex-col items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-[9px] font-medium text-slate-400 select-none"
+        title="Chưa có hình ảnh đối soát (ảnh null do chưa chụp hoặc lỗi tải lên Cloudinary)"
+        data-testid="thumbnail-fallback-no-image"
+      >
+        <svg
+          className="h-3.5 w-3.5 text-slate-400 mb-0.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+          />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+          />
+        </svg>
+        <span>Chưa có</span>
+      </span>
+    );
   }
 
   const handleImageError = () => {
