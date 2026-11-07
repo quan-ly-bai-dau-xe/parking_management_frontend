@@ -11,9 +11,7 @@ import VehicleMatchedInfoCard from "./VehicleMatchedInfoCard";
  */
 export default function EntryLanePanel({
   detectedPlate,
-  setDetectedPlate,
   matchedVehicle,
-  rawLookup,
   scanDetails,
   availableSlots = [],
   selectedSlotId,
@@ -25,7 +23,6 @@ export default function EntryLanePanel({
   isActionPending,
   onConfirmEntry,
   onForceCloseSession,
-  onSwitchToExit,
 }) {
   return (
     <div className="flex flex-col h-full space-y-3">
@@ -86,7 +83,7 @@ export default function EntryLanePanel({
           >
             {availableSlots.map((slot) => (
               <option key={slot.id} value={slot.id}>
-                {slot.floor} • {slot.zone} • {slot.code} ({slot.kind || "Xe tiêu chuẩn"})
+                {slot.floor} - {slot.zone} - {slot.code} ({slot.kind || "STANDARD"})
               </option>
             ))}
           </select>

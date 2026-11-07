@@ -19,8 +19,10 @@ export default function ScanPlateCameraFeed({
   statusMessage,
   isScanning,
   detectedPlate,
+  cameraPlate,
   barrierState,
   onReset,
+  isManualLookup = false,
 }) {
   const containerRef = useRef(null);
   const [layoutMetrics, setLayoutMetrics] = useState({
@@ -62,7 +64,7 @@ export default function ScanPlateCameraFeed({
   }, [videoRef]);
 
   const scaledHighlightBox = (() => {
-    if (!rawBoundingBox || layoutMetrics.width <= 0 || layoutMetrics.height <= 0) {
+    if (isManualLookup || !rawBoundingBox || layoutMetrics.width <= 0 || layoutMetrics.height <= 0) {
       return null;
     }
     return scaleBoundingBox({
@@ -136,7 +138,7 @@ export default function ScanPlateCameraFeed({
             />
 
             {/* Bounding Box AI */}
-            {scaledHighlightBox && (
+            {scaledHighlightBox && !isManualLookup && (
               <div
                 className="absolute border-2 border-emerald-400 bg-emerald-400/20 rounded shadow-[0_0_12px_rgba(16,185,129,0.8)] pointer-events-none transition-all duration-100"
                 style={{
@@ -147,7 +149,7 @@ export default function ScanPlateCameraFeed({
                 }}
               >
                 <span className="absolute -top-5 left-0 bg-emerald-600 text-white font-mono text-3xs font-bold px-1.5 py-0.5 rounded shadow whitespace-nowrap">
-                  {detectedPlate || "Biển số"}
+                  {cameraPlate || detectedPlate || "Biển số"}
                 </span>
               </div>
             )}
@@ -157,10 +159,20 @@ export default function ScanPlateCameraFeed({
               <div className="bg-slate-900/85 backdrop-blur-xs text-white text-2xs px-3 py-1 rounded-full border border-slate-700/80 shadow flex items-center gap-1.5">
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    isScanning ? "bg-amber-400 animate-ping" : "bg-emerald-400"
+                    isManualLookup
+                      ? "bg-blue-400"
+                      : isScanning
+                        ? "bg-amber-400 animate-ping"
+                        : "bg-emerald-400"
                   }`}
                 />
-                <span className="font-medium">{statusMessage || "Đang nhận diện..."}</span>
+                <span className="font-medium">
+                  {isManualLookup
+                    ? (statusMessage && statusMessage !== "Đã nhận diện ổn định biển số xe."
+                        ? statusMessage
+                        : "Đang tra cứu thủ công")
+                    : (statusMessage || "Đang nhận diện...")}
+                </span>
               </div>
             </div>
           </>

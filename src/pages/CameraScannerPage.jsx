@@ -1,26 +1,37 @@
 import PlateScannerModal from "../components/PlateScannerModal"; // Điều chỉnh đường dẫn import phù hợp
 
 export default function CameraScanPage() {
-  // Lấy gateId từ query URL (ví dụ: /camera-scanner?gateId=1)
+  // Lấy mode và gateId từ query URL (ví dụ: /camera-scanner?mode=in&gateId=1)
   const searchParams = new URLSearchParams(window.location.search);
-  const gateId = Number(searchParams.get("gateId")) || 1;
+  const mode = searchParams.get("mode") || "in";
+  const gateId = Number(searchParams.get("gateId")) || (mode === "out" ? 2 : 1);
 
-  // Lắng nghe và gửi kết quả về tab chính qua BroadcastChannel
+  // Lắng nghe và gửi kết quả về tab chính qua BroadcastChannel và localStorage
   const handleDetected = (plate, resultData) => {
+    const scanPayload = {
+      type: "PLATE_SCANNED_SUCCESS",
+      plate,
+      resultData,
+      mode,
+      gateId,
+      timestamp: Date.now(),
+    };
+
     try {
       const channel = new BroadcastChannel("smart_parking_plate_scan");
-      channel.postMessage({
-        type: "PLATE_SCANNED_SUCCESS",
-        plate,
-        resultData,
-      });
+      channel.postMessage(scanPayload);
       channel.close();
     } catch (err) {
-      console.warn("BroadcastChannel not supported, fallback to localStorage:", err);
+      console.warn("BroadcastChannel error:", err);
+    }
+
+    try {
       localStorage.setItem(
         "smart_parking_latest_scan",
-        JSON.stringify({ plate, resultData, timestamp: Date.now() })
+        JSON.stringify(scanPayload)
       );
+    } catch (err) {
+      console.warn("localStorage fallback error:", err);
     }
 
     // Đóng tab quét sau khi đã áp dụng kết quả

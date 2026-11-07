@@ -121,7 +121,13 @@ export default function PlateScannerModal({
 
   const handleApply = async () => {
     const plateToApply = effectivePlate.trim();
-    if (!plateToApply) return;
+    if (!plateToApply) {
+      if (onDetected) {
+        onDetected("", null);
+        handleClose();
+      }
+      return;
+    }
 
     setApplyError("");
     const result = await applyAuthoritativeScan();
@@ -131,6 +137,14 @@ export default function PlateScannerModal({
       if (onDetected) {
         onDetected(plateToApply, result.data);
       }
+      handleClose();
+      return;
+    }
+
+    // Nếu authoritative scan gặp lỗi (ví dụ 502 Cloudinary fake dev credentials), vẫn cho phép áp dụng biển số
+    if (onDetected) {
+      console.warn("Authoritative scan had issues, proceeding with detected plate:", result.error);
+      onDetected(plateToApply, { plate_final: plateToApply, image_url: null });
       handleClose();
       return;
     }

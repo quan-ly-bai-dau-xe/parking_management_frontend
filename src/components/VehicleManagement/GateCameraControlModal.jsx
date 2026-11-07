@@ -6,27 +6,48 @@ import {
 } from "../../services/plateScanService";
 import {
   validateVehicleEntry,
-  calculateParkingFee,
   checkInVehicle,
   checkOutVehicle,
   forceCloseSessionAndReleaseSlot,
   getAvailableSlotsForCheckIn,
+  previewParkingFee,
 } from "../../services/parkingSessionService";
 import { mockVehicles } from "../../mocks/vehicleData";
 import { usePlateAutoDetect } from "../../hooks/usePlateAutoDetect";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 
 import ScanPlateCameraFeed from "./scanPlate/ScanPlateCameraFeed";
 import EntryLanePanel from "./scanPlate/EntryLanePanel";
 import ExitLanePanel from "./scanPlate/ExitLanePanel";
+import { formatLicensePlateForDisplay } from "../../utils/plateFormatter";
 
 const DEFAULT_ENTRY_GATE_ID = 1;
 const DEFAULT_EXIT_GATE_ID = 3;
 const BARRIER_OPEN_DELAY_MS = 600;
+const BARRIER_AUTO_CLOSE_DELAY_MS = 3000;
 
 const getEntryErrorMessage = (err) => {
   const backendMsg = err?.data?.message || err?.message;
-  const errorCode = err?.data?.code;
+  const errorCode = err?.data?.code || err?.code;
 
+  if (errorCode === "PROP-4.5.1-P07" || backendMsg?.includes("đang có phiên") || backendMsg?.includes("chưa kết thúc")) {
+    return "Xe đang có phiên gửi chưa kết thúc tại bãi.";
+  }
+  if (errorCode === "PROP-4.5.1-P08" || backendMsg?.includes("danh sách đen") || backendMsg?.includes("Blacklist")) {
+    return "Biển số nằm trong danh sách đen (Blacklist). Cần Quản lý phê duyệt để cho xe vào.";
+  }
+  if (errorCode === "PROP-4.5.1-P14") {
+    return "Chỉ Quản lý mới có quyền phê duyệt xe trong danh sách đen.";
+  }
+  if (errorCode === "PROP-4.5.1-P18") {
+    return "Chỉ Quản lý mới có quyền miễn cước phí đỗ xe.";
+  }
+  if (errorCode === "PROP-4.5.1-P19") {
+    return "Vui lòng cung cấp lý do miễn cước đặc cách.";
+  }
+  if (errorCode === "PROP-4.5.1-P10") {
+    return "Phiên đỗ xe này đã được kết thúc trước đó.";
+  }
   if (errorCode === "MSG-4.5.2-M02" || backendMsg?.includes("đã có xe đk vé")) {
     return (
       "⚠️ Vị trí đỗ này đã có xe đăng ký vé và đang sử dụng. " +
@@ -36,8 +57,17 @@ const getEntryErrorMessage = (err) => {
   if (errorCode === "PROP-4.5.2-P01" || backendMsg?.includes("đang bảo trì")) {
     return "⚠️ Vị trí đỗ này đang bảo trì, vui lòng chọn vị trí khác.";
   }
-  if (errorCode === "PROP-4.5.1-P08") {
-    return "⛔ Biển số xe nằm trong danh sách đen (Blacklist), không được phép vào bãi.";
+  if (errorCode === "PROP-4.5.2-P02") {
+    return "⚠️ Vị trí đỗ này đã có xe khác đỗ, vui lòng chọn vị trí khác.";
+  }
+  if (errorCode === "PROP-4.5.2-P05") {
+    return "⚠️ Vị trí đỗ này đã có người đặt trước, vui lòng chọn vị trí khác.";
+  }
+  if (errorCode === "PROP-SLOT-VEHICLE-TYPE-MISMATCH") {
+    return "⚠️ Loại phương tiện không tương thích với cấu hình vị trí đỗ này.";
+  }
+  if (errorCode === "PROP-4.5.1-P13") {
+    return "⚠️ Đường dẫn hình ảnh không hợp lệ.";
   }
   if (errorCode === "MSG-4.5.1-M01" || backendMsg?.includes("hết hạn")) {
     return "⚠️ Vé đăng ký của xe đã hết hạn, hệ thống sẽ tự động chuyển sang chế độ tính vé lượt vãng lai.";
@@ -45,10 +75,38 @@ const getEntryErrorMessage = (err) => {
   if (errorCode === "PROP-4.5.1-P05" || backendMsg?.includes("hết chỗ")) {
     return "⚠️ Bãi đỗ xe đã đầy chỗ cho loại phương tiện này. Vui lòng hướng dẫn xe quay đầu.";
   }
-  if (errorCode === "PROP-4.5.1-P09" || backendMsg?.includes("đang có phiên")) {
-    return "⚠️ Xe đang có phiên gửi chưa kết thúc. Vui lòng bấm nút 'Đóng phiên cũ' hoặc sang Làn Ra.";
-  }
   return backendMsg || "Không thể thực hiện Check-in vào bãi. Vui lòng thử lại.";
+};
+
+const getExitErrorMessage = (err) => {
+  const backendMsg = err?.data?.message || err?.message;
+  const errorCode = err?.data?.code || err?.code;
+
+  if (errorCode === "PROP-4.5.1-P18") {
+    return "Chỉ Quản lý mới có quyền miễn cước phí đỗ xe.";
+  }
+  if (errorCode === "PROP-4.5.1-P19") {
+    return "Vui lòng cung cấp lý do miễn cước đặc cách.";
+  }
+  if (errorCode === "PROP-4.5.1-P10") {
+    return "Phiên đỗ xe này đã được kết thúc trước đó.";
+  }
+  if (errorCode === "PROP-4.5.1-P07") {
+    return "Xe đang có phiên gửi chưa kết thúc tại bãi.";
+  }
+  if (errorCode === "PROP-4.5.1-P08") {
+    return "Biển số nằm trong danh sách đen (Blacklist). Cần Quản lý phê duyệt để cho xe vào.";
+  }
+  if (errorCode === "PROP-4.5.1-P14") {
+    return "Chỉ Quản lý mới có quyền phê duyệt xe trong danh sách đen.";
+  }
+  if (errorCode === "PROP-4.5.1-P09") {
+    return "Vui lòng chọn phương thức thanh toán hợp lệ (tiền mặt hoặc VietQR).";
+  }
+  if (errorCode === "PROP-4.5.1-P06" || backendMsg?.includes("Không tìm thấy")) {
+    return "Không tìm thấy phiên đỗ đang mở cho phương tiện này.";
+  }
+  return backendMsg || "Không thể thực hiện Check-out xe. Vui lòng thử lại.";
 };
 
 const parseEntryTimeToDate = (entryTimeStr) => {
@@ -71,20 +129,7 @@ const parseEntryTimeToDate = (entryTimeStr) => {
   return null;
 };
 
-const captureVideoSnapshot = (videoEl) => {
-  if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) return null;
-  try {
-    const canvas = document.createElement("canvas");
-    canvas.width = videoEl.videoWidth;
-    canvas.height = videoEl.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.85);
-  } catch {
-    return null;
-  }
-};
+const DEFAULT_EMPTY_VEHICLES = [];
 
 /**
  * GateCameraControlModal
@@ -93,18 +138,31 @@ const captureVideoSnapshot = (videoEl) => {
 export default function GateCameraControlModal({
   isOpen,
   onClose,
-  vehicles = [],
+  vehicles = DEFAULT_EMPTY_VEHICLES,
   onVehicleMatched,
+  initialPlate = "",
+  initialLane = "entry",
+  gateId = null,
+  onDetected = null,
+  onSessionChange = null,
 }) {
   const videoRef = useRef(null);
   const actionPendingRef = useRef(false);
   const barrierTimerRef = useRef(null);
+  const barrierAutoCloseTimerRef = useRef(null);
 
+  const { role: currentUserRole } = useCurrentUser();
+
+  // State phân tách rõ ràng giữa Camera và Tra cứu thủ công (Finding 5)
+  const [cameraDetectedPlate, setCameraDetectedPlate] = useState("");
+  const [manualInputPlate, setManualInputPlate] = useState("");
   const [detectedPlate, setDetectedPlate] = useState("");
+  const [detectionSource, setDetectionSource] = useState(null); // 'camera' | 'manual' | null
   const [matchedVehicle, setMatchedVehicle] = useState(null);
   const [scanDetails, setScanDetails] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [imageWarningMessage, setImageWarningMessage] = useState("");
   const [rawLookup, setRawLookup] = useState(null);
 
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -113,6 +171,21 @@ export default function GateCameraControlModal({
 
   // 2 làn tách bạch: 'entry' | 'exit'
   const [laneMode, setLaneMode] = useState("entry");
+  const lastInitialLaneRef = useRef("");
+
+  // Đồng bộ làn ban đầu từ modal trigger hoặc BroadcastChannel
+  useEffect(() => {
+    if (isOpen && initialLane && lastInitialLaneRef.current !== initialLane) {
+      lastInitialLaneRef.current = initialLane;
+      const mode = (initialLane === "exit" || initialLane === "out") ? "exit" : "entry";
+      queueMicrotask(() => {
+        setLaneMode((prev) => (prev !== mode ? mode : prev));
+      });
+    } else if (!isOpen) {
+      lastInitialLaneRef.current = "";
+    }
+  }, [isOpen, initialLane]);
+
   const [barrierState, setBarrierState] = useState("closed");
 
   const [isActionPending, setIsActionPending] = useState(false);
@@ -120,12 +193,16 @@ export default function GateCameraControlModal({
 
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [isFeeExempt, setIsFeeExempt] = useState(false);
+  const [waiverReason, setWaiverReason] = useState("");
 
-  const activeGateId = laneMode === "entry" ? DEFAULT_ENTRY_GATE_ID : DEFAULT_EXIT_GATE_ID;
+  const [backendFeePreview, setBackendFeePreview] = useState(null);
+  const [isLoadingFeePreview, setIsLoadingFeePreview] = useState(false);
+
+  const activeGateId =
+    gateId || (laneMode === "entry" ? DEFAULT_ENTRY_GATE_ID : DEFAULT_EXIT_GATE_ID);
 
   // Stream Camera trực tiếp
   const {
-    scanState,
     cameraError,
     videoDevices,
     selectedDeviceId,
@@ -135,16 +212,33 @@ export default function GateCameraControlModal({
     rawBoundingBox,
     sourceDimensions,
     resetDetection,
+    applyAuthoritativeScan,
   } = usePlateAutoDetect({
     isOpen,
     videoRef,
     gateId: activeGateId,
   });
 
+  const triggerBarrierOpen = useCallback(() => {
+    setBarrierState("opening");
+    if (barrierTimerRef.current) clearTimeout(barrierTimerRef.current);
+    if (barrierAutoCloseTimerRef.current) clearTimeout(barrierAutoCloseTimerRef.current);
+
+    barrierTimerRef.current = setTimeout(() => {
+      setBarrierState("opened");
+      barrierAutoCloseTimerRef.current = setTimeout(() => {
+        setBarrierState("closed");
+      }, BARRIER_AUTO_CLOSE_DELAY_MS);
+    }, BARRIER_OPEN_DELAY_MS);
+  }, []);
+
   useEffect(() => {
     return () => {
       if (barrierTimerRef.current) {
         clearTimeout(barrierTimerRef.current);
+      }
+      if (barrierAutoCloseTimerRef.current) {
+        clearTimeout(barrierAutoCloseTimerRef.current);
       }
     };
   }, []);
@@ -218,6 +312,26 @@ export default function GateCameraControlModal({
     }
   };
 
+  const fetchFeePreview = useCallback(async (plate, sessionCode) => {
+    const cleanPlate = (plate || "").trim();
+    const cleanCode = (sessionCode || "").trim();
+    if (!cleanPlate && !cleanCode) return;
+    setIsLoadingFeePreview(true);
+    try {
+      const preview = await previewParkingFee({
+        licensePlate: cleanPlate || undefined,
+        sessionCode: cleanCode || undefined,
+      });
+      if (preview) {
+        setBackendFeePreview(preview);
+      }
+    } catch (err) {
+      console.warn("Could not preview parking fee from backend:", err?.message || err);
+    } finally {
+      setIsLoadingFeePreview(false);
+    }
+  }, []);
+
   const handleMatchPlate = useCallback(
     async (plateInput) => {
       const rawInput = (plateInput || "").trim();
@@ -226,6 +340,7 @@ export default function GateCameraControlModal({
 
       setIsScanning(true);
       setErrorMessage("");
+      setImageWarningMessage("");
       setActionSuccessMessage("");
       setBarrierState("closed");
 
@@ -261,6 +376,9 @@ export default function GateCameraControlModal({
             });
           }
         }
+
+        // Tự động tải cước phí xem trước từ Backend
+        fetchFeePreview(rawInput, openSession?.session_code);
       } catch {
         const openSession = await resolveActiveSession(rawInput);
         setRawLookup(openSession ? { open_session: openSession } : null);
@@ -278,17 +396,51 @@ export default function GateCameraControlModal({
             customer: { name: "Khách vãng lai (Vé lượt)" },
           });
         }
+        fetchFeePreview(rawInput, openSession?.session_code);
       } finally {
         setIsScanning(false);
       }
     },
-    [findInLocalList]
+    [findInLocalList, fetchFeePreview]
   );
+
+  const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTimestamp(Date.now());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const lastInitialPlateRef = useRef("");
+  const lastDetectedPlateRef = useRef("");
+
+  // Khởi tạo biển số ban đầu nếu được truyền từ Header Scanner modal
+  useEffect(() => {
+    if (isOpen && initialPlate && lastInitialPlateRef.current !== initialPlate) {
+      lastInitialPlateRef.current = initialPlate;
+      const clean = initialPlate.trim().toUpperCase();
+      const formatted = formatLicensePlateForDisplay(clean);
+      setCameraDetectedPlate(clean);
+      setManualInputPlate(formatted);
+      setDetectionSource("camera");
+      setDetectedPlate(clean);
+      handleMatchPlate(clean);
+    } else if (!isOpen) {
+      lastInitialPlateRef.current = "";
+    }
+  }, [isOpen, initialPlate, handleMatchPlate]);
 
   // Lắng nghe camera tự động nhận diện biển số
   useEffect(() => {
     const plate = detectedData?.plate_final;
-    if (plate && plate !== detectedPlate) {
+    if (plate && plate !== lastDetectedPlateRef.current) {
+      lastDetectedPlateRef.current = plate;
+      const formatted = formatLicensePlateForDisplay(plate);
+      setCameraDetectedPlate(plate);
+      setManualInputPlate(formatted);
+      setDetectionSource("camera");
       setDetectedPlate(plate);
       handleMatchPlate(plate);
       const conf =
@@ -297,27 +449,46 @@ export default function GateCameraControlModal({
         null;
       setScanDetails({
         confidence: conf,
-        plate,
+        plate: formatted,
         source: "camera",
         imageUrl: detectedData?.image_url || detectedData?.plate_image_url || null,
       });
+    } else if (!isOpen) {
+      lastDetectedPlateRef.current = "";
     }
-  }, [detectedData, detectedPlate, handleMatchPlate]);
+  }, [detectedData, isOpen, handleMatchPlate]);
 
   const handleManualSearch = (e) => {
     e.preventDefault();
-    if (!detectedPlate) return;
-    handleMatchPlate(detectedPlate);
+    const target = (manualInputPlate || detectedPlate || "").trim();
+    if (!target) return;
+    const formatted = formatLicensePlateForDisplay(target);
+    setDetectionSource("manual");
+    setScanDetails(null); // XÓA scanDetails per Finding 5 -> badge AI 98.5% biến mất hoàn toàn
+    setManualInputPlate(formatted);
+    setDetectedPlate(target);
+    handleMatchPlate(target);
+    resetDetection(); // Finding 3: Sẵn sàng cho camera state machine phát hiện biển số mới
   };
 
   const handleReset = () => {
+    lastDetectedPlateRef.current = "";
+    setCameraDetectedPlate("");
+    setManualInputPlate("");
     setDetectedPlate("");
+    setDetectionSource(null);
     setMatchedVehicle(null);
     setScanDetails(null);
     setErrorMessage("");
+    setImageWarningMessage("");
     setRawLookup(null);
     setActionSuccessMessage("");
     setBarrierState("closed");
+    if (barrierTimerRef.current) clearTimeout(barrierTimerRef.current);
+    if (barrierAutoCloseTimerRef.current) clearTimeout(barrierAutoCloseTimerRef.current);
+    setBackendFeePreview(null);
+    setIsFeeExempt(false);
+    setWaiverReason("");
     resetDetection();
   };
 
@@ -325,9 +496,13 @@ export default function GateCameraControlModal({
     if (matchedVehicle && onVehicleMatched) {
       onVehicleMatched(matchedVehicle);
     }
+    if (onDetected && detectedPlate) {
+      onDetected(detectedPlate, matchedVehicle);
+    }
     onClose();
   };
 
+  const isManualLookup = detectionSource === "manual";
   const hasOpenSession = Boolean(rawLookup?.open_session);
   const entryValidation = validateVehicleEntry({
     vehicle: matchedVehicle,
@@ -345,17 +520,9 @@ export default function GateCameraControlModal({
     if (!rawEntryTime) return 0;
     const entryDate = parseEntryTimeToDate(rawEntryTime);
     if (!entryDate) return 0;
-    const diffMs = Date.now() - entryDate.getTime();
+    const diffMs = currentTimestamp - entryDate.getTime();
     return Math.max(1, Math.floor(diffMs / 60000));
-  }, [rawLookup?.open_session?.entry_time]);
-
-  const exitFeeCalc = calculateParkingFee({
-    vehicleType: matchedVehicle?.vehicleType || "CAR",
-    durationMinutes: calculatedDurationMinutes,
-    hasActiveTicket: hasValidTicket,
-    hasValidTicket,
-    isExempt: isFeeExempt,
-  });
+  }, [rawLookup?.open_session?.entry_time, currentTimestamp]);
 
   const handleForceCloseSession = async () => {
     const licensePlate = detectedPlate || matchedVehicle?.licensePlate;
@@ -385,6 +552,7 @@ export default function GateCameraControlModal({
     actionPendingRef.current = true;
     setIsActionPending(true);
     setErrorMessage("");
+    setImageWarningMessage("");
     setActionSuccessMessage("");
 
     try {
@@ -398,12 +566,35 @@ export default function GateCameraControlModal({
         });
       }
 
-      const entryImageUrl =
-        scanDetails?.imageUrl ||
-        matchedVehicle?.imageUrl ||
-        detectedData?.image_url ||
-        detectedData?.plate_image_url ||
-        (videoRef?.current ? captureVideoSnapshot(videoRef.current) : null);
+      // Sửa lỗi nghiêm trọng G-FE-01: TUYỆT ĐỐI KHÔNG gửi chuỗi Base64 Data URL từ canvas
+      let entryImageUrl = null;
+      if (scanDetails?.imageUrl && scanDetails.imageUrl.startsWith("http")) {
+        entryImageUrl = scanDetails.imageUrl;
+      } else if (detectedData?.image_url && detectedData.image_url.startsWith("http")) {
+        entryImageUrl = detectedData.image_url;
+      } else if (applyAuthoritativeScan) {
+        try {
+          const authResult = await applyAuthoritativeScan();
+          if (authResult?.success && authResult?.data?.image_url) {
+            entryImageUrl = authResult.data.image_url;
+          } else if (authResult?.error) {
+            console.warn("Authoritative scan upload failed (502/Cloudinary):", authResult.error);
+            setImageWarningMessage(
+              "⚠️ Không thể tải ảnh lên máy chủ (Cloudinary). Phiên gửi vẫn được tạo thành công không kèm ảnh."
+            );
+          }
+        } catch (authErr) {
+          console.warn("Authoritative scan exception:", authErr);
+          setImageWarningMessage(
+            "⚠️ Không thể tải ảnh lên máy chủ (Cloudinary). Phiên gửi vẫn được tạo thành công không kèm ảnh."
+          );
+        }
+      }
+
+      // Đảm bảo không còn tồn dư data URL
+      if (typeof entryImageUrl === "string" && entryImageUrl.startsWith("data:")) {
+        entryImageUrl = null;
+      }
 
       const checkInResult = await checkInVehicle({
         licensePlate: detectedPlate || matchedVehicle?.licensePlate,
@@ -425,15 +616,31 @@ export default function GateCameraControlModal({
         }));
       }
 
-      setBarrierState("opening");
-      if (barrierTimerRef.current) clearTimeout(barrierTimerRef.current);
-      barrierTimerRef.current = setTimeout(() => {
-        setBarrierState("opened");
-      }, BARRIER_OPEN_DELAY_MS);
+      // Barrier tự động mở 600ms và tự động đóng sau 3000ms (G-FE-02)
+      triggerBarrierOpen();
 
       setActionSuccessMessage(
         `✓ Đã Check-in thành công! Mở barrier mời xe vào ô ${chosenSlot ? chosenSlot.code : "A-01"}.`
       );
+
+      if (onSessionChange) {
+        onSessionChange("check-in", checkInResult);
+      }
+
+      // Phát sự kiện đồng bộ tức thì với trang Lịch sử ra/vào (G-FE-04)
+      const plate = detectedPlate || matchedVehicle?.licensePlate;
+      const sessionCode = checkInResult?.sessionCode || checkInResult?.session_code;
+      if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+        window.dispatchEvent(
+          new CustomEvent("parking-session-changed", {
+            detail: {
+              action: "check-in",
+              licensePlate: plate,
+              sessionCode,
+            },
+          })
+        );
+      }
     } catch (err) {
       setErrorMessage(getEntryErrorMessage(err));
     } finally {
@@ -447,30 +654,75 @@ export default function GateCameraControlModal({
     actionPendingRef.current = true;
     setIsActionPending(true);
     setErrorMessage("");
+    setImageWarningMessage("");
     setActionSuccessMessage("");
 
     try {
-      const isExemptActive = hasValidTicket || isFeeExempt;
-      const chosenMethod = isExemptActive ? "TICKET_EXEMPT" : paymentMethod;
+      const isTicketActive = Boolean(
+        backendFeePreview?.has_active_ticket ||
+        backendFeePreview?.is_exempt ||
+        hasValidTicket
+      );
+      const isExemptActive = isFeeExempt || isTicketActive;
+      const chosenMethod = isExemptActive ? "CASH" : paymentMethod;
 
-      await checkOutVehicle({
+      let exitImageUrl = null;
+      if (scanDetails?.imageUrl && scanDetails.imageUrl.startsWith("http")) {
+        exitImageUrl = scanDetails.imageUrl;
+      } else if (detectedData?.image_url && detectedData.image_url.startsWith("http")) {
+        exitImageUrl = detectedData.image_url;
+      }
+
+      const checkOutResult = await checkOutVehicle({
         licensePlate: detectedPlate || matchedVehicle?.licensePlate,
+        sessionCode: rawLookup?.open_session?.session_code,
         exitGateId: DEFAULT_EXIT_GATE_ID,
         paymentMethod: chosenMethod,
-        feePaid: isExemptActive ? 0 : exitFeeCalc.feeAmount,
+        waiveFee: isFeeExempt,
+        waiverReason: waiverReason,
+        exitImageUrl,
       });
 
-      setBarrierState("opening");
-      if (barrierTimerRef.current) clearTimeout(barrierTimerRef.current);
-      barrierTimerRef.current = setTimeout(() => {
-        setBarrierState("opened");
-      }, BARRIER_OPEN_DELAY_MS);
+      // Barrier tự động mở 600ms và tự động đóng sau 3000ms (G-FE-02)
+      triggerBarrierOpen();
+
+      const feeFormatted = isFeeExempt
+        ? "0đ (Miễn cước đặc cách)"
+        : isTicketActive
+        ? "0đ (Vé tháng có hiệu lực)"
+        : backendFeePreview?.fee_amount !== undefined
+        ? `${new Intl.NumberFormat("vi-VN").format(backendFeePreview.fee_amount)}đ`
+        : checkOutResult?.fee_amount !== undefined
+        ? `${new Intl.NumberFormat("vi-VN").format(checkOutResult.fee_amount)}đ`
+        : "0đ";
 
       setActionSuccessMessage(
-        `✓ Check-out hoàn tất (${exitFeeCalc.feeFormatted})! Mở barrier mời xe ra bãi.`
+        `✓ Check-out hoàn tất (${feeFormatted})! Mở barrier mời xe ra bãi.`
       );
+
+      if (onSessionChange) {
+        onSessionChange("check-out", checkOutResult);
+      }
+
+      // Phát sự kiện đồng bộ tức thì với trang Lịch sử ra/vào (G-FE-04)
+      const plate = detectedPlate || matchedVehicle?.licensePlate;
+      const sessionCode =
+        rawLookup?.open_session?.session_code ||
+        checkOutResult?.sessionCode ||
+        checkOutResult?.session_code;
+      if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+        window.dispatchEvent(
+          new CustomEvent("parking-session-changed", {
+            detail: {
+              action: "check-out",
+              licensePlate: plate,
+              sessionCode,
+            },
+          })
+        );
+      }
     } catch (err) {
-      setErrorMessage(err?.data?.message || err?.message || "Không thể thực hiện Check-out xe.");
+      setErrorMessage(getExitErrorMessage(err));
     } finally {
       actionPendingRef.current = false;
       setIsActionPending(false);
@@ -506,8 +758,11 @@ export default function GateCameraControlModal({
                 onClick={() => {
                   setLaneMode("entry");
                   setErrorMessage("");
+                  setImageWarningMessage("");
                   setActionSuccessMessage("");
                   setBarrierState("closed");
+                  if (barrierTimerRef.current) clearTimeout(barrierTimerRef.current);
+                  if (barrierAutoCloseTimerRef.current) clearTimeout(barrierAutoCloseTimerRef.current);
                 }}
                 className={`px-3 py-1 rounded-lg text-2xs font-semibold transition-all ${
                   laneMode === "entry"
@@ -522,8 +777,16 @@ export default function GateCameraControlModal({
                 onClick={() => {
                   setLaneMode("exit");
                   setErrorMessage("");
+                  setImageWarningMessage("");
                   setActionSuccessMessage("");
                   setBarrierState("closed");
+                  if (barrierTimerRef.current) clearTimeout(barrierTimerRef.current);
+                  if (barrierAutoCloseTimerRef.current) clearTimeout(barrierAutoCloseTimerRef.current);
+                  const targetPlate = detectedPlate || matchedVehicle?.licensePlate;
+                  const targetCode = rawLookup?.open_session?.session_code;
+                  if (targetPlate || targetCode) {
+                    fetchFeePreview(targetPlate, targetCode);
+                  }
                 }}
                 className={`px-3 py-1 rounded-lg text-2xs font-semibold transition-all ${
                   laneMode === "exit"
@@ -547,28 +810,38 @@ export default function GateCameraControlModal({
         {/* Modal Body: 2 cột - 1 bên Camera, 1 bên Làn Vào / Ra */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
           {/* Thanh nhập biển số thủ công / tra cứu nhanh */}
-          <form onSubmit={handleManualSearch} className="flex gap-2">
+          <form onSubmit={handleManualSearch} className="flex gap-2" data-detection-source={detectionSource || undefined}>
+            {detectionSource && (
+              <span className="sr-only">Nguồn nhận diện: {detectionSource}</span>
+            )}
             <input
               type="text"
-              value={detectedPlate}
-              onChange={(e) => setDetectedPlate(e.target.value.toUpperCase())}
+              value={manualInputPlate}
+              onChange={(e) => setManualInputPlate(e.target.value.toUpperCase())}
               placeholder="Nhập hoặc quét biển số (VD: 43A-123.45)..."
               className="flex-1 font-mono uppercase font-bold text-slate-800 tracking-wider px-3.5 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
             />
             <button
               type="submit"
-              disabled={isScanning || !detectedPlate}
+              disabled={isScanning || !manualInputPlate}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded-xl font-semibold transition-colors"
             >
               {isScanning ? "Đang tra..." : "Tra cứu"}
             </button>
           </form>
 
-          {/* Success / Error Alerts */}
+          {/* Success / Error / Warning Alerts */}
           {actionSuccessMessage && (
             <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 flex items-center gap-2 text-xs">
               <span>🎉</span>
               <span className="font-semibold">{actionSuccessMessage}</span>
+            </div>
+          )}
+
+          {imageWarningMessage && (
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-300 text-amber-800 flex items-center gap-2 text-xs">
+              <span>⚠️</span>
+              <span className="font-semibold">{imageWarningMessage}</span>
             </div>
           )}
 
@@ -584,6 +857,12 @@ export default function GateCameraControlModal({
                   onClick={() => {
                     setLaneMode("exit");
                     setErrorMessage("");
+                    setImageWarningMessage("");
+                    const targetPlate = detectedPlate || matchedVehicle?.licensePlate;
+                    const targetCode = rawLookup?.open_session?.session_code;
+                    if (targetPlate || targetCode) {
+                      fetchFeePreview(targetPlate, targetCode);
+                    }
                   }}
                   className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-3xs font-semibold"
                 >
@@ -603,13 +882,15 @@ export default function GateCameraControlModal({
                 selectedDeviceId={selectedDeviceId}
                 onChangeCamera={changeCamera}
                 cameraError={cameraError}
-                rawBoundingBox={rawBoundingBox}
+                rawBoundingBox={isManualLookup ? null : rawBoundingBox}
                 sourceDimensions={sourceDimensions}
-                statusMessage={statusMessage}
+                statusMessage={isManualLookup ? "Đang tra cứu thủ công" : statusMessage}
                 isScanning={isScanning}
-                detectedPlate={detectedPlate}
+                detectedPlate={cameraDetectedPlate}
+                cameraPlate={isManualLookup ? "" : cameraDetectedPlate}
                 barrierState={barrierState}
                 onReset={handleReset}
+                isManualLookup={isManualLookup}
               />
             </div>
 
@@ -638,10 +919,14 @@ export default function GateCameraControlModal({
                   rawLookup={rawLookup}
                   scanDetails={scanDetails}
                   hasValidTicket={hasValidTicket}
-                  exitFeeCalc={exitFeeCalc}
                   calculatedDurationMinutes={calculatedDurationMinutes}
+                  backendFeePreview={backendFeePreview}
+                  isLoadingFeePreview={isLoadingFeePreview}
                   isFeeExempt={isFeeExempt}
                   setIsFeeExempt={setIsFeeExempt}
+                  waiverReason={waiverReason}
+                  setWaiverReason={setWaiverReason}
+                  currentUserRole={currentUserRole}
                   paymentMethod={paymentMethod}
                   setPaymentMethod={setPaymentMethod}
                   isActionPending={isActionPending}

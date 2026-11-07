@@ -378,7 +378,80 @@ export async function forceCloseSessionAndReleaseSlot({
 }
 
 /**
- * Thực hiện Check-out: Tính phí & đóng phiên gửi xe
+ * Xem trước cước phí đỗ xe thời gian thực cho phiên đang mở
+ * Gọi endpoint GET /api/v1/parking/sessions/fee-preview/?license_plate=... hoặc session_code=...
+ *
+ * @param {Object} params
+ * @param {string} [params.licensePlate]
+ * @param {string} [params.sessionCode]
+ * @returns {Promise<Object>}
+ */
+export async function previewParkingFee({ licensePlate, sessionCode } = {}) {
+  const cleanPlate = typeof licensePlate === "string" ? licensePlate.trim() : "";
+  const cleanCode = typeof sessionCode === "string" ? sessionCode.trim() : "";
+
+  if (!cleanPlate && !cleanCode) {
+    throw new Error("Vui lòng cung cấp biển số xe hoặc mã phiên đỗ để xem trước cước phí.");
+  }
+
+  if (USE_MOCK) {
+    const targetSession = mockParkingHistory.find(
+      (s) =>
+        (cleanCode && s.sessionCode === cleanCode) ||
+        (cleanPlate && s.licensePlate === cleanPlate && !s.exitTime) ||
+        (cleanPlate && s.licensePlate === cleanPlate)
+    );
+
+    const now = new Date();
+    const entryDate = targetSession?.entryTimeRaw
+      ? new Date(targetSession.entryTimeRaw)
+      : new Date(now.getTime() - 65 * 60 * 1000);
+    const durationMinutes = Math.max(1, Math.round((now - entryDate) / (1000 * 60)));
+    const targetVeh = cleanPlate ? mockVehicles.find((v) => v.licensePlate === cleanPlate) : null;
+    const hasActiveTicket = Boolean(
+      targetSession?.hasActiveTicket ||
+      targetVeh?.ticket?.status === "active" ||
+      targetVeh?.ticketState === "active"
+    );
+
+    const feeData = calculateParkingFee({
+      vehicleType: targetSession?.vehicleType || targetVeh?.vehicleType || "CAR",
+      durationMinutes,
+      hasActiveTicket,
+      isExempt: false,
+    });
+
+    const hours = Math.floor(durationMinutes / 60);
+    const minutes = durationMinutes % 60;
+    const durationText = hours > 0 ? `${hours} giờ ${minutes} phút` : `${minutes} phút`;
+
+    return {
+      session_id: targetSession?.id || 1,
+      session_code: targetSession?.sessionCode || cleanCode || "SS-PREVIEW",
+      license_plate: cleanPlate || targetSession?.licensePlate || "51A-897.14",
+      entry_time: entryDate.toISOString(),
+      duration_minutes: durationMinutes,
+      duration_text: durationText,
+      fee_amount: feeData.feeAmount,
+      has_active_ticket: hasActiveTicket,
+      ticket_code: targetVeh?.ticket?.code || null,
+      is_exempt: false,
+      hourly_rate: 10000.0,
+    };
+  }
+
+  const queryParams = new URLSearchParams();
+  if (cleanPlate) {
+    queryParams.set("license_plate", cleanPlate);
+  } else if (cleanCode) {
+    queryParams.set("session_code", cleanCode);
+  }
+
+  return await apiClient(`/api/v1/parking/sessions/fee-preview/?${queryParams.toString()}`);
+}
+
+/**
+ * Thực hiện Check-out: Tính phí & đóng phiên gửi xe (hỗ trợ Miễn cước đặc cách)
  */
 export async function checkOutVehicle({
   sessionId,
@@ -388,8 +461,14 @@ export async function checkOutVehicle({
   vehicleType = "CAR",
   hasActiveTicket = false,
   isExempt = false,
+  waiveFee = false,
+  waiverReason = "",
+  waive_fee = false,
+  waiver_reason = "",
   paymentMethod = "CASH",
   exitGate = "Cổng B1",
+  exitImageUrl = null,
+  notes = null,
 }) {
   const exitDate = new Date();
   const entryDate = entryTimeRaw ? new Date(entryTimeRaw) : new Date(Date.now() - 2.5 * 3600 * 1000);
@@ -398,6 +477,9 @@ export async function checkOutVehicle({
   const hours = Math.floor(durationMinutes / 60);
   const minutes = durationMinutes % 60;
   const durationText = hours > 0 ? `${hours} giờ ${minutes} phút` : `${minutes} phút`;
+
+  const isWaive = Boolean(waiveFee || waive_fee);
+  const finalWaiverReason = (waiverReason || waiver_reason || "").trim();
 
   const feeData = calculateParkingFee({
     vehicleType,
@@ -415,6 +497,11 @@ export async function checkOutVehicle({
         (licensePlate && s.licensePlate === licensePlate)
     );
 
+    const feeFormatted = isWaive
+      ? "0đ (Miễn cước đặc cách)"
+      : feeData.feeFormatted;
+    const feeAmount = isWaive ? 0 : feeData.feeAmount;
+
     const updated = {
       ...(foundIdx !== -1 ? mockParkingHistory[foundIdx] : {}),
       id: sessionId || (foundIdx !== -1 ? mockParkingHistory[foundIdx].id : `PH${Math.floor(1000 + Math.random() * 9000)}`),
@@ -423,11 +510,16 @@ export async function checkOutVehicle({
       exitGate,
       duration: durationText,
       durationMinutes,
-      fee: feeData.feeFormatted,
-      feeNumber: feeData.feeAmount,
-      paymentMethod,
-      feeBreakdown: feeData.calculationBreakdown,
+      fee: feeFormatted,
+      feeNumber: feeAmount,
+      paymentMethod: isWaive ? "WAIVED" : paymentMethod,
+      feeBreakdown: isWaive ? `Miễn cước đặc cách: ${finalWaiverReason}` : feeData.calculationBreakdown,
       status: "completed",
+      isWaived: isWaive,
+      waiverReason: finalWaiverReason,
+      notes: isWaive
+        ? `[MIỄN CƯỚC ĐẶC CÁCH]: ${finalWaiverReason}`
+        : notes || undefined,
     };
 
     if (foundIdx !== -1) {
@@ -453,13 +545,29 @@ export async function checkOutVehicle({
 
   const payload = {
     exit_gate_id: targetExitGateId,
-    payment_method:
+  };
+
+  if (isWaive) {
+    payload.waive_fee = true;
+    payload.waiver_reason = finalWaiverReason;
+    if (notes) {
+      payload.notes = notes;
+    }
+  } else {
+    payload.payment_method =
       hasActiveTicket || isExempt
         ? "CASH"
         : paymentMethod === "VIETQR"
         ? "VIETQR"
-        : "CASH",
-  };
+        : "CASH";
+    if (notes) {
+      payload.notes = notes;
+    }
+  }
+
+  if (exitImageUrl && typeof exitImageUrl === "string" && !exitImageUrl.startsWith("data:")) {
+    payload.exit_image_url = exitImageUrl;
+  }
 
   // Backend quy định nghiêm ngặt (PROP-4.5.1-P11): Chỉ cung cấp chính xác 1 trong 2 tiêu chí
   const validSessionCode =
