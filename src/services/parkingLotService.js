@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient.js";
-import { fullParkingLotData } from "../mocks/parkingLotData";
+import { fullParkingLotData } from "../mocks/parkingLotData.js";
 
 /**
  * Trả về văn bản mô tả trạng thái ô đỗ bằng tiếng Việt
