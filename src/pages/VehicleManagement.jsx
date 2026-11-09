@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import {
+  vehicleService,
+  fetchVehicles,
   fetchVehicleSummary,
   mapVehicleSearchItem,
   searchVehicles,
@@ -62,28 +64,32 @@ export default function VehicleManagement() {
   }, []);
 
   useEffect(() => {
-    const query = filters.search.trim();
-    if (query.length < 2) {
-      setVehicles([]);
-      setIsUsingBackendData(false);
-      setBackendError("");
-      setIsLoading(false);
-      return;
-    }
-
     let cancelled = false;
     setBackendError("");
     setIsLoading(true);
-    searchVehicles(query)
+
+    const query = filters.search.trim();
+    const fetchPromise =
+      query.length >= 2
+        ? searchVehicles(query)
+        : fetchVehicles({
+            search: query,
+            vehicleType: filters.vehicleType,
+            status: filters.status,
+            page: 1,
+            page_size: 50,
+          });
+
+    fetchPromise
       .then((payload) => {
         if (cancelled) return;
         const results = Array.isArray(payload) ? payload : payload.results || [];
         setVehicles(results.filter(Boolean).map(mapVehicleSearchItem));
         setIsUsingBackendData(true);
-        setCurrentPage(1);
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
+        console.warn("Could not load vehicles:", err);
         setVehicles([]);
         setIsUsingBackendData(false);
         setBackendError("Không thể tải dữ liệu phương tiện từ backend.");
@@ -92,8 +98,10 @@ export default function VehicleManagement() {
         if (!cancelled) setIsLoading(false);
       });
 
-    return () => { cancelled = true; };
-  }, [filters.search]);
+    return () => {
+      cancelled = true;
+    };
+  }, [filters.search, filters.vehicleType, filters.status]);
 
   // Active selected vehicle for detail bottom panels
   const selectedVehicle = useMemo(() => {
@@ -191,30 +199,55 @@ export default function VehicleManagement() {
     setNewVehicleDraft(null);
   };
 
-  const handleSaveEditedVehicle = (updatedVehicle) => {
-    if (newVehicleDraft) {
-      const newVehicle = {
-        ...updatedVehicle,
-        id: `XE${String(vehicles.length + 1).padStart(4, "0")}`,
-      };
-      setVehicles((prevVehicles) => [...prevVehicles, newVehicle]);
-      setSelectedVehicleId(newVehicle.id);
-    } else {
-      setVehicles((prevVehicles) =>
-        prevVehicles.map((vehicle) =>
-          vehicle.id === updatedVehicle.id ? updatedVehicle : vehicle,
-        ),
-      );
-      setSelectedVehicleId(updatedVehicle.id);
+  const handleSaveEditedVehicle = async (updatedVehicle) => {
+    try {
+      if (newVehicleDraft) {
+        const created = await vehicleService.create(updatedVehicle);
+        const mapped = mapVehicleSearchItem(created || updatedVehicle);
+        setVehicles((prevVehicles) => [mapped, ...prevVehicles]);
+        setSelectedVehicleId(mapped.id);
+      } else {
+        const updated = await vehicleService.update(updatedVehicle);
+        const mapped = mapVehicleSearchItem(updated || updatedVehicle);
+        setVehicles((prevVehicles) =>
+          prevVehicles.map((vehicle) =>
+            vehicle.id === updatedVehicle.id ? { ...vehicle, ...mapped } : vehicle,
+          ),
+        );
+        setSelectedVehicleId(updatedVehicle.id);
+      }
+    } catch (err) {
+      console.warn("Could not sync vehicle to backend:", err);
+      if (newVehicleDraft) {
+        const newVehicle = {
+          ...updatedVehicle,
+          id: `XE${String(vehicles.length + 1).padStart(4, "0")}`,
+        };
+        setVehicles((prevVehicles) => [...prevVehicles, newVehicle]);
+        setSelectedVehicleId(newVehicle.id);
+      } else {
+        setVehicles((prevVehicles) =>
+          prevVehicles.map((vehicle) =>
+            vehicle.id === updatedVehicle.id ? updatedVehicle : vehicle,
+          ),
+        );
+        setSelectedVehicleId(updatedVehicle.id);
+      }
     }
     handleCloseEditModal();
   };
 
-  const handleDeleteVehicle = (vehicle) => {
+  const handleDeleteVehicle = async (vehicle) => {
     const confirmed = window.confirm(
       `Bạn có chắc muốn xóa phương tiện ${vehicle.licensePlate} không?`,
     );
     if (!confirmed) return;
+
+    try {
+      await vehicleService.remove(vehicle);
+    } catch (err) {
+      console.warn("Could not sync remove vehicle to backend:", err);
+    }
 
     setVehicles((prevVehicles) => {
       const nextVehicles = prevVehicles.filter(

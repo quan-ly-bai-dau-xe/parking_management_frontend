@@ -1,34 +1,71 @@
 import React, { useState, useEffect } from "react";
+import { ticketService } from "../services/ticketService";
 
 export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm }) {
   const [formData, setFormData] = useState({
+    ticket_type_id: 2,
     newTicketType: "",
     newSlot: "",
-    newEndDate: "2026-12-07",
+    extend_days: 30,
+    newEndDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
     renewPrice: "500000",
     note: "",
   });
 
+  const [ticketTypes, setTicketTypes] = useState([]);
+
   useEffect(() => {
-    if (ticket) {
-      setFormData((prev) => ({
-        ...prev,
-        newTicketType: ticket.ticketType || "",
-        newSlot: ticket.slotLocation || "",
-      }));
+    if (isOpen) {
+      ticketService.getTicketTypes().then((types) => {
+        if (types && types.length > 0) setTicketTypes(types);
+      });
+      if (ticket) {
+        setFormData((prev) => ({
+          ...prev,
+          newTicketType: ticket.ticketType || "Vé tháng",
+          newSlot: ticket.slotLocation || "Tầng B1 - A10",
+        }));
+      }
     }
-  }, [ticket]);
+  }, [isOpen, ticket]);
 
   if (!isOpen) return null;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "newTicketType") {
+      const match = ticketTypes.find((t) => String(t.id) === String(value) || t.name === value);
+      if (match) {
+        const days = match.duration_days || 30;
+        setFormData((prev) => ({
+          ...prev,
+          ticket_type_id: match.id,
+          newTicketType: match.name,
+          extend_days: days,
+          renewPrice: String(match.default_price || "500000"),
+          newEndDate: new Date(Date.now() + days * 86400000).toISOString().slice(0, 10),
+        }));
+        return;
+      }
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (onConfirm) onConfirm({ ticketId: ticket?.ticketCode, ...formData });
+    if (onConfirm) {
+      onConfirm({
+        ticketId: ticket?.backendId || ticket?.ticketCode || ticket?.id,
+        ticket_type_id: formData.ticket_type_id,
+        extend_days: formData.extend_days || 30,
+        additional_price: parseFloat(formData.renewPrice) || 0,
+        notes: formData.note,
+        // UI fallback
+        ticketType: formData.newTicketType,
+        slotLocation: formData.newSlot,
+        endDate: formData.newEndDate,
+      });
+    }
     onClose();
   };
 
@@ -41,7 +78,7 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             ✕
           </button>
@@ -72,16 +109,26 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
               required
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
-              <option value="">Chọn loại vé</option>
-              <option value="Vé tháng">Vé tháng</option>
-              <option value="Vé ngày">Vé ngày</option>
-              <option value="Vé quý">Vé quý</option>
+              {ticketTypes.length > 0 ? (
+                ticketTypes.map((t) => (
+                  <option key={t.id} value={t.name}>
+                    {t.name} ({Number(t.default_price).toLocaleString("vi-VN")}đ)
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="Vé tháng">Vé tháng</option>
+                  <option value="Vé ngày">Vé ngày</option>
+                  <option value="Vé quý">Vé quý</option>
+                  <option value="Vé năm">Vé năm</option>
+                </>
+              )}
             </select>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Vị trí đỗ xe mới <span className="text-rose-500">*</span>
+              Vị trí đỗ xe <span className="text-rose-500">*</span>
             </label>
             <select
               name="newSlot"
@@ -90,10 +137,10 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
               required
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
-              <option value="">Chọn vị trí đỗ xe</option>
               <option value="Tầng B1 - A10">Tầng B1 - A10</option>
               <option value="Tầng B1 - A05">Tầng B1 - A05</option>
               <option value="Tầng B2 - B12">Tầng B2 - B12</option>
+              <option value="Tầng B2 - C03">Tầng B2 - C03</option>
             </select>
           </div>
 
@@ -113,7 +160,7 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Giá gia hạn <span className="text-rose-500">*</span>
+              Phí gia hạn <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
               <input
@@ -149,13 +196,13 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition"
+              className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer"
             >
               Hủy
             </button>
             <button
               type="submit"
-              className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm transition"
+              className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm transition cursor-pointer"
             >
               Xác nhận
             </button>

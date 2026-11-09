@@ -1,17 +1,37 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { fullParkingLotData } from "../mocks/parkingLotData";
 import { FilterSelect } from "../components/common";
+import { parkingLotService } from "../services/parkingLotService";
 
 export default function ParkingLot() {
+  const [parkingStructure, setParkingStructure] = useState(fullParkingLotData);
   const [selectedFloor, setSelectedFloor] = useState("B1");
   const [selectedZone, setSelectedZone] = useState("A");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState("");
 
-  const currentZoneData = useMemo(() => {
-    return fullParkingLotData[0]?.zones[0];
+  useEffect(() => {
+    parkingLotService.getParkingStructure().then((res) => {
+      if (res && res.length > 0) {
+        setParkingStructure(res);
+      }
+    });
   }, []);
+
+  const currentFloorData = useMemo(() => {
+    return (
+      parkingStructure.find((f) => f.code === selectedFloor || f.floorId === selectedFloor) ||
+      parkingStructure[0]
+    );
+  }, [parkingStructure, selectedFloor]);
+
+  const currentZoneData = useMemo(() => {
+    return (
+      currentFloorData?.zones?.find((z) => z.code === selectedZone || z.zoneId === selectedZone) ||
+      currentFloorData?.zones?.[0]
+    );
+  }, [currentFloorData, selectedZone]);
 
   const allSlots = useMemo(() => {
     return currentZoneData?.slots || [];
@@ -96,8 +116,8 @@ export default function ParkingLot() {
           ? "Đã đặt trước"
           : "Bảo trì",
       parkingLot: "Bãi xe Smart Mobility",
-      floor: "B1",
-      zone: "A",
+      floor: selectedFloor,
+      zone: selectedZone,
       licensePlate: slot.plate || "—",
       vehicleType: slot.type === "PRIORITY" ? "Xe ưu tiên" : "Ô tô",
       reservedBy: slot.reservedTime ? `Khách đặt lúc ${slot.reservedTime}` : "—",

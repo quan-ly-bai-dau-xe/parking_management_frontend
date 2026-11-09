@@ -3,6 +3,8 @@
  * Handles Session cookies and Django CSRF token requirements.
  */
 
+let cachedCsrfToken = null;
+
 export function getCookie(name) {
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
@@ -23,17 +25,32 @@ function createApiConnectionError(error) {
 export async function fetchCsrfToken() {
   // Call backend CSRF initialization endpoint to ensure csrftoken cookie is set
   try {
-    await fetch('/api/v1/auth/csrf/', {
+    const res = await fetch('/api/v1/auth/csrf/', {
       method: 'GET',
       credentials: 'include',
     });
+    if (res.ok) {
+      try {
+        const data = await res.json();
+        if (data?.csrfToken) {
+          cachedCsrfToken = data.csrfToken;
+        }
+      } catch {
+        // Response text fallback
+      }
+    }
+    const cookieToken = getCookie('csrftoken');
+    if (cookieToken) {
+      cachedCsrfToken = cookieToken;
+    }
+    return cachedCsrfToken;
   } catch (error) {
     console.warn('Could not initialize CSRF token:', error);
     throw createApiConnectionError(error);
   }
 }
 
-export async function apiClient(endpoint, options = {}) {
+export async function apiClient(endpoint, options = {}, isRetry = false) {
   const headers = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -42,10 +59,9 @@ export async function apiClient(endpoint, options = {}) {
 
   const method = (options.method || 'GET').toUpperCase();
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    let csrfToken = getCookie('csrftoken');
+    let csrfToken = cachedCsrfToken || getCookie('csrftoken');
     if (!csrfToken) {
-      await fetchCsrfToken();
-      csrfToken = getCookie('csrftoken');
+      csrfToken = await fetchCsrfToken();
     }
     if (csrfToken) {
       headers['X-CSRFToken'] = csrfToken;
@@ -71,6 +87,16 @@ export async function apiClient(endpoint, options = {}) {
   const contentType = response.headers.get('content-type') || '';
   const isJson = contentType.includes('application/json');
   const data = isJson ? await response.json() : await response.text();
+
+  // Tự động làm mới CSRF token và thử lại 1 lần nếu gặp 403 CSRF
+  if (response.status === 403 && !isRetry) {
+    const errorString = typeof data === 'string' ? data : JSON.stringify(data);
+    if (errorString.includes('CSRF') || errorString.includes('csrf')) {
+      cachedCsrfToken = null;
+      await fetchCsrfToken();
+      return apiClient(endpoint, options, true);
+    }
+  }
 
   if (!response.ok) {
     const errorMsg =

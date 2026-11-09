@@ -1,98 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import DataTable from "../components/common/DataTable";
 import TableActions from "../components/common/TableActions";
 import EmployeeModal from "../components/EmployeeModal";
-
-const INITIAL_EMPLOYEES = [
-  {
-    id: "NV001",
-    name: "Nguyễn Minh Anh",
-    email: "minhanh@smartpark.vn",
-    phone: "0905 123 456",
-    role: "Quản lý",
-    area: "Hải Châu",
-    city: "Đà Nẵng",
-    status: "active",
-    tone: "indigo",
-  },
-  {
-    id: "NV002",
-    name: "Trần Quốc Bảo",
-    email: "quocbao@smartpark.vn",
-    phone: "0912 345 678",
-    role: "Nhân viên vận hành",
-    area: "Thanh Khê",
-    city: "Đà Nẵng",
-    status: "active",
-    tone: "blue",
-  },
-  {
-    id: "NV003",
-    name: "Lê Thị Thu Hà",
-    email: "thuha@smartpark.vn",
-    phone: "0935 111 222",
-    role: "Nhân viên thu ngân",
-    area: "Quận 1",
-    city: "Hồ Chí Minh",
-    status: "active",
-    tone: "pink",
-  },
-  {
-    id: "NV004",
-    name: "Phạm Hoàng Nam",
-    email: "hoangnam@smartpark.vn",
-    phone: "0901 222 333",
-    role: "Kỹ thuật viên",
-    area: "Cầu Giấy",
-    city: "Hà Nội",
-    status: "inactive",
-    tone: "amber",
-  },
-  {
-    id: "NV005",
-    name: "Võ Ngọc Linh",
-    email: "ngoclinh@smartpark.vn",
-    phone: "0988 333 444",
-    role: "Nhân viên vận hành",
-    area: "Sơn Trà",
-    city: "Đà Nẵng",
-    status: "active",
-    tone: "emerald",
-  },
-  {
-    id: "NV006",
-    name: "Đặng Gia Huy",
-    email: "giahuy@smartpark.vn",
-    phone: "0977 444 555",
-    role: "Nhân viên thu ngân",
-    area: "Liên Chiểu",
-    city: "Đà Nẵng",
-    status: "active",
-    tone: "cyan",
-  },
-  {
-    id: "NV007",
-    name: "Bùi Thanh Tùng",
-    email: "thanhtung@smartpark.vn",
-    phone: "0966 555 666",
-    role: "Kỹ thuật viên",
-    area: "Thủ Đức",
-    city: "Hồ Chí Minh",
-    status: "active",
-    tone: "violet",
-  },
-  {
-    id: "NV008",
-    name: "Phan Mỹ Duyên",
-    email: "myduyen@smartpark.vn",
-    phone: "0944 666 777",
-    role: "Nhân viên vận hành",
-    area: "Ngũ Hành Sơn",
-    city: "Đà Nẵng",
-    status: "active",
-    tone: "rose",
-  },
-];
+import { LoadingSpinner } from "../components/common";
+import { employeeService, INITIAL_EMPLOYEES } from "../services/employeeService";
 
 const AVATAR_CLASSES = {
   indigo: "bg-indigo-100 text-indigo-600",
@@ -107,11 +18,59 @@ const AVATAR_CLASSES = {
 
 export default function EmployeeManagement() {
   const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
+  const [positions, setPositions] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("all");
   const [status, setStatus] = useState("all");
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+
+  const fetchPositions = useCallback(async () => {
+    try {
+      const pos = await employeeService.getPositions();
+      setPositions(pos || []);
+    } catch (err) {
+      console.warn("Could not fetch positions:", err);
+    }
+  }, []);
+
+  const fetchSummary = useCallback(async () => {
+    try {
+      const sum = await employeeService.getSummary();
+      setSummary(sum);
+    } catch (err) {
+      console.warn("Could not fetch employee summary:", err);
+    }
+  }, []);
+
+  const fetchEmployees = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await employeeService.getEmployees({
+        search,
+        role: role !== "all" ? role : undefined,
+        status: status !== "all" ? status : undefined,
+      });
+      setEmployees(res.data || []);
+    } catch (err) {
+      console.error("Lỗi khi tải danh sách nhân viên:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [search, role, status]);
+
+  useEffect(() => {
+    fetchPositions();
+    fetchSummary();
+  }, [fetchPositions, fetchSummary]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees]);
 
   const handleOpenAddModal = () => {
     setSelectedEmployee(null);
@@ -128,56 +87,91 @@ export default function EmployeeManagement() {
     setSelectedEmployee(null);
   };
 
-  const handleSaveEmployee = (employeeData) => {
-    if (employeeData.id) {
-      // Cập nhật nhân viên hiện có
-      setEmployees((prev) =>
-        prev.map((item) => (item.id === employeeData.id ? employeeData : item))
-      );
-    } else {
-      // Thêm nhân viên mới: Tạo mã NV tiếp theo
-      const maxIdNum = employees.reduce((max, emp) => {
-        const num = parseInt(emp.id.replace(/\D/g, ""), 10);
-        return !isNaN(num) && num > max ? num : max;
-      }, 0);
-      const newId = `NV${String(maxIdNum + 1).padStart(3, "0")}`;
-
-      const newEmployee = {
-        ...employeeData,
-        id: newId,
-      };
-
-      setEmployees((prev) => [newEmployee, ...prev]);
+  const handleSaveEmployee = async (employeeData) => {
+    try {
+      if (employeeData.backendId || (employeeData.id && employeeData.rowVersion)) {
+        // Cập nhật nhân viên hiện có
+        const updated = await employeeService.updateEmployee(
+          employeeData.backendId || employeeData.id,
+          employeeData,
+          positions
+        );
+        setEmployees((prev) =>
+          prev.map((item) =>
+            item.id === employeeData.id || item.backendId === employeeData.backendId
+              ? { ...item, ...updated }
+              : item
+          )
+        );
+      } else {
+        // Thêm nhân viên mới
+        const created = await employeeService.createEmployee(employeeData, positions);
+        setEmployees((prev) => [created, ...prev]);
+      }
+      fetchSummary();
+    } catch (err) {
+      alert(err.message || "Không thể lưu thông tin nhân viên");
+    } finally {
+      handleCloseModal();
     }
   };
 
-  const filteredEmployees = useMemo(
-    () =>
-      employees.filter((employee) => {
-        const query = search.trim().toLowerCase();
-        return (
-          (!query ||
-            `${employee.name} ${employee.id} ${employee.email}`
-              .toLowerCase()
-              .includes(query)) &&
-          (role === "all" || employee.role === role) &&
-          (status === "all" || employee.status === status)
-        );
-      }),
-    [employees, role, search, status],
-  );
+  const handleDeleteEmployee = async (employee) => {
+    const confirmed = window.confirm(
+      `Bạn có chắc muốn xóa nhân viên ${employee.name} (${employee.id}) không?`
+    );
+    if (!confirmed) return;
 
-  const toggleStatus = (id) =>
+    try {
+      await employeeService.deleteEmployee(
+        employee.backendId || employee.id,
+        employee.rowVersion || 1
+      );
+      setEmployees((prev) => prev.filter((item) => item.id !== employee.id));
+      fetchSummary();
+    } catch (err) {
+      alert(err.message || "Không thể xóa nhân viên");
+    }
+  };
+
+  const toggleStatus = async (employee) => {
+    const newStatus = employee.status === "active" ? "inactive" : "active";
+    // Optimistic update
     setEmployees((items) =>
       items.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status: item.status === "active" ? "inactive" : "active",
-            }
-          : item,
-      ),
+        item.id === employee.id
+          ? { ...item, status: newStatus, statusDisplay: newStatus === "active" ? "Đang hoạt động" : "Không hoạt động" }
+          : item
+      )
     );
+
+    try {
+      await employeeService.updateEmployee(
+        employee.backendId || employee.id,
+        { ...employee, status: newStatus },
+        positions
+      );
+      fetchSummary();
+    } catch (err) {
+      console.warn("Could not sync status update to backend:", err);
+    }
+  };
+
+  const filteredEmployees = useMemo(() => {
+    return employees.filter((employee) => {
+      const query = search.trim().toLowerCase();
+      const matchQuery =
+        !query ||
+        `${employee.name} ${employee.id} ${employee.email}`
+          .toLowerCase()
+          .includes(query);
+
+      const matchRole = role === "all" || employee.role === role || employee.roleCode === role;
+      const matchStatus = status === "all" || employee.status === status;
+
+      return matchQuery && matchRole && matchStatus;
+    });
+  }, [employees, role, search, status]);
 
   const columns = useMemo(
     () => [
@@ -186,9 +180,11 @@ export default function EmployeeManagement() {
         accessor: (employee) => (
           <div className="flex items-center gap-2.5">
             <span
-              className={`flex h-7 w-7 items-center justify-center rounded-full text-[9px] font-bold ${AVATAR_CLASSES[employee.tone] || "bg-slate-100 text-slate-600"}`}
+              className={`flex h-7 w-7 items-center justify-center rounded-full text-[9px] font-bold ${
+                AVATAR_CLASSES[employee.tone] || "bg-slate-100 text-slate-600"
+              }`}
             >
-              {employee.name
+              {(employee.name || "NV")
                 .split(" ")
                 .map((part) => part[0])
                 .slice(-2)
@@ -208,7 +204,7 @@ export default function EmployeeManagement() {
       {
         header: "Mã NV",
         accessor: (employee) => (
-          <span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">
+          <span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500 font-mono">
             {employee.id}
           </span>
         ),
@@ -216,14 +212,14 @@ export default function EmployeeManagement() {
       {
         header: "Chức vụ",
         accessor: (employee) => (
-          <span className="text-slate-600">{employee.role}</span>
+          <span className="text-slate-600 font-medium">{employee.role}</span>
         ),
       },
       {
         header: "Liên hệ",
         accessor: (employee) => (
           <div>
-            <span className="block text-slate-600">{employee.phone}</span>
+            <span className="block text-slate-600 font-mono">{employee.phone}</span>
             <span className="text-[10px] text-slate-400">{employee.email}</span>
           </div>
         ),
@@ -248,45 +244,47 @@ export default function EmployeeManagement() {
             }`}
           >
             <span className="h-1.5 w-1.5 rounded-full bg-current" />
-            {employee.status === "active"
-              ? "Đang hoạt động"
-              : "Không hoạt động"}
+            {employee.statusDisplay || (employee.status === "active" ? "Đang hoạt động" : "Không hoạt động")}
           </span>
         ),
       },
       {
         header: "Thao tác",
-        align: "center",
+        className: "w-28 text-center",
         accessor: (employee) => (
           <TableActions
             actions={[
               {
-                label: "Sửa",
-                icon: "edit",
-                title: "Sửa thông tin nhân viên",
+                label: "Chỉnh sửa",
+                className: "text-blue-600 hover:text-blue-700",
                 onClick: () => handleOpenEditModal(employee),
               },
               {
-                label: employee.status === "active" ? "Khóa" : "Kích hoạt",
-                icon: "toggle",
-                title:
+                label: employee.status === "active" ? "Tạm khóa" : "Kích hoạt",
+                className: `${
                   employee.status === "active"
-                    ? "Ngưng hoạt động"
-                    : "Kích hoạt lại",
-                className: `w-22 justify-center ${
-                  employee.status === "active"
-                    ? "text-amber-600 hover:text-amber-800"
-                    : "text-emerald-600 hover:text-emerald-800"
+                    ? "text-amber-600 hover:text-amber-700"
+                    : "text-emerald-600 hover:text-emerald-700"
                 }`,
-                onClick: () => toggleStatus(employee.id),
+                onClick: () => toggleStatus(employee),
+              },
+              {
+                label: "Xóa",
+                className: "text-rose-600 hover:text-rose-700",
+                onClick: () => handleDeleteEmployee(employee),
               },
             ]}
           />
         ),
       },
     ],
-    [],
+    [positions],
   );
+
+  const totalEmp = summary?.total_employees ?? employees.length;
+  const activeEmp = summary?.active_employees ?? employees.filter((item) => item.status === "active").length;
+  const inactiveEmp = summary?.inactive_employees ?? employees.filter((item) => item.status === "inactive").length;
+  const positionsCount = summary?.total_positions ?? (positions.length || new Set(employees.map((item) => item.role)).size);
 
   return (
     <>
@@ -303,29 +301,19 @@ export default function EmployeeManagement() {
           <button
             type="button"
             onClick={handleOpenAddModal}
-            className="rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+            className="rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 cursor-pointer"
           >
             + Thêm nhân viên
           </button>
         </div>
+
+        {/* KPI Cards */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ["Tổng nhân viên", employees.length, "Tất cả hồ sơ"],
-            [
-              "Đang hoạt động",
-              employees.filter((item) => item.status === "active").length,
-              "Đang làm việc",
-            ],
-            [
-              "Không hoạt động",
-              employees.filter((item) => item.status === "inactive").length,
-              "Hồ sơ tạm ngưng",
-            ],
-            [
-              "Chức vụ",
-              new Set(employees.map((item) => item.role)).size,
-              "Nhóm chức vụ mẫu",
-            ],
+            ["Tổng nhân viên", totalEmp, "Tất cả hồ sơ"],
+            ["Đang hoạt động", activeEmp, "Đang làm việc"],
+            ["Không hoạt động", inactiveEmp, "Hồ sơ tạm ngưng"],
+            ["Chức vụ", positionsCount, "Nhóm chức vụ trong bãi"],
           ].map(([label, value, caption]) => (
             <div
               key={label}
@@ -337,6 +325,7 @@ export default function EmployeeManagement() {
             </div>
           ))}
         </div>
+
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
           <div className="flex flex-col justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center">
             <div>
@@ -360,11 +349,17 @@ export default function EmployeeManagement() {
                 className="rounded-lg border border-slate-200 px-3 py-2 text-[11px] outline-none"
               >
                 <option value="all">Tất cả chức vụ</option>
-                {[...new Set(employees.map((item) => item.role))].map(
-                  (item) => (
-                    <option key={item}>{item}</option>
-                  ),
-                )}
+                {positions.length > 0
+                  ? positions.map((p) => (
+                      <option key={p.id} value={p.name}>
+                        {p.name}
+                      </option>
+                    ))
+                  : [...new Set(employees.map((item) => item.role))].map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
               </select>
               <select
                 value={status}
@@ -377,12 +372,19 @@ export default function EmployeeManagement() {
               </select>
             </div>
           </div>
-          <DataTable
-            columns={columns}
-            rows={filteredEmployees}
-            rowKey="id"
-            emptyMessage="Không tìm thấy nhân viên phù hợp."
-          />
+
+          {isLoading ? (
+            <div className="py-12 flex justify-center">
+              <LoadingSpinner text="Đang tải danh sách nhân viên..." />
+            </div>
+          ) : (
+            <DataTable
+              columns={columns}
+              rows={filteredEmployees}
+              rowKey="id"
+              emptyMessage="Không tìm thấy nhân viên phù hợp."
+            />
+          )}
         </section>
       </div>
 
@@ -391,6 +393,7 @@ export default function EmployeeManagement() {
         onClose={handleCloseModal}
         employee={selectedEmployee}
         onSave={handleSaveEmployee}
+        positions={positions}
       />
     </>
   );

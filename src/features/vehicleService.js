@@ -1,33 +1,84 @@
 import { apiClient } from "../services/apiClient.js";
+import { mockVehicles } from "../mocks/vehicleData.js";
+
+const USE_MOCK =
+  import.meta.env.VITE_USE_MOCK?.trim().toLowerCase() === "true";
 
 export async function searchVehicles(query = "") {
-  const params = new URLSearchParams({ q: query });
-  const response = await fetch(`/api/v1/parking/vehicle-search/?${params}`, {
-    credentials: "include",
-  });
-  if (!response.ok) throw new Error(`Vehicle API failed: ${response.status}`);
-  return response.json();
+  try {
+    const params = new URLSearchParams({ q: query });
+    const response = await fetch(`/api/v1/parking/vehicle-search/?${params}`, {
+      credentials: "include",
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch (err) {
+    console.warn("[vehicleService] searchVehicles offline:", err.message);
+  }
+  const q = query.trim().toLowerCase();
+  return mockVehicles.filter(
+    (v) =>
+      !q ||
+      v.licensePlate?.toLowerCase().includes(q) ||
+      v.customer?.name?.toLowerCase().includes(q)
+  );
 }
 
 export async function fetchVehicles(params = {}) {
-  const searchParams = new URLSearchParams();
-  if (params.search) searchParams.append("q", params.search);
-  if (params.vehicleType) searchParams.append("vehicle_type", params.vehicleType);
-  if (params.ticketType) searchParams.append("ticket_type", params.ticketType);
-  if (params.status) searchParams.append("status", params.status);
-  if (params.ticketStatus) searchParams.append("ticket_status", params.ticketStatus);
-  if (params.page) searchParams.append("page", params.page.toString());
-  if (params.page_size) searchParams.append("page_size", params.page_size.toString());
+  if (USE_MOCK) {
+    return {
+      count: mockVehicles.length,
+      total_pages: 1,
+      current_page: 1,
+      results: mockVehicles,
+    };
+  }
 
-  return apiClient(`/api/v1/vehicles/?${searchParams.toString()}`);
+  try {
+    const searchParams = new URLSearchParams();
+    if (params.search) searchParams.append("q", params.search);
+    if (params.vehicleType) searchParams.append("vehicle_type", params.vehicleType);
+    if (params.ticketType) searchParams.append("ticket_type", params.ticketType);
+    if (params.status) searchParams.append("status", params.status);
+    if (params.ticketStatus) searchParams.append("ticket_status", params.ticketStatus);
+    if (params.page) searchParams.append("page", params.page.toString());
+    if (params.page_size) searchParams.append("page_size", params.page_size.toString());
+
+    const res = await apiClient(`/api/v1/vehicles/?${searchParams.toString()}`);
+    return res;
+  } catch (err) {
+    console.warn("[vehicleService] fetchVehicles fallback mock:", err.message);
+    return {
+      count: mockVehicles.length,
+      total_pages: 1,
+      current_page: 1,
+      results: mockVehicles,
+    };
+  }
 }
 
 export async function fetchVehicleSummary() {
-  return apiClient("/api/v1/vehicles/summary/");
+  try {
+    return await apiClient("/api/v1/vehicles/summary/");
+  } catch (err) {
+    console.warn("[vehicleService] fetchVehicleSummary fallback mock:", err.message);
+    return {
+      total_vehicles: mockVehicles.length,
+      currently_parked: mockVehicles.filter((v) => v.status === "parked" || v.status === "Đang đỗ").length,
+      active_tickets: mockVehicles.filter((v) => v.ticket?.status === "active").length,
+      warning_tickets: mockVehicles.filter((v) => v.ticket?.status === "warning" || v.ticket?.status === "expiring").length,
+    };
+  }
 }
 
 export async function fetchVehicleDetail(id) {
-  return apiClient(`/api/v1/vehicles/${id}/`);
+  try {
+    return await apiClient(`/api/v1/vehicles/${id}/`);
+  } catch (err) {
+    const found = mockVehicles.find((v) => v.id === id || String(v.backendId) === String(id));
+    return found || null;
+  }
 }
 
 export function mapVehicleResults(payload) {
@@ -35,31 +86,16 @@ export function mapVehicleResults(payload) {
   return results.map(mapVehicleSearchItem);
 }
 
-export const vehicleService = {
-  list: (params) => fetchVehicles(params),
-  getSummary: () => fetchVehicleSummary(),
-  getDetail: (id) => fetchVehicleDetail(id),
-  create: (vehicle) => apiClient("/api/v1/vehicles/", {
-    method: "POST",
-    body: JSON.stringify(toVehiclePayload(vehicle)),
-  }),
-  update: (vehicle) => apiClient(`/api/v1/vehicles/${vehicle.backendId || vehicle.id}/`, {
-    method: "PATCH",
-    body: JSON.stringify(toVehiclePayload(vehicle)),
-  }),
-  remove: (vehicle) => apiClient(`/api/v1/vehicles/${vehicle.backendId || vehicle.id}/`, {
-    method: "DELETE",
-  }),
-};
-
 function toVehiclePayload(vehicle) {
+  const isEv = (vehicle.vehicleType || "").toLowerCase().includes("điện");
   return {
-    license_plate: vehicle.licensePlate.trim(),
-    vehicle_type: vehicle.vehicleType,
-    customer_name: vehicle.customer.name.trim(),
-    customer_phone: vehicle.customer.phone.trim(),
-    parking_position: vehicle.parkingSlot.display.trim(),
-    status: vehicle.status,
+    license_plate: (vehicle.licensePlate || "").trim(),
+    model_name: (vehicle.model || vehicle.brand || "Sedan").trim(),
+    vehicle_type_id: vehicle.vehicleTypeId || (isEv ? 2 : 1),
+    customer_id: typeof vehicle.customer?.id === "number" ? vehicle.customer.id : (vehicle.customer?.backendId || 1),
+    brand: (vehicle.brand || "—").trim(),
+    color: (vehicle.note || "").trim() || "Trắng",
+    notes: vehicle.parkingSlot?.display ? `Vị trí: ${vehicle.parkingSlot.display}` : "",
   };
 }
 
@@ -69,21 +105,27 @@ function formatDate(value) {
 }
 
 export function mapVehicleSearchItem(item) {
+  if (item && item.licensePlate && item.parkingSlot) {
+    // Already in frontend format
+    return item;
+  }
+
   const vehicle = item.vehicle || item;
   const owner = item.customer || item.owner || {};
   const ticket_info = item.active_ticket || item.ticket_info || {};
   const assigned_slot = item.parking_position || item.assigned_slot || {};
 
   return {
-    id: vehicle.id,
+    id: vehicle.code || `XE${String(vehicle.id).padStart(4, "0")}`,
     backendId: vehicle.id,
     licensePlate: vehicle.license_plate,
-    vehicleType: vehicle.vehicle_type,
+    vehicleType: vehicle.vehicle_type || (vehicle.vehicle_type_code === "EV" ? "Xe điện" : "Ô tô"),
     brand: vehicle.brand || "—",
     model: vehicle.model_name || "—",
     avatarIcon: vehicle.vehicle_type_code === "EV" ? "car-cyan" : "car-blue",
     customer: {
       id: owner.id || String(owner.code || "—"),
+      backendId: owner.id,
       name: owner.full_name || owner.name || "—",
       phone: owner.phone || "—",
       email: owner.email || "—",
@@ -102,10 +144,56 @@ export function mapVehicleSearchItem(item) {
       zone: assigned_slot.zone_code || "",
       floor: assigned_slot.floor_name || "",
       slot: assigned_slot.slot_code || "",
-      type: item.vehicle_type_code === "CAR" ? "car" : "ev",
+      type: vehicle.vehicle_type_code === "CAR" ? "car" : "ev",
     },
     status: item.status_display || (item.currently_parked ? "parked" : "active"),
     note: item.is_blacklisted ? "Biển số nằm trong danh sách cảnh báo." : (vehicle.color || ""),
   };
 }
 
+export const vehicleService = {
+  list: (params) => fetchVehicles(params),
+  getSummary: () => fetchVehicleSummary(),
+  getDetail: (id) => fetchVehicleDetail(id),
+  create: async (vehicle) => {
+    try {
+      return await apiClient("/api/v1/vehicles/", {
+        method: "POST",
+        body: JSON.stringify(toVehiclePayload(vehicle)),
+      });
+    } catch (err) {
+      if (err?.code === "API_UNAVAILABLE") {
+        return {
+          ...vehicle,
+          id: vehicle.id || `XE${Date.now() % 10000}`,
+        };
+      }
+      throw err;
+    }
+  },
+  update: async (vehicle) => {
+    const targetId = vehicle.backendId || vehicle.id;
+    try {
+      return await apiClient(`/api/v1/vehicles/${targetId}/`, {
+        method: "PATCH",
+        body: JSON.stringify(toVehiclePayload(vehicle)),
+      });
+    } catch (err) {
+      if (err?.code === "API_UNAVAILABLE") {
+        return vehicle;
+      }
+      throw err;
+    }
+  },
+  remove: async (vehicle) => {
+    const targetId = vehicle.backendId || vehicle.id;
+    try {
+      return await apiClient(`/api/v1/vehicles/${targetId}/`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      if (err?.code === "API_UNAVAILABLE") return true;
+      throw err;
+    }
+  },
+};

@@ -4,6 +4,7 @@ import { authService } from "../features/authService";
 import { ROUTES } from "../config/navigation";
 import OtpModal from "../components/OTPModal";
 import ResetPasswordModal from "../components/ResetPasswordModal";
+import RegisterModal from "../components/RegisterModal";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -14,13 +15,17 @@ export default function Login() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [submittedStatus, setSubmittedStatus] = useState(null);
   const [notice, setNotice] = useState(null);
 
-  // Quản lý modal
+  // Quản lý modal: 'OTP' | 'RESET' | 'REGISTER' | null
   const [modal, setModal] = useState(null);
+  const [otpInfo, setOtpInfo] = useState(null);
   const [verifiedOtp, setVerifiedOtp] = useState("");
+  const [verifiedIdToken, setVerifiedIdToken] = useState("");
+  const [verifiedSessionInfo, setVerifiedSessionInfo] = useState("");
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -54,21 +59,42 @@ export default function Login() {
       });
   };
 
-  const handleOpenForgotPassword = (e) => {
+  const handleOpenForgotPassword = async (e) => {
     e.preventDefault();
-    if (!formData.account.trim()) {
-      setErrorMessage("Vui lòng nhập Email hoặc số điện thoại");
+    const accountInput = formData.account.trim();
+    if (!accountInput) {
+      setErrorMessage("Vui lòng nhập Số điện thoại vào ô tài khoản để nhận mã OTP.");
+      return;
+    }
+    if (accountInput.includes("@")) {
+      setErrorMessage("Chức năng OTP SMS yêu cầu Số điện thoại. Vui lòng nhập Số điện thoại tài khoản của bạn (ví dụ: 0766709535).");
       return;
     }
     setErrorMessage("");
-    setModal("OTP");
+    setForgotLoading(true);
+
+    try {
+      const res = await authService.forgotPassword(
+        accountInput,
+        "recaptcha-container"
+      );
+      setOtpInfo(res);
+      setModal("OTP");
+    } catch (err) {
+      setErrorMessage(err.message || "Không thể gửi mã OTP. Vui lòng thử lại sau.");
+    } finally {
+      setForgotLoading(false);
+    }
   };
 
   return (
     <main className="min-h-screen w-full bg-slate-100/90 flex items-center justify-center p-4 sm:p-6 lg:p-10 font-inter text-slate-800 antialiased selection:bg-blue-500 selection:text-white relative">
-      {/* Thông báo đăng nhập / đổi mật khẩu */}
+      {/* Vị trí render reCAPTCHA ẩn cho Firebase */}
+      <div id="recaptcha-container"></div>
+
+      {/* Thông báo đăng nhập / đổi mật khẩu / đăng ký */}
       {(submittedStatus || notice) && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 bg-emerald-600 text-white px-5 py-3.5 rounded-xl shadow-lg shadow-emerald-600/20 text-sm font-medium animate-bounce">
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 bg-emerald-600 text-white px-5 py-3.5 rounded-2xl shadow-xl shadow-emerald-600/25 text-sm font-medium animate-bounce">
           <svg
             className="w-5 h-5 text-emerald-200 shrink-0"
             fill="none"
@@ -91,7 +117,6 @@ export default function Login() {
 
       {/* Thẻ Container Chính */}
       <div className="w-full max-w-[980px] bg-white rounded-3xl shadow-xl shadow-slate-200/80 border border-slate-200/70 overflow-hidden grid grid-cols-1 md:grid-cols-2 min-h-[580px]">
-        
         {/* Panel bên trái */}
         <section className="bg-gradient-to-tr from-[#0F172A] to-[#1E293B] p-8 sm:p-12 lg:p-14 text-white flex flex-col justify-between relative overflow-hidden">
           {/* Header */}
@@ -219,9 +244,13 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={handleOpenForgotPassword}
-                  className="font-medium text-blue-600 hover:text-blue-700 hover:underline transition-colors focus:outline-none"
+                  disabled={forgotLoading}
+                  className="font-medium text-blue-600 hover:text-blue-700 hover:underline transition-colors focus:outline-none flex items-center gap-1"
                 >
-                  Quên mật khẩu?
+                  {forgotLoading && (
+                    <span className="inline-block animate-spin h-3.5 w-3.5 border-2 border-blue-600 border-t-transparent rounded-full" />
+                  )}
+                  <span>Quên mật khẩu?</span>
                 </button>
               </div>
 
@@ -289,38 +318,64 @@ export default function Login() {
             {/* Chưa có tài khoản */}
             <div className="text-center text-sm text-slate-600">
               Chưa có tài khoản?{" "}
-              <a
-                href="#register"
-                onClick={(e) => e.preventDefault()}
-                className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors ml-0.5"
+              <button
+                type="button"
+                onClick={() => setModal("REGISTER")}
+                className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors ml-0.5 focus:outline-none"
               >
                 Đăng ký ngay
-              </a>
+              </button>
             </div>
           </div>
         </section>
       </div>
 
-      {/* Quản lý 2 modal độc lập ngoài container chính */}
+      {/* Modal 1: Nhập OTP cho Quên mật khẩu */}
       <OtpModal
         isOpen={modal === "OTP"}
         account={formData.account}
+        phone={otpInfo?.formattedPhone || formData.account}
+        isMock={otpInfo?.isMock}
+        testOtp={otpInfo?.testOtp}
         onClose={() => setModal(null)}
-        onSuccess={(otpCode) => {
-          setVerifiedOtp(otpCode);
+        onResend={() =>
+          authService.forgotPassword(formData.account, "recaptcha-container")
+        }
+        onSuccess={({ otp, idToken, sessionInfo }) => {
+          setVerifiedOtp(otp);
+          setVerifiedIdToken(idToken);
+          setVerifiedSessionInfo(sessionInfo || otpInfo?.sessionInfo || "");
           setModal("RESET");
         }}
       />
 
+      {/* Modal 2: Đặt lại mật khẩu mới */}
       <ResetPasswordModal
         isOpen={modal === "RESET"}
         account={formData.account}
+        phone={otpInfo?.formattedPhone || formData.account}
         otp={verifiedOtp}
+        idToken={verifiedIdToken}
+        sessionInfo={verifiedSessionInfo}
         onClose={() => setModal(null)}
         onSuccess={() => {
           setModal(null);
-          setNotice("Đổi mật khẩu thành công! Vui lòng hãy đăng nhập lại.");
-          setTimeout(() => setNotice(null), 4000);
+          setNotice("Đổi mật khẩu thành công! Vui lòng đăng nhập lại với mật khẩu mới.");
+          setTimeout(() => setNotice(null), 5000);
+        }}
+      />
+
+      {/* Modal 3: Đăng ký tài khoản mới kèm OTP SMS Firebase */}
+      <RegisterModal
+        isOpen={modal === "REGISTER"}
+        onClose={() => setModal(null)}
+        onSuccess={(data) => {
+          setNotice(data.message || "Đăng ký tài khoản thành công!");
+          setFormData((prev) => ({
+            ...prev,
+            account: data.account || prev.account,
+          }));
+          setTimeout(() => setNotice(null), 5000);
         }}
       />
     </main>

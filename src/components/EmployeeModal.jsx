@@ -18,19 +18,22 @@ const TONE_OPTIONS = [
   { value: "rose", label: "Đỏ hồng (Rose)" },
 ];
 
-function EmployeeModalContent({ onClose, employee, onSave }) {
+function EmployeeModalContent({ onClose, employee, onSave, positions = [] }) {
   const isEditing = Boolean(employee && employee.id);
+  const roleList = positions.length > 0 ? positions.map((p) => p.name) : ROLE_OPTIONS;
 
   const [formData, setFormData] = useState(() => ({
     id: employee?.id || "",
+    backendId: employee?.backendId || (typeof employee?.id === "number" ? employee.id : null),
     name: employee?.name || "",
     email: employee?.email || "",
     phone: employee?.phone || "",
-    role: employee?.role || "Nhân viên vận hành",
+    role: employee?.role || roleList[0] || "Nhân viên vận hành",
     area: employee?.area || "",
     city: employee?.city || "Đà Nẵng",
     status: employee?.status || "active",
     tone: employee?.tone || "blue",
+    rowVersion: employee?.rowVersion || 1,
   }));
 
   const [errors, setErrors] = useState({});
@@ -190,7 +193,7 @@ function EmployeeModalContent({ onClose, employee, onSave }) {
                   onChange={handleChange}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-700 outline-none focus:border-blue-500 bg-white"
                 >
-                  {ROLE_OPTIONS.map((item) => (
+                  {roleList.map((item) => (
                     <option key={item} value={item}>
                       {item}
                     </option>
@@ -299,7 +302,7 @@ function EmployeeModalContent({ onClose, employee, onSave }) {
   );
 }
 
-export default function EmployeeModal({ isOpen, onClose, employee, onSave }) {
+export default function EmployeeModal({ isOpen, onClose, employee, onSave, positions }) {
   if (!isOpen) return null;
 
   return (
@@ -308,6 +311,7 @@ export default function EmployeeModal({ isOpen, onClose, employee, onSave }) {
       onClose={onClose}
       employee={employee}
       onSave={onSave}
+      positions={positions}
     />
   );
 }
