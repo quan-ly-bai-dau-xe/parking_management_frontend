@@ -1,112 +1,213 @@
-/**
- * Centralized API client for communicating with Django backend via Vite proxy.
- * Handles Session cookies and Django CSRF token requirements.
- */
+import axios from "axios";
+
+export const API_UNAVAILABLE_MESSAGE =
+  "Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối mạng hoặc hệ thống máy chủ rồi thử lại.";
 
 let cachedCsrfToken = null;
 
 export function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
-  return null;
-}
+  if (typeof document === "undefined" || !document.cookie) {
+    return null;
+  }
+  const cookie = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith(`${name}=`));
 
-const API_UNAVAILABLE_MESSAGE =
-  "Không thể kết nối tới máy chủ. Vui lòng kiểm tra Docker/backend đã chạy tại cổng 8000 rồi thử lại.";
+  return cookie ? cookie.split("=").slice(1).join("=") : null;
+}
 
 function createApiConnectionError(error) {
-  const connectionError = new Error(API_UNAVAILABLE_MESSAGE);
-  connectionError.code = "API_UNAVAILABLE";
-  connectionError.cause = error;
-  return connectionError;
+  const err = new Error(API_UNAVAILABLE_MESSAGE);
+  err.code = "API_UNAVAILABLE";
+  err.cause = error;
+  return err;
 }
+
+export const axiosInstance = axios.create({
+  baseURL: "/",
+  withCredentials: true,
+  headers: {
+    Accept: "application/json",
+  },
+  xsrfCookieName: "csrftoken",
+  xsrfHeaderName: "X-CSRFToken",
+});
+
+let csrfInitPromise = null;
 
 export async function fetchCsrfToken() {
-  // Call backend CSRF initialization endpoint to ensure csrftoken cookie is set
-  try {
-    const res = await fetch('/api/v1/auth/csrf/', {
-      method: 'GET',
-      credentials: 'include',
-    });
-    if (res.ok) {
-      try {
-        const data = await res.json();
-        if (data?.csrfToken) {
-          cachedCsrfToken = data.csrfToken;
-        }
-      } catch {
-        // Response text fallback
+  if (csrfInitPromise) return csrfInitPromise;
+
+  csrfInitPromise = (async () => {
+    try {
+      const res = await axiosInstance.get("/api/v1/auth/csrf/");
+      if (res?.data?.csrfToken) {
+        cachedCsrfToken = res.data.csrfToken;
       }
+      const token = getCookie("csrftoken") || cachedCsrfToken;
+      if (!token) {
+        throw new Error("CSRF token was not set by the server.");
+      }
+      return token;
+    } catch (error) {
+      if (!error.response) {
+        throw createApiConnectionError(error);
+      }
+      throw error;
+    } finally {
+      csrfInitPromise = null;
     }
-    const cookieToken = getCookie('csrftoken');
-    if (cookieToken) {
-      cachedCsrfToken = cookieToken;
-    }
-    return cachedCsrfToken;
-  } catch (error) {
-    console.warn('Could not initialize CSRF token:', error);
-    throw createApiConnectionError(error);
-  }
+  })();
+
+  return csrfInitPromise;
 }
 
-export async function apiClient(endpoint, options = {}, isRetry = false) {
-  const headers = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-    ...(options.headers || {}),
-  };
+axiosInstance.interceptors.request.use(async (config) => {
+  const method = (config.method || "GET").toUpperCase();
 
-  const method = (options.method || 'GET').toUpperCase();
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    let csrfToken = cachedCsrfToken || getCookie('csrftoken');
-    if (!csrfToken) {
-      csrfToken = await fetchCsrfToken();
-    }
-    if (csrfToken) {
-      headers['X-CSRFToken'] = csrfToken;
-    }
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    return config;
   }
 
-  // Ensure path starts with /api
-  const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  let token = getCookie("csrftoken") || cachedCsrfToken;
 
-  let response;
-  try {
-    response = await fetch(url, {
-      ...options,
-      method,
-      headers,
-      credentials: 'include', // Include session cookies for authentication
-    });
-  } catch (error) {
-    console.warn(`API request failed (${method} ${url}):`, error);
-    throw createApiConnectionError(error);
-  }
-
-  const contentType = response.headers.get('content-type') || '';
-  const isJson = contentType.includes('application/json');
-  const data = isJson ? await response.json() : await response.text();
-
-  // Tự động làm mới CSRF token và thử lại 1 lần nếu gặp 403 CSRF
-  if (response.status === 403 && !isRetry) {
-    const errorString = typeof data === 'string' ? data : JSON.stringify(data);
-    if (errorString.includes('CSRF') || errorString.includes('csrf')) {
-      cachedCsrfToken = null;
-      await fetchCsrfToken();
-      return apiClient(endpoint, options, true);
+  if (!token) {
+    try {
+      token = await fetchCsrfToken();
+    } catch {
+      token = getCookie("csrftoken") || cachedCsrfToken;
     }
   }
 
-  if (!response.ok) {
-    const errorMsg =
-      (typeof data === 'object' && (data.detail || data.message || JSON.stringify(data))) ||
-      `HTTP Error ${response.status}`;
-    const err = new Error(errorMsg);
-    err.status = response.status;
+  if (token) {
+    if (config.headers) {
+      if (typeof config.headers.set === "function") {
+        config.headers.set("X-CSRFToken", token);
+      } else {
+        config.headers["X-CSRFToken"] = token;
+      }
+    } else {
+      config.headers = { "X-CSRFToken": token };
+    }
+  }
+
+  return config;
+});
+
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Preserve canceled / aborted requests.
+    if (
+      axios.isCancel(error) ||
+      error?.name === "AbortError" ||
+      error?.code === "ERR_CANCELED"
+    ) {
+      error.name = "AbortError";
+      return Promise.reject(error);
+    }
+
+    // No HTTP response means connection failure.
+    if (!error.response) {
+      return Promise.reject(createApiConnectionError(error));
+    }
+
+    const { status, data, headers: resHeaders } = error.response;
+
+    const validationMessage =
+      typeof data === "object" && data && !(data instanceof Blob)
+        ? Object.entries(data)
+            .map(([field, value]) => {
+              const detail = Array.isArray(value) ? value.join(", ") : String(value);
+              return `${field}: ${detail}`;
+            })
+            .join("; ")
+        : "";
+    const message =
+      (typeof data === "object" &&
+        !(data instanceof Blob) &&
+        (data?.detail || data?.message || validationMessage)) ||
+      `HTTP Error ${status}`;
+
+    const err = new Error(message, { cause: error });
+    err.code = error.code;
+    err.status = status;
     err.data = data;
-    throw err;
+    err.headers = resHeaders;
+
+    const retryAfterHeader =
+      resHeaders?.["retry-after"] ||
+      resHeaders?.["Retry-After"] ||
+      (typeof resHeaders?.get === "function"
+        ? resHeaders.get("retry-after")
+        : undefined);
+
+    if (retryAfterHeader) {
+      const parsedRetry = parseInt(retryAfterHeader, 10);
+      if (!Number.isNaN(parsedRetry) && parsedRetry > 0) {
+        err.retryAfter = parsedRetry;
+      } else {
+        const retryDateMs = Date.parse(retryAfterHeader);
+        if (!Number.isNaN(retryDateMs)) {
+          err.retryAfter = Math.max(
+            1,
+            Math.ceil((retryDateMs - Date.now()) / 1000)
+          );
+        }
+      }
+    }
+
+    return Promise.reject(err);
+  }
+);
+
+/**
+ * Backward-compatible wrapper for existing Fetch-style callers.
+ */
+export async function apiClient(endpoint, options = {}) {
+  const {
+    method = "GET",
+    body,
+    data,
+    params,
+    headers = {},
+    ...config
+  } = options;
+
+  const url = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+
+  // Prefer Axios data; fallback to Fetch-style body.
+  const payload = data !== undefined ? data : body;
+
+  const requestHeaders = { ...headers };
+
+  const isFormData =
+    typeof FormData !== "undefined" && payload instanceof FormData;
+
+  // Explicitly set JSON content-type if body is provided and Content-Type was not specified
+  if (payload !== undefined && !isFormData) {
+    const hasContentType = Object.keys(requestHeaders).some(
+      (key) => key.toLowerCase() === "content-type"
+    );
+    if (!hasContentType) {
+      requestHeaders["Content-Type"] = "application/json";
+    }
   }
 
-  return data;
+  if (isFormData) {
+    // Prevent Axios from forcing application/x-www-form-urlencoded or application/json,
+    // allowing the browser/client to generate the multipart boundary.
+    requestHeaders["Content-Type"] = null;
+  }
+
+  const response = await axiosInstance.request({
+    ...config,
+    url,
+    method,
+    data: payload,
+    params,
+    headers: requestHeaders,
+  });
+
+  return response.data;
 }

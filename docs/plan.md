@@ -22,10 +22,11 @@ Xây dựng giao diện ứng dụng quản lý bãi đậu xe ô tô (Parking M
 
 ## 3. Công nghệ sử dụng
 - **Frontend Core**: React 19, Vite
-- **UI Framework**: Tailwind CSS
+- **UI Framework**: Tailwind CSS v4
+- **Component Catalog / Documentation**: Storybook v10
 - **Data & Service Layer**: Async Mock Service chuẩn bị tích hợp REST API
 
 ## 4. Tiêu chí nghiệm thu (Acceptance Criteria)
 - [ ] Giao diện trực quan, đồng bộ bố cục Sidebar + Main Content theo UI Rules.
 - [ ] Các thao tác CRUD vị trí đỗ, tìm kiếm và phân trang hoạt động ổn định.
-- [ ] Build thành công không có lỗi cú pháp hoặc cảnh báo nghiêm trọng (`npm run build`).
+- [ ] Build thành công ứng dụng (`npm run build`) và Storybook (`npm run build-storybook`) không có lỗi.

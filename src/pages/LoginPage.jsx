@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { authService } from "../features/authService";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { authService } from "../services/authService";
 import { ROUTES } from "../config/navigation";
 import OtpModal from "../components/OTPModal";
 import ResetPasswordModal from "../components/ResetPasswordModal";
@@ -8,11 +8,12 @@ import RegisterModal from "../components/RegisterModal";
 
 export default function Login() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    account: "",
-    password: "",
-    rememberMe: false,
-  });
+  const [searchParams] = useSearchParams();
+  const [formData, setFormData] = useState(() => ({
+    account: searchParams.get("account") || "",
+    password: searchParams.get("password") || "",
+    rememberMe: Boolean(searchParams.get("account") || searchParams.get("password")),
+  }));
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -27,6 +28,39 @@ export default function Login() {
   const [verifiedIdToken, setVerifiedIdToken] = useState("");
   const [verifiedSessionInfo, setVerifiedSessionInfo] = useState("");
 
+  // Hỗ trợ tự động đăng nhập khi chạy môi trường dev (qua query param ?account=...&password=...&autologin=1)
+  useEffect(() => {
+    const accParam = searchParams.get("account");
+    const pwdParam = searchParams.get("password");
+    const autoLogin = searchParams.get("autologin");
+
+    if (autoLogin === "1" && accParam && pwdParam) {
+      const initialData = {
+        account: accParam,
+        password: pwdParam,
+        rememberMe: true,
+      };
+      setTimeout(() => {
+        setLoading(true);
+      }, 0);
+      authService
+        .login(initialData)
+        .then((res) => {
+          setSubmittedStatus({
+            account: res.user?.account || initialData.account,
+          });
+          setTimeout(() => {
+            navigate(ROUTES.HOME);
+          }, 1000);
+        })
+        .catch((err) => {
+          setErrorMessage(err.message || "Tự động đăng nhập thất bại.");
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [searchParams, navigate]);
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -318,13 +352,16 @@ export default function Login() {
             {/* Chưa có tài khoản */}
             <div className="text-center text-sm text-slate-600">
               Chưa có tài khoản?{" "}
-              <button
-                type="button"
-                onClick={() => setModal("REGISTER")}
-                className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors ml-0.5 focus:outline-none"
+              <a
+                href={ROUTES.REGISTER}
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate(ROUTES.REGISTER);
+                }}
+                className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors ml-0.5"
               >
                 Đăng ký ngay
-              </button>
+              </a>
             </div>
           </div>
         </section>

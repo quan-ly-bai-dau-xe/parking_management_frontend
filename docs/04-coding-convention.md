@@ -8,6 +8,7 @@ Tài liệu này quy định các quy tắc viết code, naming convention và c
 - **Vite** làm bundler/dev server.
 - **Tailwind CSS** cho styling (không viết CSS inline).
 - **JavaScript ES6+**.
+- **Storybook v10** cho UI Component Workshop & Documentation.
 
 ## 2. Quy ước tên file & thư mục
 
@@ -41,6 +42,17 @@ export default UserCard;
 ### State & Hooks
 - Dùng `useState`, `useEffect` một cách có mục đích.
 - Không gọi hook điều kiện (luôn gọi theo thứ tự nhất định).
+
+
+## 3.1. Storybook & Component Isolation Rule
+
+- Khi một component có Storybook Story đi kèm hoặc có các file bổ trợ (variants, constants), component đó **phải được đặt trong một thư mục riêng** (ví dụ: `src/components/common/button/`, `src/components/common/icon/`, `src/components/common/badge/`).
+- Thư mục component bao gồm:
+  1. Component chính: `<ComponentName>.jsx`
+  2. Storybook story: `<ComponentName>.stories.jsx`
+  3. File constants/variants (nếu có): `<componentName>Variants.js` hoặc `<componentName>Constants.js`
+  4. File index: `index.js` (re-export default và named exports)
+- Viết story trực quan, bao quát các trạng thái (variants, sizes, states, colors).
 
 ## 4. Styling
 

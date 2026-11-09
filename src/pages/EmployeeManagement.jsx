@@ -1,8 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
-import DataTable from "../components/common/DataTable";
-import TableActions from "../components/common/TableActions";
-import EmployeeModal from "../components/EmployeeModal";
-import { LoadingSpinner } from "../components/common";
+import { DataTable, TableActions, LoadingSpinner } from "../components/common";
+import EmployeeModal from "../components/EmployeeManagement/EmployeeModal";
 import { employeeService, INITIAL_EMPLOYEES } from "../services/employeeService";
 
 const AVATAR_CLASSES = {

@@ -121,9 +121,9 @@ export default function ResetPasswordModal({
           <div>
             <label
               htmlFor="newPassword"
-              className="block text-sm font-semibold text-slate-700 mb-2"
+              className="block text-sm font-semibold text-slate-700 mb-1.5"
             >
-              Mật khẩu mới (tối thiểu 8 ký tự)
+              Mật khẩu mới
             </label>
             <div className="relative">
               <input
@@ -131,14 +131,14 @@ export default function ResetPasswordModal({
                 id="newPassword"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Nhập mật khẩu mới..."
+                placeholder="Tối thiểu 8 ký tự..."
                 required
-                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 pr-14 text-sm sm:text-base"
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all pr-12 text-sm"
               />
               <button
                 type="button"
                 onClick={() => setShowNewPassword((prev) => !prev)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 hover:text-slate-600 focus:outline-none"
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 hover:text-slate-600"
               >
                 {showNewPassword ? "Ẩn" : "Hiện"}
               </button>
@@ -148,7 +148,7 @@ export default function ResetPasswordModal({
           <div>
             <label
               htmlFor="confirmPassword"
-              className="block text-sm font-semibold text-slate-700 mb-2"
+              className="block text-sm font-semibold text-slate-700 mb-1.5"
             >
               Xác nhận mật khẩu mới
             </label>
@@ -160,12 +160,12 @@ export default function ResetPasswordModal({
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Nhập lại mật khẩu mới..."
                 required
-                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 pr-14 text-sm sm:text-base"
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all pr-12 text-sm"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword((prev) => !prev)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 hover:text-slate-600 focus:outline-none"
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 hover:text-slate-600"
               >
                 {showConfirmPassword ? "Ẩn" : "Hiện"}
               </button>
@@ -176,14 +176,14 @@ export default function ResetPasswordModal({
             <button
               type="button"
               onClick={onClose}
-              className="w-1/2 py-3 px-4 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold transition-colors"
+              className="w-1/2 py-3 px-4 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold transition-colors text-sm"
             >
               Hủy
             </button>
             <button
               type="submit"
-              disabled={loading || !newPassword || !confirmPassword}
-              className="w-1/2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 active:bg-blue-800 text-white font-semibold shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+              disabled={loading}
+              className="w-1/2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 active:bg-blue-800 text-white font-semibold shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 text-sm"
             >
               {loading && (
                 <svg
@@ -206,7 +206,7 @@ export default function ResetPasswordModal({
                   />
                 </svg>
               )}
-              <span>{loading ? "Đang xử lý..." : "Lưu mật khẩu"}</span>
+              <span>{loading ? "Đang lưu..." : "Lưu mật khẩu"}</span>
             </button>
           </div>
         </form>
