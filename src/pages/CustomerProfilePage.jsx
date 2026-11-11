@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AppTopHeader from "../components/layout/AppTopHeader";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { apiClient } from "../services/apiClient";
+import { MOCK_CUSTOMERS } from "../mocks/customerSideData";
 
 const MOCK_TRANSACTIONS = [
   {
@@ -54,30 +55,40 @@ const MOCK_TRANSACTIONS = [
 export default function CustomerProfilePage() {
   const { user } = useCurrentUser();
 
+  // Khớp dữ liệu từ tệp mockCustomers theo user hiện tại hoặc lấy khách hàng đầu tiên
+  const initialCustomerData = useMemo(() => {
+    if (!user) return MOCK_CUSTOMERS[0].customer;
+    const found = MOCK_CUSTOMERS.find(
+      (item) =>
+        item.customer.email === user.email ||
+        item.customer.phone === user.phone ||
+        item.customer.identity_card_number === user.identity_card_number
+    );
+    return found ? found.customer : MOCK_CUSTOMERS[0].customer;
+  }, [user]);
+
   const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    identityCard: "",
+    fullName: initialCustomerData.full_name || "",
+    email: initialCustomerData.email || "",
+    phone: initialCustomerData.phone || "",
+    identityCard: initialCustomerData.identity_card_number || "",
   });
 
-  const [walletBalance] = useState(850000);
-  const [activeFilter, setActiveFilter] = useState("all"); // 'all' | 'deposit' | 'payment'
+  const [walletBalance] = useState(0);
+  const [activeFilter, setActiveFilter] = useState("all");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState("");
 
-  // Nạp thông tin từ session của người dùng
+  // Cập nhật lại form khi tài khoản đăng nhập thay đổi
   useEffect(() => {
-    if (user) {
-      setFormData({
-        fullName: user.full_name || "Nguyễn Văn An",
-        email: user.email || "nguyenvanan@example.com",
-        phone: user.phone || "0901 234 567",
-        identityCard: user.identity_card_number || "079200012345",
-      });
-    }
-  }, [user]);
+    setFormData({
+      fullName: initialCustomerData.full_name || "",
+      email: initialCustomerData.email || "",
+      phone: initialCustomerData.phone || "",
+      identityCard: initialCustomerData.identity_card_number || "",
+    });
+  }, [initialCustomerData]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -144,7 +155,7 @@ export default function CustomerProfilePage() {
           </p>
         </div>
 
-        {/* Lưới 2 cột: Cột trái (Hồ sơ & Bảo mật) - Cột phải (Ví & Gợi ý) */}
+        {/* Lưới 2 cột */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* CỘT TRÁI (8 CỘT) */}
           <div className="lg:col-span-8 space-y-6">
@@ -159,7 +170,7 @@ export default function CustomerProfilePage() {
                 </span>
               </div>
 
-              {/* Avatar & Thông tin cơ bản */}
+              {/* Avatar & Tên hiển thị từ file mock data */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-5 border-b border-slate-100">
                 <div className="flex items-center gap-4">
                   <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-slate-100 shrink-0 bg-slate-100">
@@ -171,7 +182,7 @@ export default function CustomerProfilePage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-base text-slate-900">
-                      {formData.fullName || "Nguyễn Văn An"}
+                      {formData.fullName}
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
                       Ảnh JPG hoặc PNG, tối đa 5 MB.
@@ -304,7 +315,7 @@ export default function CustomerProfilePage() {
 
           {/* CỘT PHẢI (4 CỘT) */}
           <div className="lg:col-span-4 space-y-6">
-            {/* Card Ví Smart Parking nền tối */}
+            {/* Card Ví Smart Parking */}
             <section className="bg-gradient-to-tr from-[#0F172A] to-[#1E293B] text-white rounded-3xl p-6 sm:p-7 shadow-xl shadow-slate-900/10 space-y-4">
               <span className="text-[0.68rem] font-bold tracking-widest text-slate-300 uppercase block">
                 VÍ SMART PARKING
@@ -372,7 +383,6 @@ export default function CustomerProfilePage() {
             </button>
           </div>
 
-          {/* Bộ lọc trạng thái & Thời gian */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
             <div className="inline-flex p-1 bg-slate-100/80 rounded-xl gap-1">
               <button
@@ -413,7 +423,6 @@ export default function CustomerProfilePage() {
             <span className="text-xs text-slate-400">30 ngày gần nhất</span>
           </div>
 
-          {/* Bảng dữ liệu giao dịch */}
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
@@ -456,7 +465,6 @@ export default function CustomerProfilePage() {
             </table>
           </div>
 
-          {/* Footer bảng */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
             <span className="text-xs text-slate-400">
               Hiển thị {filteredTransactions.length} giao dịch gần nhất
