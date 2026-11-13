@@ -10,6 +10,27 @@ This repository contains the Parking Management Frontend, built with React 19 an
 - Preserve existing user changes. Avoid unrelated modifications and refactoring.
 - Verify changes with relevant tests when appropriate; balance correctness with token efficiency.
 
+## Frontend Clean Code & React Guardrails
+
+Mandatory standards when writing and modifying Frontend code (React 19 + Tailwind CSS):
+
+### 1. State & Async Hygiene
+- **Double-click Prevention**: Must use `useRef` (synchronous lock) alongside `useState` (for visual loading/disabled button states) to prevent duplicate concurrent triggers.
+- **Cleanup Timers & Subscriptions**: All `setTimeout`, `setInterval`, WebSocket connections, and `AbortController` instances must be cleaned up in the `useEffect` unmount handler to prevent memory leaks.
+- **Reset Stale State**: Always clear previous error and success states before initiating a new API request or asynchronous action.
+- **Isolate Error Mappers**: Never hardcode long/complex error messages inline in `catch` blocks. Extract them into dedicated pure error mapper helpers.
+
+### 2. UI Preservation & Surgical Edits
+- **Preserve Original UI & Layout**: Keep the existing HTML/Tailwind structure, CSS classes, labels, and font styling intact when resolving business logic issues. Never fabricate unrequested UI elements, cards, badges, dialogs, or placeholders.
+- **Surgical Edits**: Touch only the exact lines/blocks required to fulfill the request. Avoid ripple refactoring in surrounding components.
+
+### 3. Component Size & Clean Code Standards
+- **File Length Limits**:
+  - React Component: maximum **< 200 lines**. Decompose into sub-components if exceeded.
+  - Custom Hook: maximum **< 120 lines**.
+- **Component Reuse**: Actively reuse standard shared components located in `src/components/common/` (Button, Input, Modal, Table, etc.) instead of recreating redundant markup.
+- **Data Integrity**: Never invent simulated or fake AI confidence scores (`aiConfidence`), ticket statuses, pricing, or parking fees when missing from the API.
+
 ## Reference Reading and Context Reuse
 
 - Read referenced documentation when it is relevant to the current task and its contents are not already available in the current context.
