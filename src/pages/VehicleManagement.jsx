@@ -129,11 +129,23 @@ export default function VehicleManagement() {
         return false;
       }
       if (filters.status) {
-        const matchesStatus =
-          item.status === filters.status ||
-          (filters.status === "parked" && item.status === "parking") ||
-          (filters.status === "left" && item.status === "inactive");
-        if (!matchesStatus) return false;
+        if (filters.status === "blacklisted") {
+          const isBlacklisted = Boolean(
+            item.isBlacklisted ||
+            item.is_blacklisted ||
+            item.status === "BLACKLISTED" ||
+            item.status === "blacklisted" ||
+            item.note?.toLowerCase()?.includes("cảnh báo") ||
+            item.note?.toLowerCase()?.includes("blacklist")
+          );
+          if (!isBlacklisted) return false;
+        } else {
+          const matchesStatus =
+            item.status === filters.status ||
+            (filters.status === "parked" && item.status === "parking") ||
+            (filters.status === "left" && item.status === "inactive");
+          if (!matchesStatus) return false;
+        }
       }
       if (filters.ticketStatus && item.ticket?.status !== filters.ticketStatus) {
         return false;

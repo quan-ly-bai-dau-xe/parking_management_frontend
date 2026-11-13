@@ -380,9 +380,16 @@ export default function ScanPlateModal({
   const hasOpenSession = Boolean(rawLookup?.open_session);
   const entryValidation = validateVehicleEntry({
     vehicle: matchedVehicle,
-    openSession: rawLookup?.open_session,
+    lookupResult: rawLookup,
   });
-  const isBlacklisted = !entryValidation.isValid && entryValidation.isBlacklisted;
+  const isBlacklisted = Boolean(
+    rawLookup?.is_blacklisted ||
+      rawLookup?.status === "BLACKLISTED" ||
+      matchedVehicle?.isBlacklisted ||
+      matchedVehicle?.status === "BLACKLISTED" ||
+      entryValidation.reasonCode === "BLACKLISTED" ||
+      (!entryValidation.eligible && entryValidation.reasonCode === "BLACKLISTED")
+  );
   const hasValidTicket = Boolean(
     matchedVehicle?.ticketState === "active" ||
       matchedVehicle?.ticket?.is_valid ||

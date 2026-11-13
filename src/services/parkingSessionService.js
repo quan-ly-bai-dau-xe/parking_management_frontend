@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient.js";
-import { updateSlotStatus } from "./parkingLotService.js";
+import { updateSlotStatus, getSlots } from "./parkingLotService.js";
 import { mockParkingHistory } from "../mocks/parkingHistoryData.js";
 import { mockVehicles } from "../mocks/vehicleData.js";
 import { calculateParkingFee } from "../utils/parking/parkingFeeCalculator.js";
@@ -110,6 +110,41 @@ export async function getAvailableSlotsForCheckIn({
   licensePlate = "",
   filterReserved = false,
 } = {}) {
+  const normPlate = String(licensePlate || "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toUpperCase();
+  const isEv =
+    String(vehicleTypeCode || "").toUpperCase() === "EV" ||
+    String(vehicleTypeCode || "").includes("ĐIỆN");
+
+  // Nếu không bật cờ mock, gọi REST API thực tế từ Backend
+  if (!USE_MOCK) {
+    const rawSlots = await getSlots({ status: "AVAILABLE" });
+    const realAvailable = (Array.isArray(rawSlots) ? rawSlots : []).map((s) => ({
+      ...s,
+      id: Number(s.id),
+      code: s.code || `Slot #${s.id}`,
+      slotCode: s.code || `Slot #${s.id}`,
+      zone: s.zone || "Khu A",
+      floor: s.floor || "Tầng B1",
+      display: s.display || `${s.zone || "Khu A"} · ${s.floor || "Tầng B1"} · Slot ${s.code || s.id}`,
+      kind: s.slot_kind || s.type || "STANDARD",
+      type: s.type || (s.slot_kind === "EV_CHARGING" ? "ev" : "car"),
+    }));
+
+    return realAvailable.sort((a, b) => {
+      if (isEv) {
+        if (a.kind === "EV_CHARGING" && b.kind !== "EV_CHARGING") return -1;
+        if (a.kind !== "EV_CHARGING" && b.kind === "EV_CHARGING") return 1;
+      } else {
+        if (a.kind === "STANDARD" && b.kind !== "STANDARD") return -1;
+        if (a.kind !== "STANDARD" && b.kind === "STANDARD") return 1;
+      }
+      return a.id - b.id;
+    });
+  }
+
+  // Luồng Mock dự phòng (chỉ chạy khi VITE_USE_MOCK=true)
   const allSlots = getAllParkingSlotsInventory();
   const occupiedSlotIds = new Set();
 
@@ -135,13 +170,6 @@ export async function getAvailableSlotsForCheckIn({
       });
     }
   }
-
-  const normPlate = String(licensePlate || "")
-    .replace(/[^a-zA-Z0-9]/g, "")
-    .toUpperCase();
-  const isEv =
-    String(vehicleTypeCode || "").toUpperCase() === "EV" ||
-    String(vehicleTypeCode || "").includes("ĐIỆN");
 
   const available = allSlots.filter((slot) => {
     // 1. Loại bỏ các ô đang có phiên đỗ mở

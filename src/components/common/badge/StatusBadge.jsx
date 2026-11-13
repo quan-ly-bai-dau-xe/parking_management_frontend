@@ -89,6 +89,12 @@ export default function StatusBadge({
       badgeClass: "bg-amber-50 text-amber-700 border-amber-200",
       dotClass: "bg-amber-500",
     },
+    blacklisted: {
+      label: "Danh sách đen",
+      tooltip: "Phương tiện bị hạn chế hoặc có báo cáo vi phạm an ninh",
+      badgeClass: "bg-rose-50 text-rose-700 border-rose-200 font-semibold",
+      dotClass: "bg-rose-600",
+    },
   };
 
   const normalizedStatus =

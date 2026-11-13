@@ -128,7 +128,12 @@ export default function VehicleTable({
     },
     {
       header: "Trạng thái",
-      accessor: (row) => renderStatusBadge(row.status, row.statusDisplay),
+      accessor: (row) => {
+        if (row.isBlacklisted || row.is_blacklisted || row.status === "BLACKLISTED") {
+          return renderStatusBadge("blacklisted", "Danh sách đen");
+        }
+        return renderStatusBadge(row.status, row.statusDisplay);
+      },
     },
     {
       header: "Thao tác",

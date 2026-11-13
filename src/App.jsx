@@ -1,4 +1,5 @@
-import { useNavigate, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useNavigate, useLocation, Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./components/layout/AppLayout";
 import VehicleManagement from "./pages/VehicleManagement";
 import ParkingHistory from "./pages/ParkingHistory";
@@ -7,6 +8,9 @@ import CustomerManagement from "./pages/CustomerManagement";
 import NotificationsPage from "./pages/NotificationsPage";
 import EmployeeManagement from "./pages/EmployeeManagement";
 import { ROUTES, PLACEHOLDER_PATHS, resolveNavigationPath } from "./config/navigation";
+import { UNAUTHORIZED_EVENT_NAME } from "./services/apiClient";
+import { useToast } from "./context/ToastContext";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Home from "./pages/homepage";
 import ParkingLot from "./pages/ParkingLotManagement";
 import Ticket from "./pages/TicketManagement";
@@ -98,6 +102,31 @@ function NotFoundPage() {
 
 export default function App() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const toast = useToast();
+
+  // Lắng nghe sự kiện 401 Unauthorized từ apiClient với cơ chế dedupe
+  useEffect(() => {
+    const handleUnauthorized = (event) => {
+      const message =
+        event?.detail?.message ||
+        "Phiên đăng nhập đã hết hạn hoặc bạn chưa đăng nhập. Vui lòng đăng nhập lại.";
+
+      // Chỉ hiển thị toast cảnh báo và chuyển hướng nếu không phải đang ở trang Login
+      if (location.pathname !== ROUTES.LOGIN) {
+        toast.warning(message);
+        navigate(ROUTES.LOGIN, {
+          replace: true,
+          state: { from: location.pathname },
+        });
+      }
+    };
+
+    window.addEventListener(UNAUTHORIZED_EVENT_NAME, handleUnauthorized);
+    return () => {
+      window.removeEventListener(UNAUTHORIZED_EVENT_NAME, handleUnauthorized);
+    };
+  }, [navigate, location.pathname, toast]);
 
   const handleNavigateTab = (target) => {
     navigate(resolveNavigationPath(target));
@@ -114,29 +143,28 @@ export default function App() {
         element={<Home onNavigateTab={handleNavigateTab} />}
       />
 
-      <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
-
-      <Route path={ROUTES.CAMERA_SCANNER} element={<CameraScanPage />} />
-
       <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
-
       <Route path={ROUTES.ONBOARD} element={<OnboardingProfilePage />} />
 
-      <Route path={ROUTES.CUSTOMER_PROFILE} element={<CustomerProfilePage />} />
+      {/* Các route yêu cầu đăng nhập */}
+      <Route element={<ProtectedRoute />}>
+        {/* Tự động render các trang sử dụng AppLayout */}
+        {LAYOUT_ROUTES.map(({ path, component }) => (
+          <Route key={path} path={path} element={<AppLayout />}>
+            <Route index element={component} />
+          </Route>
+        ))}
 
-      <Route path={ROUTES.CUSTOMER_OVERVIEW} element={<CustomerOverviewPage />} />
+        <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
+        <Route path={ROUTES.CAMERA_SCANNER} element={<CameraScanPage />} />
+        <Route path={ROUTES.CUSTOMER_PROFILE} element={<CustomerProfilePage />} />
+        <Route path={ROUTES.CUSTOMER_OVERVIEW} element={<CustomerOverviewPage />} />
 
-      {/* Tự động render các trang sử dụng AppLayout */}
-      {LAYOUT_ROUTES.map(({ path, component }) => (
-        <Route key={path} path={path} element={<AppLayout />}>
-          <Route index element={component} />
-        </Route>
-      ))}
-
-      {/* Tự động render các trang placeholder từ config navigation */}
-      {PLACEHOLDER_PATHS.map((path) => (
-        <Route key={path} path={path} element={<PlaceholderPage />} />
-      ))}
+        {/* Tự động render các trang placeholder từ config navigation */}
+        {PLACEHOLDER_PATHS.map((path) => (
+          <Route key={path} path={path} element={<PlaceholderPage />} />
+        ))}
+      </Route>
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
