@@ -100,36 +100,7 @@ export const customerService = {
     const response = await apiClient(url);
     const mappedList = validateAndMapCustomers(response);
 
-    // Backend CustomerListSerializer chỉ trả summary tối ưu (id, code, full_name, phone, identity_card_number, ...).
-    // Thực hiện fetch chi tiết song song (Promise.allSettled) cho các trường còn thiếu (Ngày sinh, Email, Giới tính, Vehicles).
-    const detailPromises = mappedList.map(async (cust) => {
-      if (cust.birthday && cust.email && cust.gender && cust.vehicles.length > 0) {
-        return cust;
-      }
-      try {
-        const detail = await customerService.getCustomerById(cust.id);
-        const detailVehicles = Array.isArray(detail.vehicles) && detail.vehicles.length > 0
-          ? detail.vehicles.map(mapCustomerVehicle)
-          : cust.vehicles;
-        const totalVehiclesCount = detailVehicles.length || cust.vehiclesCount;
-
-        return {
-          ...cust,
-          birthday: formatIsoDateToDisplay(detail.date_of_birth || detail.birthday) || cust.birthday,
-          email: detail.email || cust.email,
-          gender: detail.gender || cust.gender,
-          vehicles: detailVehicles,
-          vehiclesCount: totalVehiclesCount,
-          rowVersion: detail.row_version || cust.rowVersion,
-          canDelete: totalVehiclesCount === 0 && !cust.hasActiveTicket,
-        };
-      } catch (err) {
-        console.warn(`Không thể lấy chi tiết khách hàng ${cust.id}:`, err);
-        return cust;
-      }
-    });
-
-    return await Promise.all(detailPromises);
+    return mappedList;
   },
 
   /**
