@@ -22,9 +22,10 @@ export default function Login() {
   const [submittedStatus, setSubmittedStatus] = useState(null);
   const [notice, setNotice] = useState(null);
 
-  // Quản lý modal: 'FORGOT' | 'OTP' | 'RESET' | null
+  // Quản lý modal: 'FORGOT' | 'OTP' | 'RESET' | 'REGISTER' | null
   const [modal, setModal] = useState(null);
   const [resetAccount, setResetAccount] = useState("");
+  const [otpInfo, setOtpInfo] = useState(null);
   const [verifiedOtp, setVerifiedOtp] = useState("");
   const [verifiedIdToken, setVerifiedIdToken] = useState("");
   const [verifiedSessionInfo, setVerifiedSessionInfo] = useState("");
@@ -321,16 +322,13 @@ export default function Login() {
 
             <div className="text-center text-sm text-slate-600">
               Chưa có tài khoản?{" "}
-              <a
-                href={ROUTES.REGISTER || "/register"}
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate(ROUTES.REGISTER || "/register");
-                }}
-                className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors ml-0.5"
+              <button
+                type="button"
+                onClick={() => setModal("REGISTER")}
+                className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors ml-0.5 cursor-pointer bg-transparent border-none p-0 inline"
               >
                 Đăng ký ngay
-              </a>
+              </button>
             </div>
           </div>
         </section>
@@ -341,8 +339,13 @@ export default function Login() {
         isOpen={modal === "FORGOT"}
         initialAccount={resetAccount}
         onClose={() => setModal(null)}
-        onSuccess={(accountValue) => {
-          setResetAccount(accountValue);
+        onSuccess={(data) => {
+          if (typeof data === "string") {
+            setResetAccount(data);
+          } else {
+            setResetAccount(data.account || data.phone);
+            setOtpInfo(data);
+          }
           setModal("OTP");
         }}
       />
@@ -351,14 +354,17 @@ export default function Login() {
       <OtpModal
         isOpen={modal === "OTP"}
         account={resetAccount}
+        phone={otpInfo?.phone || resetAccount}
+        isMock={otpInfo?.isMock}
+        testOtp={otpInfo?.testOtp}
         onClose={() => setModal(null)}
         onResend={() =>
           authService.forgotPassword(resetAccount, "recaptcha-container")
         }
         onSuccess={({ otp, idToken, sessionInfo }) => {
           setVerifiedOtp(otp);
-          setVerifiedIdToken(idToken);
-          setVerifiedSessionInfo(sessionInfo || "");
+          setVerifiedIdToken(idToken || "");
+          setVerifiedSessionInfo(sessionInfo || otpInfo?.sessionInfo || "");
           setModal("RESET");
         }}
       />
@@ -367,6 +373,7 @@ export default function Login() {
       <ResetPasswordModal
         isOpen={modal === "RESET"}
         account={resetAccount}
+        phone={otpInfo?.phone || resetAccount}
         otp={verifiedOtp}
         idToken={verifiedIdToken}
         sessionInfo={verifiedSessionInfo}
@@ -374,11 +381,15 @@ export default function Login() {
         onSuccess={() => {
           setModal(null);
           setNotice("Đổi mật khẩu thành công! Vui lòng đăng nhập lại với mật khẩu mới.");
+          setFormData((prev) => ({
+            ...prev,
+            account: resetAccount || prev.account,
+          }));
           setTimeout(() => setNotice(null), 5000);
         }}
       />
 
-      {/* Modal 3: Đăng ký tài khoản mới kèm OTP SMS Firebase */}
+      {/* Modal 4: Đăng ký tài khoản mới kèm OTP SMS Firebase */}
       <RegisterModal
         isOpen={modal === "REGISTER"}
         onClose={() => setModal(null)}

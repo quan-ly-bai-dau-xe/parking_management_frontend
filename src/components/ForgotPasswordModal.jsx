@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { authService } from "../services/authService";
 
 export default function ForgotPasswordModal({
   isOpen,
@@ -20,7 +21,7 @@ export default function ForgotPasswordModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const cleanAccount = account.trim();
 
@@ -32,13 +33,25 @@ export default function ForgotPasswordModal({
     setLoading(true);
     setError("");
 
-    // Giả lập gửi yêu cầu cấp mã xác thực OTP
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const otpRes = await authService.forgotPassword(
+        cleanAccount,
+        "recaptcha-container"
+      );
       if (onSuccess) {
-        onSuccess(cleanAccount);
+        onSuccess({
+          account: cleanAccount,
+          phone: otpRes.formattedPhone || cleanAccount,
+          sessionInfo: otpRes.sessionInfo,
+          isMock: otpRes.isMock,
+          testOtp: otpRes.testOtp,
+        });
       }
-    }, 400);
+    } catch (err) {
+      setError(err.message || "Không thể gửi mã OTP. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
