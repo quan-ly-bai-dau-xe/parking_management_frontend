@@ -14,6 +14,7 @@ import CameraScanPage from "./pages/CameraScannerPage";
 import RegisterPage from "./pages/RegisterPage";
 import OnboardingProfilePage from "./pages/OnBoardProfile";
 import CustomerProfilePage from "./pages/CustomerProfilePage";
+import CustomerOverviewPage from "./pages/CustomerOverviewPage";
 
 // Cấu hình các route có giao diện dạng Layout chuẩn
 const LAYOUT_ROUTES = [
@@ -122,6 +123,8 @@ export default function App() {
       <Route path={ROUTES.ONBOARD} element={<OnboardingProfilePage />} />
 
       <Route path={ROUTES.CUSTOMER_PROFILE} element={<CustomerProfilePage />} />
+
+      <Route path={ROUTES.CUSTOMER_OVERVIEW} element={<CustomerOverviewPage />} />
 
       {/* Tự động render các trang sử dụng AppLayout */}
       {LAYOUT_ROUTES.map(({ path, component }) => (

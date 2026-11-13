@@ -16,6 +16,7 @@ export const ROUTES = {
   REGISTER: "/register",
   ONBOARD: "/onboard",
   CUSTOMER_PROFILE: "/profile",
+  CUSTOMER_OVERVIEW: "/overview",
 };
 
 export const DEFAULT_PATH = ROUTES.HOME;

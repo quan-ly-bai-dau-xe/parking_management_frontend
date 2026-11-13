@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { authService } from "../services/authService";
 import { ROUTES } from "../config/navigation";
+import ForgotPasswordModal from "../components/ForgotPasswordModal";
 import OtpModal from "../components/OTPModal";
 import ResetPasswordModal from "../components/ResetPasswordModal";
 import RegisterModal from "../components/RegisterModal";
@@ -21,14 +22,14 @@ export default function Login() {
   const [submittedStatus, setSubmittedStatus] = useState(null);
   const [notice, setNotice] = useState(null);
 
-  // Quản lý modal: 'OTP' | 'RESET' | 'REGISTER' | null
+  // Quản lý modal: 'FORGOT' | 'OTP' | 'RESET' | null
   const [modal, setModal] = useState(null);
-  const [otpInfo, setOtpInfo] = useState(null);
+  const [resetAccount, setResetAccount] = useState("");
   const [verifiedOtp, setVerifiedOtp] = useState("");
   const [verifiedIdToken, setVerifiedIdToken] = useState("");
   const [verifiedSessionInfo, setVerifiedSessionInfo] = useState("");
 
-  // Hỗ trợ tự động đăng nhập khi chạy môi trường dev (qua query param ?account=...&password=...&autologin=1)
+  // Hỗ trợ tự động đăng nhập khi chạy môi trường dev
   useEffect(() => {
     const accParam = searchParams.get("account");
     const pwdParam = searchParams.get("password");
@@ -61,6 +62,7 @@ export default function Login() {
         });
     }
   }, [searchParams, navigate]);
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -93,32 +95,12 @@ export default function Login() {
       });
   };
 
-  const handleOpenForgotPassword = async (e) => {
+  // Mở modal nhập email/SĐT trực tiếp mà không bắt buộc điền form đăng nhập trước
+  const handleOpenForgotPassword = (e) => {
     e.preventDefault();
-    const accountInput = formData.account.trim();
-    if (!accountInput) {
-      setErrorMessage("Vui lòng nhập Số điện thoại vào ô tài khoản để nhận mã OTP.");
-      return;
-    }
-    if (accountInput.includes("@")) {
-      setErrorMessage("Chức năng OTP SMS yêu cầu Số điện thoại. Vui lòng nhập Số điện thoại tài khoản của bạn (ví dụ: 0766709535).");
-      return;
-    }
     setErrorMessage("");
-    setForgotLoading(true);
-
-    try {
-      const res = await authService.forgotPassword(
-        accountInput,
-        "recaptcha-container"
-      );
-      setOtpInfo(res);
-      setModal("OTP");
-    } catch (err) {
-      setErrorMessage(err.message || "Không thể gửi mã OTP. Vui lòng thử lại sau.");
-    } finally {
-      setForgotLoading(false);
-    }
+    setResetAccount(formData.account || ""); // Lấy sẵn nếu người dùng đã gõ, nếu trống vẫn mở bình thường
+    setModal("FORGOT");
   };
 
   return (
@@ -153,7 +135,6 @@ export default function Login() {
       <div className="w-full max-w-[980px] bg-white rounded-3xl shadow-xl shadow-slate-200/80 border border-slate-200/70 overflow-hidden grid grid-cols-1 md:grid-cols-2 min-h-[580px]">
         {/* Panel bên trái */}
         <section className="bg-gradient-to-tr from-[#0F172A] to-[#1E293B] p-8 sm:p-12 lg:p-14 text-white flex flex-col justify-between relative overflow-hidden">
-          {/* Header */}
           <header className="flex items-center gap-3 relative z-10">
             <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center font-bold text-xl text-white shadow-md shadow-blue-500/30 select-none">
               P
@@ -163,7 +144,6 @@ export default function Login() {
             </span>
           </header>
 
-          {/* Nội dung chính panel trái */}
           <div className="mt-auto relative z-10 pt-10">
             <h1 className="text-2xl sm:text-3xl font-bold leading-tight tracking-tight mb-5">
               Quản lý bãi đỗ xe<br />thông minh
@@ -172,7 +152,6 @@ export default function Login() {
               Hệ thống quản lý bãi đỗ xe hiện đại, giúp bạn theo dõi và tối ưu hóa không gian đỗ xe một cách hiệu quả.
             </p>
 
-            {/* Danh sách tính năng */}
             <ul className="space-y-4 text-sm sm:text-[0.95rem]">
               <li className="flex items-center gap-3">
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 shadow-sm shadow-blue-500/50" />
@@ -193,7 +172,6 @@ export default function Login() {
         {/* Panel bên phải */}
         <section className="bg-white p-8 sm:p-12 lg:p-14 flex flex-col justify-center">
           <div className="w-full max-w-md mx-auto">
-            {/* Header Form */}
             <div className="mb-8">
               <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mb-2">
                 Đăng nhập
@@ -203,9 +181,7 @@ export default function Login() {
               </p>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Nhập account */}
               <div>
                 <label
                   htmlFor="account"
@@ -226,7 +202,6 @@ export default function Login() {
                 />
               </div>
 
-              {/* Nhập password */}
               <div>
                 <label
                   htmlFor="password"
@@ -257,7 +232,6 @@ export default function Login() {
                 </div>
               </div>
 
-              {/* Ghi nhớ và Quên mật khẩu */}
               <div className="flex items-center justify-between text-sm pt-0.5">
                 <div className="flex items-center gap-2 select-none">
                   <input
@@ -278,8 +252,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={handleOpenForgotPassword}
-                  disabled={forgotLoading}
-                  className="font-medium text-blue-600 hover:text-blue-700 hover:underline transition-colors focus:outline-none flex items-center gap-1"
+                  className="font-medium text-blue-600 hover:text-blue-700 hover:underline transition-colors focus:outline-none cursor-pointer"
                 >
                   {forgotLoading && (
                     <span className="inline-block animate-spin h-3.5 w-3.5 border-2 border-blue-600 border-t-transparent rounded-full" />
@@ -288,7 +261,6 @@ export default function Login() {
                 </button>
               </div>
 
-              {/* Thông báo lỗi nếu có */}
               {errorMessage && (
                 <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-center gap-2">
                   <svg
@@ -308,12 +280,11 @@ export default function Login() {
                 </div>
               )}
 
-              {/* Nút Submit */}
               <div className="pt-2">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-blue-400 text-white font-semibold text-base shadow-sm hover:shadow-md hover:shadow-blue-600/20 active:scale-[0.99] transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center gap-2"
+                  className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-blue-400 text-white font-semibold text-base shadow-sm hover:shadow-md hover:shadow-blue-600/20 active:scale-[0.99] transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loading && (
                     <svg
@@ -341,7 +312,6 @@ export default function Login() {
               </div>
             </form>
 
-            {/* Đường phân cách */}
             <div className="relative my-7 flex items-center justify-center">
               <div className="border-t border-slate-300 w-full" />
               <span className="bg-white px-3 text-xs text-slate-400 font-medium tracking-wider absolute">
@@ -349,14 +319,13 @@ export default function Login() {
               </span>
             </div>
 
-            {/* Chưa có tài khoản */}
             <div className="text-center text-sm text-slate-600">
               Chưa có tài khoản?{" "}
               <a
-                href={ROUTES.REGISTER}
+                href={ROUTES.REGISTER || "/register"}
                 onClick={(e) => {
                   e.preventDefault();
-                  navigate(ROUTES.REGISTER);
+                  navigate(ROUTES.REGISTER || "/register");
                 }}
                 className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors ml-0.5"
               >
@@ -367,30 +336,37 @@ export default function Login() {
         </section>
       </div>
 
-      {/* Modal 1: Nhập OTP cho Quên mật khẩu */}
+      {/* 1. Modal Quên mật khẩu: Nhập Email hoặc Số điện thoại */}
+      <ForgotPasswordModal
+        isOpen={modal === "FORGOT"}
+        initialAccount={resetAccount}
+        onClose={() => setModal(null)}
+        onSuccess={(accountValue) => {
+          setResetAccount(accountValue);
+          setModal("OTP");
+        }}
+      />
+
+      {/* 2. Modal Nhập mã OTP */}
       <OtpModal
         isOpen={modal === "OTP"}
-        account={formData.account}
-        phone={otpInfo?.formattedPhone || formData.account}
-        isMock={otpInfo?.isMock}
-        testOtp={otpInfo?.testOtp}
+        account={resetAccount}
         onClose={() => setModal(null)}
         onResend={() =>
-          authService.forgotPassword(formData.account, "recaptcha-container")
+          authService.forgotPassword(resetAccount, "recaptcha-container")
         }
         onSuccess={({ otp, idToken, sessionInfo }) => {
           setVerifiedOtp(otp);
           setVerifiedIdToken(idToken);
-          setVerifiedSessionInfo(sessionInfo || otpInfo?.sessionInfo || "");
+          setVerifiedSessionInfo(sessionInfo || "");
           setModal("RESET");
         }}
       />
 
-      {/* Modal 2: Đặt lại mật khẩu mới */}
+      {/* 3. Modal Đặt lại mật khẩu mới */}
       <ResetPasswordModal
         isOpen={modal === "RESET"}
-        account={formData.account}
-        phone={otpInfo?.formattedPhone || formData.account}
+        account={resetAccount}
         otp={verifiedOtp}
         idToken={verifiedIdToken}
         sessionInfo={verifiedSessionInfo}
