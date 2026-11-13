@@ -99,6 +99,7 @@ export const STATUS_FILTER_OPTIONS = [
   { value: "parked", label: "Đang đỗ" },
   { value: "active", label: "Đang hoạt động" },
   { value: "left", label: "Đã rời bãi" },
+  { value: "blacklisted", label: "⛔ Danh sách đen (Blacklist)" },
 ];
 
 export const DEFAULT_UNASSIGNED_SLOT_LABEL = "Chưa có vị trí";

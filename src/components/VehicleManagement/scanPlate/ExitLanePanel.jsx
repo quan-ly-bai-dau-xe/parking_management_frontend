@@ -100,6 +100,19 @@ export default function ExitLanePanel({
         title="Thông tin phương tiện ra"
       />
 
+      {/* Cảnh báo Ghost Exit khi không tìm thấy phiên đỗ đang mở */}
+      {detectedPlate && !rawLookup?.open_session && !isLoadingFeePreview && (
+        <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2 text-2xs text-amber-900 shadow-2xs">
+          <span className="text-base leading-none">⚠️</span>
+          <div>
+            <span className="font-bold block">Cảnh báo Ghost Exit (Không tìm thấy phiên vào)</span>
+            <span className="text-3xs text-amber-800 leading-relaxed block">
+              Phương tiện này không có phiên đỗ đang mở trong bãi. Kiểm tra lại biển số hoặc xác minh thẻ trước khi xử lý ra bãi.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Thời gian đỗ & Thông tin phiên */}
       <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 shadow-2xs">
         <div className="flex items-center justify-between">

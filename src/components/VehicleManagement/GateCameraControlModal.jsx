@@ -20,94 +20,12 @@ import ScanPlateCameraFeed from "./scanPlate/ScanPlateCameraFeed";
 import EntryLanePanel from "./scanPlate/EntryLanePanel";
 import ExitLanePanel from "./scanPlate/ExitLanePanel";
 import { formatLicensePlateForDisplay } from "../../utils/plateFormatter";
+import { getEntryErrorMessage, getExitErrorMessage } from "../../utils/parking/gateErrorMapper";
 
 const DEFAULT_ENTRY_GATE_ID = 1;
 const DEFAULT_EXIT_GATE_ID = 3;
 const BARRIER_OPEN_DELAY_MS = 600;
 const BARRIER_AUTO_CLOSE_DELAY_MS = 3000;
-
-const getEntryErrorMessage = (err) => {
-  const backendMsg = err?.data?.message || err?.message;
-  const errorCode = err?.data?.code || err?.code;
-
-  if (errorCode === "PROP-4.5.1-P07" || backendMsg?.includes("đang có phiên") || backendMsg?.includes("chưa kết thúc")) {
-    return "Xe đang có phiên gửi chưa kết thúc tại bãi.";
-  }
-  if (errorCode === "PROP-4.5.1-P08" || backendMsg?.includes("danh sách đen") || backendMsg?.includes("Blacklist")) {
-    return "Biển số nằm trong danh sách đen (Blacklist). Cần Quản lý phê duyệt để cho xe vào.";
-  }
-  if (errorCode === "PROP-4.5.1-P14") {
-    return "Chỉ Quản lý mới có quyền phê duyệt xe trong danh sách đen.";
-  }
-  if (errorCode === "PROP-4.5.1-P18") {
-    return "Chỉ Quản lý mới có quyền miễn cước phí đỗ xe.";
-  }
-  if (errorCode === "PROP-4.5.1-P19") {
-    return "Vui lòng cung cấp lý do miễn cước đặc cách.";
-  }
-  if (errorCode === "PROP-4.5.1-P10") {
-    return "Phiên đỗ xe này đã được kết thúc trước đó.";
-  }
-  if (errorCode === "MSG-4.5.2-M02" || backendMsg?.includes("đã có xe đk vé")) {
-    return (
-      "⚠️ Vị trí đỗ này đã có xe đăng ký vé và đang sử dụng. " +
-      "Hệ thống đã tự động chọn ô trống khả dụng khác, vui lòng kiểm tra và xác nhận lại."
-    );
-  }
-  if (errorCode === "PROP-4.5.2-P01" || backendMsg?.includes("đang bảo trì")) {
-    return "⚠️ Vị trí đỗ này đang bảo trì, vui lòng chọn vị trí khác.";
-  }
-  if (errorCode === "PROP-4.5.2-P02") {
-    return "⚠️ Vị trí đỗ này đã có xe khác đỗ, vui lòng chọn vị trí khác.";
-  }
-  if (errorCode === "PROP-4.5.2-P05") {
-    return "⚠️ Vị trí đỗ này đã có người đặt trước, vui lòng chọn vị trí khác.";
-  }
-  if (errorCode === "PROP-SLOT-VEHICLE-TYPE-MISMATCH") {
-    return "⚠️ Loại phương tiện không tương thích với cấu hình vị trí đỗ này.";
-  }
-  if (errorCode === "PROP-4.5.1-P13") {
-    return "⚠️ Đường dẫn hình ảnh không hợp lệ.";
-  }
-  if (errorCode === "MSG-4.5.1-M01" || backendMsg?.includes("hết hạn")) {
-    return "⚠️ Vé đăng ký của xe đã hết hạn, hệ thống sẽ tự động chuyển sang chế độ tính vé lượt vãng lai.";
-  }
-  if (errorCode === "PROP-4.5.1-P05" || backendMsg?.includes("hết chỗ")) {
-    return "⚠️ Bãi đỗ xe đã đầy chỗ cho loại phương tiện này. Vui lòng hướng dẫn xe quay đầu.";
-  }
-  return backendMsg || "Không thể thực hiện Check-in vào bãi. Vui lòng thử lại.";
-};
-
-const getExitErrorMessage = (err) => {
-  const backendMsg = err?.data?.message || err?.message;
-  const errorCode = err?.data?.code || err?.code;
-
-  if (errorCode === "PROP-4.5.1-P18") {
-    return "Chỉ Quản lý mới có quyền miễn cước phí đỗ xe.";
-  }
-  if (errorCode === "PROP-4.5.1-P19") {
-    return "Vui lòng cung cấp lý do miễn cước đặc cách.";
-  }
-  if (errorCode === "PROP-4.5.1-P10") {
-    return "Phiên đỗ xe này đã được kết thúc trước đó.";
-  }
-  if (errorCode === "PROP-4.5.1-P07") {
-    return "Xe đang có phiên gửi chưa kết thúc tại bãi.";
-  }
-  if (errorCode === "PROP-4.5.1-P08") {
-    return "Biển số nằm trong danh sách đen (Blacklist). Cần Quản lý phê duyệt để cho xe vào.";
-  }
-  if (errorCode === "PROP-4.5.1-P14") {
-    return "Chỉ Quản lý mới có quyền phê duyệt xe trong danh sách đen.";
-  }
-  if (errorCode === "PROP-4.5.1-P09") {
-    return "Vui lòng chọn phương thức thanh toán hợp lệ (tiền mặt hoặc VietQR).";
-  }
-  if (errorCode === "PROP-4.5.1-P06" || backendMsg?.includes("Không tìm thấy")) {
-    return "Không tìm thấy phiên đỗ đang mở cho phương tiện này.";
-  }
-  return backendMsg || "Không thể thực hiện Check-out xe. Vui lòng thử lại.";
-};
 
 const parseEntryTimeToDate = (entryTimeStr) => {
   if (!entryTimeStr) return null;
@@ -506,9 +424,16 @@ export default function GateCameraControlModal({
   const hasOpenSession = Boolean(rawLookup?.open_session);
   const entryValidation = validateVehicleEntry({
     vehicle: matchedVehicle,
-    openSession: rawLookup?.open_session,
+    lookupResult: rawLookup,
   });
-  const isBlacklisted = !entryValidation.isValid && entryValidation.isBlacklisted;
+  const isBlacklisted = Boolean(
+    rawLookup?.is_blacklisted ||
+      rawLookup?.status === "BLACKLISTED" ||
+      matchedVehicle?.isBlacklisted ||
+      matchedVehicle?.status === "BLACKLISTED" ||
+      entryValidation.reasonCode === "BLACKLISTED" ||
+      (!entryValidation.eligible && entryValidation.reasonCode === "BLACKLISTED")
+  );
   const hasValidTicket = Boolean(
     matchedVehicle?.ticketState === "active" ||
       matchedVehicle?.ticket?.is_valid ||
