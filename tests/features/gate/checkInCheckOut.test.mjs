@@ -114,13 +114,14 @@ test("ST-CORE-04: Security Guard: Rejects entry for blacklisted / warning vehicl
 });
 
 test("ST-CORE-05: Fee Calculator calculates exact rates across all business tiers", () => {
-  // Tier 1: Grace period (< 15 phút) -> 0đ
+  // Tier 1: Thời gian dưới 15 phút vẫn tính tròn 1 giờ đầu theo quy tắc OQ-85 -> 10.000đ (hoursBilled: 1)
   const grace10m = calculateParkingFee({ durationMinutes: 10 });
-  assert.equal(grace10m.feeAmount, 0);
-  assert.equal(grace10m.hoursBilled, 0);
+  assert.equal(grace10m.feeAmount, DEFAULT_HOURLY_RATE_VND);
+  assert.equal(grace10m.hoursBilled, 1);
 
   const grace14m = calculateParkingFee({ durationMinutes: 14 });
-  assert.equal(grace14m.feeAmount, 0);
+  assert.equal(grace14m.feeAmount, DEFAULT_HOURLY_RATE_VND);
+  assert.equal(grace14m.hoursBilled, 1);
 
   // Tier 2: Tròn 1 giờ (60 phút) -> 10.000đ
   const fee1h = calculateParkingFee({ durationMinutes: 60 });

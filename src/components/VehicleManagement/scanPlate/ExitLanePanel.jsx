@@ -1,4 +1,10 @@
 import VehicleMatchedInfoCard from "./VehicleMatchedInfoCard";
+import {
+  PAYMENT_METHODS,
+  WALLET_CONFIG,
+  formatCurrencyVND,
+} from "../../../constants/paymentConstants.js";
+import { checkIsManager } from "../../../constants/roleConstants.js";
 
 const UNKNOWN_ENTRY_TIME_LABEL = "Chưa rõ giờ vào";
 
@@ -30,12 +36,7 @@ export default function ExitLanePanel({
   onConfirmExit,
   hasValidTicket = false,
 }) {
-  const isManager = Boolean(
-    currentUserRole &&
-      (String(currentUserRole).toUpperCase().includes("MANAGER") ||
-        String(currentUserRole).toLowerCase().includes("quản lý") ||
-        currentUserRole === "ADMIN")
-  );
+  const isManager = checkIsManager(currentUserRole);
 
   const isTicketActive = Boolean(
     backendFeePreview?.has_active_ticket ||
@@ -58,7 +59,7 @@ export default function ExitLanePanel({
     isZeroFee = true;
   } else if (backendFeePreview?.fee_amount !== undefined) {
     displayFeeAmount = Number(backendFeePreview.fee_amount);
-    displayFeeText = `${new Intl.NumberFormat("vi-VN").format(displayFeeAmount)}đ`;
+    displayFeeText = formatCurrencyVND(displayFeeAmount);
     isZeroFee = displayFeeAmount === 0;
   } else if (isLoadingFeePreview) {
     displayFeeText = "Đang tải cước...";
@@ -79,7 +80,7 @@ export default function ExitLanePanel({
     : isTicketActive
     ? "Được đài thọ bởi vé tháng hiệu lực"
     : backendFeePreview
-    ? `Thời lượng: ${displayDuration} • Đơn giá: ${backendFeePreview.hourly_rate ? `${new Intl.NumberFormat("vi-VN").format(backendFeePreview.hourly_rate)}đ/giờ` : "—"}`
+    ? `Thời lượng: ${displayDuration} • Đơn giá: ${backendFeePreview.hourly_rate ? formatCurrencyVND(backendFeePreview.hourly_rate) : "—"}/giờ`
     : isLoadingFeePreview
     ? "Đang đối soát cước phí với hệ thống..."
     : "—";
@@ -235,52 +236,145 @@ export default function ExitLanePanel({
         {/* Lựa chọn hình thức thanh toán khi có phí */}
         {!isZeroFee && (
           <div className="space-y-2 pt-1 border-t border-slate-100">
-            <div className="flex items-center justify-between">
-              <span className="text-3xs font-medium text-slate-600">Hình thức thanh toán:</span>
-              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-3xs">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("CASH")}
-                  className={`px-2.5 py-1 font-semibold rounded-md transition-all ${
-                    paymentMethod === "CASH"
-                      ? "bg-white text-blue-700 shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  💵 Tiền mặt
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("VIETQR")}
-                  className={`px-2.5 py-1 font-semibold rounded-md transition-all ${
-                    paymentMethod === "VIETQR"
-                      ? "bg-indigo-600 text-white shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  📱 VietQR
-                </button>
-              </div>
-            </div>
+            {/* Phân loại khách hàng: Đã đăng ký App hay Chưa đăng ký App */}
+            {(() => {
+              const hasAppAccount = Boolean(
+                matchedVehicle?.customer?.id ||
+                matchedVehicle?.customerId ||
+                (matchedVehicle?.customer?.name && matchedVehicle?.customer?.name !== "Khách vãng lai")
+              );
+              // Sử dụng cấu hình số dư chuẩn từ WALLET_CONFIG thay vì magic number
+              const userWalletBalance = matchedVehicle?.customer?.walletBalance ?? WALLET_CONFIG.DEFAULT_INITIAL_BALANCE_VND;
+              const isWalletSufficient = userWalletBalance >= displayFeeAmount;
 
-            {paymentMethod === "VIETQR" && (
-              <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-center gap-3">
-                <img
-                  src={`https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=${displayFeeAmount}&addInfo=${encodeURIComponent(`PK ${detectedPlate || matchedVehicle?.licensePlate || "OTO"}`)}&accountName=${encodeURIComponent("BAI XE SMART MOBILITY")}`}
-                  alt="Mã VietQR"
-                  className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-md bg-white border border-indigo-200 shrink-0"
-                  loading="lazy"
-                />
-                <div className="text-3xs text-slate-600 space-y-0.5">
-                  <div className="font-bold text-indigo-900 text-2xs">VietQR Napas 247</div>
-                  <div>
-                    Số tiền:{" "}
-                    <span className="font-bold font-mono text-indigo-700">{displayFeeText}</span>
+              return (
+                <div className="space-y-2">
+                  {/* Badge phân loại tài khoản App */}
+                  <div className={`p-2 rounded-xl border flex items-center justify-between text-3xs ${
+                    hasAppAccount
+                      ? "bg-emerald-50/80 border-emerald-200 text-emerald-900"
+                      : "bg-slate-50 border-slate-200 text-slate-700"
+                  }`}>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm">{hasAppAccount ? "📱" : "👤"}</span>
+                      <div>
+                        <span className="font-bold block">
+                          {hasAppAccount
+                            ? `Khách đã đăng ký App: ${matchedVehicle?.customer?.name || "Chủ xe"}`
+                            : "Khách vãng lai (Chưa đăng ký App)"}
+                        </span>
+                        <span className="text-3xs text-slate-500">
+                          {hasAppAccount
+                            ? `Ví Smart Parking (Mô phỏng): ${formatCurrencyVND(userWalletBalance)}`
+                            : "Không có ví trong App • Thanh toán tại quầy"}
+                        </span>
+                      </div>
+                    </div>
+                    {hasAppAccount && (
+                      <span className={`px-2 py-0.5 rounded-full font-bold text-3xs ${
+                        isWalletSufficient
+                          ? "bg-emerald-600 text-white"
+                          : "bg-amber-100 text-amber-800 border border-amber-300"
+                      }`}>
+                        {isWalletSufficient ? "Ví đủ số dư" : "Ví thiếu tiền"}
+                      </span>
+                    )}
                   </div>
-                  <div className="text-slate-400">Tài xế quét qua app ngân hàng để thanh toán</div>
+
+                  {/* Lựa chọn hình thức thanh toán */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-3xs font-medium text-slate-600">Hình thức thanh toán:</span>
+                    <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-3xs">
+                      {hasAppAccount && (
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod(PAYMENT_METHODS.WALLET)}
+                          className={`px-2.5 py-1 font-semibold rounded-md transition-all flex items-center gap-1 ${
+                            paymentMethod === PAYMENT_METHODS.WALLET
+                              ? "bg-emerald-600 text-white shadow-2xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          <span>⚡</span> Trừ Ví App
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod(PAYMENT_METHODS.VNPAY)}
+                        className={`px-2.5 py-1 font-semibold rounded-md transition-all flex items-center gap-1 ${
+                          paymentMethod === PAYMENT_METHODS.VNPAY || paymentMethod === PAYMENT_METHODS.VIETQR
+                            ? "bg-indigo-600 text-white shadow-2xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        <span>💳</span> Quẹt Thẻ / VNPAY
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod(PAYMENT_METHODS.CASH)}
+                        className={`px-2.5 py-1 font-semibold rounded-md transition-all ${
+                          paymentMethod === PAYMENT_METHODS.CASH
+                            ? "bg-white text-blue-700 shadow-2xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        💵 Tiền mặt
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Chi tiết cho từng phương thức */}
+                  {paymentMethod === PAYMENT_METHODS.WALLET && hasAppAccount && (
+                    <div className="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-3xs space-y-1.5">
+                      <div className="flex items-center justify-between font-semibold text-emerald-950">
+                        <span>Số dư ví hiện tại:</span>
+                        <span className="font-mono">{formatCurrencyVND(userWalletBalance)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-rose-700">
+                        <span>Trừ cước đỗ xe:</span>
+                        <span className="font-mono font-bold">-{displayFeeText}</span>
+                      </div>
+                      <div className="pt-1 border-t border-emerald-200 flex items-center justify-between font-bold text-emerald-900">
+                        <span>Số dư sau khi trừ:</span>
+                        <span className="font-mono">
+                          {formatCurrencyVND(Math.max(0, userWalletBalance - displayFeeAmount))}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-emerald-700/80 italic">
+                        * Lưu ý: Giao dịch trừ ví đang chạy ở chế độ mô phỏng giao diện (Chưa trừ tiền tài khoản ngân hàng thật).
+                      </div>
+                      {!isWalletSufficient && (
+                        <div className="text-amber-800 bg-amber-100/80 p-1.5 rounded text-3xs font-medium">
+                          ⚠️ Số dư ví không đủ. Vui lòng chuyển sang Quẹt thẻ VNPAY hoặc Tiền mặt.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {(paymentMethod === PAYMENT_METHODS.VNPAY || paymentMethod === PAYMENT_METHODS.VIETQR) && (
+                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-center gap-3">
+                      <img
+                        src={`https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=${displayFeeAmount}&addInfo=${encodeURIComponent(`PK ${detectedPlate || matchedVehicle?.licensePlate || "OTO"}`)}&accountName=${encodeURIComponent("BAI XE SMART MOBILITY")}`}
+                        alt="Mã VNPAY/QR"
+                        className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-md bg-white border border-indigo-200 shrink-0"
+                        loading="lazy"
+                      />
+                      <div className="text-3xs text-slate-600 space-y-0.5">
+                        <div className="font-bold text-indigo-900 text-2xs flex items-center gap-1.5">
+                          <span>💳 VNPAY POS / VNPAY-QR</span>
+                          <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.2 rounded text-3xs">Chạm thẻ / Quét mã</span>
+                        </div>
+                        <div>
+                          Số tiền:{" "}
+                          <span className="font-bold font-mono text-indigo-700">{displayFeeText}</span>
+                        </div>
+                        <div className="text-slate-500">Khách chạm thẻ ngân hàng vào máy POS VNPAY hoặc quét mã QR để thanh toán.</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
       </div>
@@ -296,8 +390,10 @@ export default function ExitLanePanel({
               : "Yêu cầu quyền Quản lý"
             : isZeroFee
             ? "Đủ điều kiện mở barrier"
-            : paymentMethod === "VIETQR"
-              ? "Xác nhận đã nhận QR"
+            : paymentMethod === PAYMENT_METHODS.WALLET
+            ? "Trừ ví app tự động"
+            : paymentMethod === PAYMENT_METHODS.VNPAY || paymentMethod === PAYMENT_METHODS.VIETQR
+              ? "Quẹt thẻ POS / Quét QR VNPAY"
               : "Thu tiền mặt & mở barrier"}
         </span>
         <button
@@ -311,9 +407,11 @@ export default function ExitLanePanel({
                 : "bg-slate-400 cursor-not-allowed"
               : isZeroFee
               ? "bg-emerald-600 hover:bg-emerald-700"
-              : paymentMethod === "VIETQR"
-                ? "bg-indigo-600 hover:bg-indigo-700"
-                : "bg-blue-600 hover:bg-blue-700"
+              : paymentMethod === PAYMENT_METHODS.WALLET
+              ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
+              : paymentMethod === PAYMENT_METHODS.VNPAY || paymentMethod === PAYMENT_METHODS.VIETQR
+                ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20"
+                : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20"
           } disabled:opacity-50`}
         >
           {isActionPending ? (
@@ -329,10 +427,12 @@ export default function ExitLanePanel({
             </span>
           ) : isZeroFee ? (
             <span>✓ Xác nhận Mở Barrier (0đ)</span>
-          ) : paymentMethod === "VIETQR" ? (
-            <span>✓ Đã Nhận QR & Mở Barrier</span>
+          ) : paymentMethod === PAYMENT_METHODS.WALLET ? (
+            <span>⚡ Trừ Ví App & Mở Barrier</span>
+          ) : paymentMethod === PAYMENT_METHODS.VNPAY || paymentMethod === PAYMENT_METHODS.VIETQR ? (
+            <span>💳 Đã Quẹt VNPAY & Mở Barrier</span>
           ) : (
-            <span>✓ Đã Thu Tiền & Mở Barrier</span>
+            <span>💵 Đã Thu Tiền Mặt & Mở Barrier</span>
           )}
         </button>
       </div>

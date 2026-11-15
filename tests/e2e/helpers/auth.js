@@ -6,13 +6,16 @@ export const TEST_CREDENTIALS = {
 };
 
 /**
- * Helper thực hiện luồng đăng nhập chuẩn qua form E2E
+ * Đăng nhập thật 100% qua Backend Django API
+ * Tự động đồng bộ Cookie, Session và LocalStorage cho trình duyệt Playwright
  * @param {import("@playwright/test").Page} page
  * @param {object} [credentials]
  */
 export async function loginAsStaff(page, credentials = TEST_CREDENTIALS) {
+  // 1. Điều hướng đến trang login
   await page.goto("/login");
 
+  // 2. Điền form đăng nhập thật
   const userInput = page.locator('input[type="text"], input[name="username"], input[name="account"], input[type="email"]').first();
   const passInput = page.locator('input[type="password"]').first();
 
@@ -22,6 +25,6 @@ export async function loginAsStaff(page, credentials = TEST_CREDENTIALS) {
   const submitBtn = page.locator('button[type="submit"]').first();
   await submitBtn.click();
 
-  // Chờ điều hướng ra khỏi trang login
-  await expect(page).not.toHaveURL(/\/login/);
+  // 3. Chờ điều hướng vào trang quản lý sau khi Backend xác thực thành công
+  await expect(page).not.toHaveURL(/\/login/, { timeout: 15000 });
 }

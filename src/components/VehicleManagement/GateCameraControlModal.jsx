@@ -1,10 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
-  lookupVehicleByPlate,
-  getParkingSessions,
-  mapVehicleLookupToVehicle,
-} from "../../services/plateScanService";
-import {
   validateVehicleEntry,
   checkInVehicle,
   checkOutVehicle,
@@ -12,9 +7,10 @@ import {
   getAvailableSlotsForCheckIn,
   previewParkingFee,
 } from "../../services/parkingSessionService";
-import { mockVehicles } from "../../mocks/vehicleData";
 import { usePlateAutoDetect } from "../../hooks/usePlateAutoDetect";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
+import { usePlateMatching } from "./scanPlate/hooks/usePlateMatching";
+import { parseEntryTimeToDate } from "../../utils/parking/plateScanMapper";
 
 import ScanPlateCameraFeed from "./scanPlate/ScanPlateCameraFeed";
 import EntryLanePanel from "./scanPlate/EntryLanePanel";
@@ -26,26 +22,6 @@ const DEFAULT_ENTRY_GATE_ID = 1;
 const DEFAULT_EXIT_GATE_ID = 3;
 const BARRIER_OPEN_DELAY_MS = 600;
 const BARRIER_AUTO_CLOSE_DELAY_MS = 3000;
-
-const parseEntryTimeToDate = (entryTimeStr) => {
-  if (!entryTimeStr) return null;
-  const str = String(entryTimeStr).trim();
-  const timeFirst = str.match(/^(\d{1,2}):(\d{1,2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (timeFirst) {
-    const [, hour, min, day, month, year] = timeFirst;
-    const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(min));
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-  }
-  const dateFirst = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?$/);
-  if (dateFirst) {
-    const [, day, month, year, hour = "0", min = "0"] = dateFirst;
-    const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(min));
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-  }
-  const d = new Date(str);
-  if (!Number.isNaN(d.getTime())) return d;
-  return null;
-};
 
 const DEFAULT_EMPTY_VEHICLES = [];
 
@@ -74,14 +50,8 @@ export default function GateCameraControlModal({
   // State phân tách rõ ràng giữa Camera và Tra cứu thủ công (Finding 5)
   const [cameraDetectedPlate, setCameraDetectedPlate] = useState("");
   const [manualInputPlate, setManualInputPlate] = useState("");
-  const [detectedPlate, setDetectedPlate] = useState("");
   const [detectionSource, setDetectionSource] = useState(null); // 'camera' | 'manual' | null
-  const [matchedVehicle, setMatchedVehicle] = useState(null);
-  const [scanDetails, setScanDetails] = useState(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
   const [imageWarningMessage, setImageWarningMessage] = useState("");
-  const [rawLookup, setRawLookup] = useState(null);
 
   const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedSlotId, setSelectedSlotId] = useState(null);
@@ -161,6 +131,55 @@ export default function GateCameraControlModal({
     };
   }, []);
 
+  const fetchFeePreview = useCallback(async (plate, sessionCode) => {
+    const cleanPlate = (plate || "").trim();
+    const cleanCode = (sessionCode || "").trim();
+    if (!cleanPlate && !cleanCode) return;
+    setIsLoadingFeePreview(true);
+    try {
+      const preview = await previewParkingFee({
+        licensePlate: cleanPlate || undefined,
+        sessionCode: cleanCode || undefined,
+      });
+      if (preview) {
+        setBackendFeePreview(preview);
+      }
+    } catch (err) {
+      console.warn("Could not preview parking fee from backend:", err?.message || err);
+    } finally {
+      setIsLoadingFeePreview(false);
+    }
+  }, []);
+
+  const handleMatchSuccess = useCallback((result, rawInput) => {
+    fetchFeePreview(rawInput, result.openSession?.session_code);
+  }, [fetchFeePreview]);
+
+  // Hook tra cứu & đối soát biển số xe (Single Source of Truth)
+  const {
+    detectedPlate,
+    setDetectedPlate,
+    matchedVehicle,
+    setMatchedVehicle,
+    scanDetails,
+    setScanDetails,
+    isScanning,
+    errorMessage,
+    setErrorMessage,
+    rawLookup,
+    setRawLookup,
+    handleMatchPlate,
+    resetMatching,
+  } = usePlateMatching({
+    vehicles,
+    onResetBarrier: () => {
+      setActionSuccessMessage("");
+      setBarrierState("closed");
+      setImageWarningMessage("");
+    },
+    onMatchSuccess: handleMatchSuccess,
+  });
+
   // Nạp danh sách ô đỗ khả dụng khi ở Làn Vào
   useEffect(() => {
     if (!isOpen || laneMode !== "entry") return;
@@ -194,133 +213,6 @@ export default function GateCameraControlModal({
       isCancelled = true;
     };
   }, [isOpen, laneMode, matchedVehicle, detectedPlate]);
-
-  const normalizePlate = (str) =>
-    (str || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-
-  const findInLocalList = useCallback(
-    (norm) => {
-      const list = Array.isArray(vehicles) && vehicles.length > 0 ? vehicles : mockVehicles;
-      return list.find((v) => normalizePlate(v.licensePlate) === norm) || null;
-    },
-    [vehicles]
-  );
-
-  const resolveActiveSession = async (plate) => {
-    try {
-      const sessionRes = await getParkingSessions({ license_plate: plate, status: "open" });
-      const active = sessionRes?.items?.[0] || sessionRes?.results?.[0];
-      if (!active) return null;
-      const rawIso =
-        active.entryTimeRaw ||
-        active.rawEntryTime ||
-        active.entry_time ||
-        parseEntryTimeToDate(active.entryTime)?.toISOString() ||
-        active.entryTime;
-
-      return {
-        id: active.id,
-        session_code: active.sessionCode || active.session_code,
-        entry_time: rawIso,
-        entry_image_url: active.plateImageUrl || active.entryImageUrl || active.entry_image_url,
-        slot_code: active.slotCode || active.slot_code,
-      };
-    } catch {
-      return null;
-    }
-  };
-
-  const fetchFeePreview = useCallback(async (plate, sessionCode) => {
-    const cleanPlate = (plate || "").trim();
-    const cleanCode = (sessionCode || "").trim();
-    if (!cleanPlate && !cleanCode) return;
-    setIsLoadingFeePreview(true);
-    try {
-      const preview = await previewParkingFee({
-        licensePlate: cleanPlate || undefined,
-        sessionCode: cleanCode || undefined,
-      });
-      if (preview) {
-        setBackendFeePreview(preview);
-      }
-    } catch (err) {
-      console.warn("Could not preview parking fee from backend:", err?.message || err);
-    } finally {
-      setIsLoadingFeePreview(false);
-    }
-  }, []);
-
-  const handleMatchPlate = useCallback(
-    async (plateInput) => {
-      const rawInput = (plateInput || "").trim();
-      const norm = normalizePlate(rawInput);
-      if (!norm) return;
-
-      setIsScanning(true);
-      setErrorMessage("");
-      setImageWarningMessage("");
-      setActionSuccessMessage("");
-      setBarrierState("closed");
-
-      try {
-        const lookupResult = await lookupVehicleByPlate(rawInput);
-        let openSession = lookupResult?.open_session || null;
-        if (!openSession) {
-          openSession = await resolveActiveSession(rawInput);
-        }
-        const consolidatedLookup = lookupResult
-          ? { ...lookupResult, open_session: openSession }
-          : openSession
-            ? { open_session: openSession }
-            : null;
-
-        setRawLookup(consolidatedLookup);
-        const vehicle = mapVehicleLookupToVehicle(consolidatedLookup);
-
-        if (vehicle) {
-          setMatchedVehicle(vehicle);
-        } else {
-          const found = findInLocalList(norm);
-          if (found) {
-            setMatchedVehicle(found);
-          } else {
-            setMatchedVehicle({
-              id: "WALK_IN_" + Date.now(),
-              licensePlate: rawInput.toUpperCase(),
-              vehicleType: "CAR",
-              model: "Khách vãng lai",
-              status: "active",
-              customer: { name: "Khách vãng lai (Vé lượt)" },
-            });
-          }
-        }
-
-        // Tự động tải cước phí xem trước từ Backend
-        fetchFeePreview(rawInput, openSession?.session_code);
-      } catch {
-        const openSession = await resolveActiveSession(rawInput);
-        setRawLookup(openSession ? { open_session: openSession } : null);
-
-        const localFound = findInLocalList(norm);
-        if (localFound) {
-          setMatchedVehicle(localFound);
-        } else {
-          setMatchedVehicle({
-            id: "WALK_IN_" + Date.now(),
-            licensePlate: rawInput.toUpperCase(),
-            vehicleType: "CAR",
-            model: "Khách vãng lai",
-            status: "active",
-            customer: { name: "Khách vãng lai (Vé lượt)" },
-          });
-        }
-        fetchFeePreview(rawInput, openSession?.session_code);
-      } finally {
-        setIsScanning(false);
-      }
-    },
-    [findInLocalList, fetchFeePreview]
-  );
 
   const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
 

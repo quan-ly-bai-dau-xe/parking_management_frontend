@@ -50,11 +50,7 @@ function normalizeSearchText(str) {
 export default function VehicleManagement() {
   const toast = useToast();
   const navigate = useNavigate();
-  const { role } = useCurrentUser();
-  const isManager = useMemo(() => {
-    const cleanRole = String(role || "").toLowerCase().trim();
-    return cleanRole === "manager" || cleanRole === "quản lý" || cleanRole === "admin";
-  }, [role]);
+  const { isManager } = useCurrentUser();
 
   const {
     vehicles,

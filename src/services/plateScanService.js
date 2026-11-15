@@ -1,11 +1,15 @@
 import { apiClient } from "./apiClient.js";
 import { mockParkingHistory } from "../mocks/parkingHistoryData.js";
+import { mockVehicles } from "../mocks/vehicleData.js";
 import {
   mapParkingSession,
   validateAndMapSessions,
   mapPlateScanToVehicle,
   mapVehicleLookupToVehicle,
   mapSessionToFrontend,
+  createWalkInVehicle,
+  parseEntryTimeToDate,
+  normalizePlate,
 } from "../utils/parking/plateScanMapper.js";
 
 const USE_MOCK =
@@ -17,6 +21,9 @@ export {
   mapPlateScanToVehicle,
   mapVehicleLookupToVehicle,
   mapSessionToFrontend,
+  createWalkInVehicle,
+  parseEntryTimeToDate,
+  normalizePlate,
 };
 
 /**
@@ -145,10 +152,205 @@ export async function getParkingSessionDetail(sessionId) {
   return mapParkingSession(response);
 }
 
+/**
+ * Tra cứu và đối soát phiên đỗ đang mở (open session) của biển số xe
+ */
+export async function resolveActiveParkingSession(plate) {
+  if (!plate) return null;
+  try {
+    const sessionRes = await getParkingSessions({ license_plate: plate, status: "open" });
+    const active = sessionRes?.items?.[0] || sessionRes?.results?.[0];
+    if (!active) return null;
+
+    const rawIso =
+      active.entryTimeRaw ||
+      active.rawEntryTime ||
+      active.entry_time ||
+      parseEntryTimeToDate(active.entryTime)?.toISOString() ||
+      active.entryTime;
+
+    return {
+      id: active.id,
+      session_code: active.sessionCode || active.session_code,
+      entry_time: rawIso,
+      entry_image_url: active.plateImageUrl || active.entryImageUrl || active.entry_image_url,
+      slot_code: active.slotCode || active.slot_code,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * matchPlateLookup
+ * Hàm tra cứu biển số chuẩn hóa (Single Source of Truth) phục vụ toàn bộ hệ thống kiểm soát xe.
+ * Phân biệt rõ ràng:
+ * - 200 OK: Xe có trong CSDL (hoặc kiểm tra danh sách xe cục bộ)
+ * - 404 Not Found: Xe chưa đăng ký -> trả về đối tượng xe vãng lai chuẩn hóa, kiểm tra details.is_blacklisted
+ * - Lỗi khác (500, network error, timeout, 401/403): báo lỗi rõ ràng, KHÔNG nuốt lỗi im lặng.
+ */
+export async function matchPlateLookup(
+  plateInput,
+  { vehicles = [], mockVehiclesFallback = true } = {}
+) {
+  const rawInput = (plateInput || "").trim();
+  const norm = normalizePlate(rawInput);
+  if (!norm) {
+    return {
+      success: false,
+      vehicle: null,
+      rawLookup: null,
+      openSession: null,
+      isWalkIn: false,
+      isBlacklisted: false,
+      error: new Error("Biển số xe không được để trống."),
+      errorMessage: "Vui lòng nhập biển số xe hợp lệ.",
+    };
+  }
+
+  const findInLocalList = () => {
+    let list = Array.isArray(vehicles) && vehicles.length > 0 ? vehicles : [];
+    if (list.length === 0 && mockVehiclesFallback) {
+      list = mockVehicles;
+    }
+    return list.find((v) => normalizePlate(v.licensePlate) === norm) || null;
+  };
+
+  try {
+    const lookupResult = await lookupVehicleByPlate(rawInput);
+    let openSession = lookupResult?.open_session || null;
+    if (!openSession) {
+      openSession = await resolveActiveParkingSession(rawInput);
+    }
+    const consolidatedLookup = lookupResult
+      ? { ...lookupResult, open_session: openSession }
+      : openSession
+        ? { open_session: openSession }
+        : null;
+
+    const vehicle = mapVehicleLookupToVehicle(consolidatedLookup);
+
+    if (vehicle) {
+      return {
+        success: true,
+        vehicle,
+        rawLookup: consolidatedLookup,
+        openSession,
+        isWalkIn: false,
+        isBlacklisted: Boolean(vehicle.isBlacklisted || consolidatedLookup?.is_blacklisted),
+        error: null,
+        errorMessage: "",
+      };
+    }
+
+    const localFound = findInLocalList();
+    if (localFound) {
+      return {
+        success: true,
+        vehicle: localFound,
+        rawLookup: consolidatedLookup,
+        openSession,
+        isWalkIn: false,
+        isBlacklisted: Boolean(localFound.isBlacklisted || localFound.status === "BLACKLISTED"),
+        error: null,
+        errorMessage: "",
+      };
+    }
+
+    const isBlacklisted = Boolean(consolidatedLookup?.is_blacklisted);
+    const walkIn = createWalkInVehicle(rawInput, { isBlacklisted, openSession });
+    return {
+      success: true,
+      vehicle: walkIn,
+      rawLookup: consolidatedLookup,
+      openSession,
+      isWalkIn: true,
+      isBlacklisted,
+      error: null,
+      errorMessage: "",
+    };
+  } catch (err) {
+    const status = err?.status || err?.response?.status;
+    const is404 = status === 404 || err?.data?.code === "MSG-4.5.1-M01";
+
+    if (is404) {
+      const isBlacklisted = Boolean(
+        err?.data?.details?.is_blacklisted ||
+        err?.data?.is_blacklisted ||
+        err?.details?.is_blacklisted ||
+        err?.is_blacklisted
+      );
+
+      const openSession = await resolveActiveParkingSession(rawInput);
+      const rawLookup = {
+        ...(openSession ? { open_session: openSession } : {}),
+        is_blacklisted: isBlacklisted,
+        status: isBlacklisted ? "BLACKLISTED" : undefined,
+      };
+
+      const localFound = findInLocalList();
+      if (localFound) {
+        return {
+          success: true,
+          vehicle: {
+            ...localFound,
+            isBlacklisted: isBlacklisted || localFound.isBlacklisted || localFound.status === "BLACKLISTED",
+          },
+          rawLookup,
+          openSession,
+          isWalkIn: false,
+          isBlacklisted: Boolean(isBlacklisted || localFound.isBlacklisted),
+          error: null,
+          errorMessage: "",
+        };
+      }
+
+      const walkInVehicle = createWalkInVehicle(rawInput, { isBlacklisted, openSession });
+      return {
+        success: true,
+        vehicle: walkInVehicle,
+        rawLookup,
+        openSession,
+        isWalkIn: true,
+        isBlacklisted,
+        error: null,
+        errorMessage: "",
+      };
+    }
+
+    // Server error (500) / Network error / Auth error: TUYỆT ĐỐI KHÔNG nuốt lỗi
+    let errorMessage = "Không thể tra cứu thông tin biển số xe do sự cố máy chủ.";
+    if (err?.code === "API_UNAVAILABLE" || !status) {
+      errorMessage = "Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại.";
+    } else if (status === 401 || err?.isUnauthorized) {
+      errorMessage = "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.";
+    } else if (status === 403) {
+      errorMessage = "Bạn không có quyền thực hiện tra cứu thông tin phương tiện.";
+    } else if (status >= 500) {
+      errorMessage = `Lỗi hệ thống máy chủ (${status}): Không thể tra cứu thông tin xe. Vui lòng thử lại.`;
+    } else if (err?.data?.message || err?.message) {
+      errorMessage = err?.data?.message || err?.message;
+    }
+
+    return {
+      success: false,
+      vehicle: null,
+      rawLookup: null,
+      openSession: null,
+      isWalkIn: false,
+      isBlacklisted: false,
+      error: err,
+      errorMessage,
+    };
+  }
+}
+
 export default {
   scanPlate,
   scanPlateImage,
   lookupVehicleByPlate,
   getParkingSessions,
   getParkingSessionDetail,
+  resolveActiveParkingSession,
+  matchPlateLookup,
 };
