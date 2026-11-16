@@ -19,6 +19,8 @@ import RegisterPage from "./pages/RegisterPage";
 import OnboardingProfilePage from "./pages/OnBoardProfile";
 import CustomerProfilePage from "./pages/CustomerProfilePage";
 import CustomerOverviewPage from "./pages/CustomerOverviewPage";
+import CustomerVehiclesPage from "./pages/CustomerVehiclePage";
+import CustomerTicketsPage from "./pages/CustomerTicketPage";
 
 // Cấu hình các route có giao diện dạng Layout chuẩn
 const LAYOUT_ROUTES = [
@@ -157,15 +159,18 @@ export default function App() {
 
         <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
         <Route path={ROUTES.CAMERA_SCANNER} element={<CameraScanPage />} />
-        <Route path={ROUTES.CUSTOMER_PROFILE} element={<CustomerProfilePage />} />
-        <Route path={ROUTES.CUSTOMER_OVERVIEW} element={<CustomerOverviewPage />} />
+
+
 
         {/* Tự động render các trang placeholder từ config navigation */}
         {PLACEHOLDER_PATHS.map((path) => (
           <Route key={path} path={path} element={<PlaceholderPage />} />
         ))}
       </Route>
-
+        <Route path={ROUTES.CUSTOMER_PROFILE} element={<CustomerProfilePage />} />
+        <Route path={ROUTES.CUSTOMER_OVERVIEW} element={<CustomerOverviewPage />} />
+        <Route path={ROUTES.CUSTOMER_VEHICLE} element={<CustomerVehiclesPage />} />
+        <Route path={ROUTES.CUSTOEMR_TICKET} element={<CustomerTicketsPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
