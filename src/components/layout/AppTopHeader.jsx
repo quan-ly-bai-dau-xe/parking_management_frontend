@@ -14,8 +14,8 @@ const CUSTOMER_NAVIGATION_TABS = [
       </svg>
     ),
   },
-  { key: "vehicles", label: "Xe của tôi", path: "/vehicles" },
-  { key: "tickets", label: "Vé của tôi", path: "/tickets" },
+  { key: "vehicles", label: "Xe của tôi", path: "/customerVehicle" },
+  { key: "tickets", label: "Vé của tôi", path: "/customerTicket" },
   { key: "history", label: "Lịch sử ra/vào", path: "/history" },
   { key: "profile", label: "Thông tin cá nhân", path: "/profile" },
 ];
