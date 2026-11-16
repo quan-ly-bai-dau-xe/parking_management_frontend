@@ -36,8 +36,8 @@ export default function CustomerVehicleExpandedList({ customer, onClose }) {
                   <td className="py-2.5 px-3 font-bold font-mono text-slate-900">
                     {v.licensePlate}
                   </td>
-                  <td className="py-2.5 px-3">{v.vehicleType || "Ô tô"}</td>
-                  <td className="py-2.5 px-3">{v.status || "Đang đỗ"}</td>
+                  <td className="py-2.5 px-3">{v.vehicleType || "—"}</td>
+                  <td className="py-2.5 px-3">{v.status || "—"}</td>
                 </tr>
               ))}
             </tbody>

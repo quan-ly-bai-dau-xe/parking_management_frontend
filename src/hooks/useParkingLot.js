@@ -6,9 +6,10 @@ import {
 } from "../services/parkingLotService.js";
 import { getMockParkingSlots } from "../mocks/parkingSlotFallback";
 
-const isMockEnabled =
-  import.meta.env?.VITE_USE_MOCK?.trim().toLowerCase() === "true";
+// const isMockEnabled =
+//   import.meta.env?.VITE_USE_MOCK?.trim().toLowerCase() === "true";
 
+const isMockEnabled = true; // Bật fallback sang mock data khi API lỗi hoặc trả về 404
 /**
  * Custom hook quản lý dữ liệu ô đỗ xe từ Backend API thực tế.
  * Tạm fallback về mock data khi API lỗi hoặc trả về 404 để giữ UI hoạt động.

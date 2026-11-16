@@ -18,6 +18,7 @@ import ScanPlateCameraFeed from "./scanPlate/ScanPlateCameraFeed";
 import ScanPlateImageUpload from "./scanPlate/ScanPlateImageUpload";
 import EntryLanePanel from "./scanPlate/EntryLanePanel";
 import ExitLanePanel from "./scanPlate/ExitLanePanel";
+import CloseSessionSafetyModal from "./scanPlate/CloseSessionSafetyModal";
 
 const DEFAULT_ENTRY_GATE_ID = 1;
 const DEFAULT_EXIT_GATE_ID = 3;
@@ -85,6 +86,7 @@ export default function ScanPlateModal({
   const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedSlotId, setSelectedSlotId] = useState(null);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [isSafetyModalOpen, setIsSafetyModalOpen] = useState(false);
 
   // 2 chế độ rõ ràng: 'entry' | 'exit'
   const [laneMode, setLaneMode] = useState("entry");
@@ -262,8 +264,12 @@ export default function ScanPlateModal({
     isExempt: isFeeExempt,
   });
 
-  const handleForceCloseSession = async () => {
-    const licensePlate = detectedPlate || matchedVehicle?.licensePlate;
+  const handleOpenSafetyModal = () => {
+    setIsSafetyModalOpen(true);
+  };
+
+  const handleConfirmCloseSafety = async (options = {}) => {
+    const licensePlate = options.licensePlate || detectedPlate || matchedVehicle?.licensePlate;
     if (!licensePlate || actionPendingRef.current) return;
 
     actionPendingRef.current = true;
@@ -271,12 +277,23 @@ export default function ScanPlateModal({
     setErrorMessage("");
 
     try {
+      const isGlitch = options.actionType === "cancel_glitch";
+      const notes = isGlitch
+        ? `Hủy phiên do quét sai/nhầm: ${options.reason || "Ngoại lệ"}`
+        : options.reason || "Đóng phiên cũ có thu tiền tại làn kiểm soát";
+
       await forceCloseSessionAndReleaseSlot({
         licensePlate,
-        notes: "Cưỡng chế đóng phiên cũ bị treo tại cổng",
+        sessionCode: options.sessionCode,
+        notes,
       });
       setRawLookup((prev) => (prev ? { ...prev, open_session: null } : null));
-      setActionSuccessMessage("✓ Đã đóng phiên cũ thành công. Sẵn sàng đón lượt mới!");
+      setIsSafetyModalOpen(false);
+      setActionSuccessMessage(
+        isGlitch
+          ? "✓ Đã hủy phiên cũ do quét nhầm thành công (0đ)."
+          : "✓ Đã thu tiền & đóng phiên cũ thành công. Sẵn sàng đón lượt mới!"
+      );
     } catch (err) {
       setErrorMessage(err?.data?.message || err?.message || "Không thể cưỡng chế đóng phiên.");
     } finally {
@@ -287,6 +304,11 @@ export default function ScanPlateModal({
 
   const handleConfirmEntry = async () => {
     if (actionPendingRef.current) return;
+    if (hasOpenSession) {
+      setErrorMessage("⛔ Xe đang có phiên gửi cũ chưa đóng. Vui lòng đối soát và đóng phiên cũ trước.");
+      return;
+    }
+
     actionPendingRef.current = true;
     setIsActionPending(true);
     setErrorMessage("");
@@ -295,13 +317,6 @@ export default function ScanPlateModal({
     try {
       const chosenSlot = availableSlots.find((s) => s.id === selectedSlotId);
       const targetSlotId = chosenSlot?.id ?? 1;
-
-      if (hasOpenSession) {
-        await forceCloseSessionAndReleaseSlot({
-          licensePlate: detectedPlate || matchedVehicle?.licensePlate,
-          notes: "Tự động đóng phiên cũ bị treo để tạo phiên check-in mới",
-        });
-      }
 
       const entryImageUrl =
         scanDetails?.imageUrl ||
@@ -588,7 +603,7 @@ export default function ScanPlateModal({
                   hasOpenSession={hasOpenSession}
                   isActionPending={isActionPending}
                   onConfirmEntry={handleConfirmEntry}
-                  onForceCloseSession={handleForceCloseSession}
+                  onForceCloseSession={handleOpenSafetyModal}
                   onSwitchToExit={() => setLaneMode("exit")}
                 />
               ) : (
@@ -647,6 +662,16 @@ export default function ScanPlateModal({
           </div>
         </div>
       </div>
+
+      {/* Modal bảo vệ đối soát an toàn phiên gửi cũ */}
+      <CloseSessionSafetyModal
+        isOpen={isSafetyModalOpen}
+        onClose={() => setIsSafetyModalOpen(false)}
+        licensePlate={detectedPlate || matchedVehicle?.licensePlate}
+        openSession={rawLookup?.open_session}
+        onConfirmClose={handleConfirmCloseSafety}
+        isLoading={isActionPending}
+      />
     </div>
   );
 }

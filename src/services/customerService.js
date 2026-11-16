@@ -4,6 +4,7 @@ import { CustomerListItemSchema, CustomerDetailSchema } from "../schemas/custome
 import { STATUS_MAP_CODE_TO_DISPLAY } from "../constants/customerConstants";
 import { formatIsoDateToDisplay } from "../utils/formatDateTime";
 import { mapCustomerFormToBackendPayload } from "../utils/customer/customerFormMapper";
+import { IS_MOCK_ENABLED } from "../config/appConfig";
 
 /**
  * Mapper functions: Chuyển đổi dữ liệu vehicle
@@ -78,12 +79,8 @@ function validateAndMapCustomers(rawData) {
   });
 }
 
-// Biến điều khiển mock data:
-// - Mặc định là DÙNG BACKEND THẬT.
-// - Chỉ dùng mock khi khai báo rõ ràng VITE_USE_MOCK="true".
-// - Khi VITE_USE_MOCK="false" hoặc không đặt, hệ thống hoàn toàn gọi backend và KHÔNG fallback về mockdata.
-const USE_MOCK =
-  import.meta.env.VITE_USE_MOCK?.trim().toLowerCase() === "true";
+// Biến điều khiển mock data tập trung từ appConfig:
+const USE_MOCK = IS_MOCK_ENABLED;
 
 export const customerService = {
   /**

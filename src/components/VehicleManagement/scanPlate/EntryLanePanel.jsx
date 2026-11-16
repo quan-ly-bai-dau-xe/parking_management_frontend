@@ -91,20 +91,22 @@ export default function EntryLanePanel({
 
         {/* Warning open session */}
         {hasOpenSession && (
-          <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-3xs text-amber-900 space-y-1">
+          <div className="mt-2 p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-3xs text-amber-900 space-y-1.5 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="font-bold">⚠️ Xe đang có phiên gửi cũ chưa đóng</span>
+              <span className="font-bold flex items-center gap-1 text-amber-800">
+                <span>⚠️</span> Xe đang có phiên gửi cũ chưa đóng
+              </span>
               <button
                 type="button"
                 disabled={isActionPending}
                 onClick={onForceCloseSession}
-                className="px-2 py-0.5 bg-white border border-amber-300 text-amber-800 rounded font-semibold hover:bg-amber-100 transition shadow-2xs"
+                className="px-2.5 py-1 bg-white border border-amber-400 text-amber-800 rounded font-semibold hover:bg-amber-100 transition shadow-2xs cursor-pointer flex items-center gap-1 text-3xs"
               >
-                Đóng phiên cũ
+                <span>🔍</span> Đối soát & Đóng phiên cũ
               </button>
             </div>
-            <p className="text-amber-700">
-              Có thể bấm nút bên dưới để đóng tự động và mở lượt vào mới.
+            <p className="text-amber-800/90 leading-relaxed">
+              Cần đối soát và đóng phiên cũ trước khi cho xe vào lượt mới nhằm đảm bảo doanh thu và tránh lỗi dữ liệu.
             </p>
           </div>
         )}
@@ -113,17 +115,13 @@ export default function EntryLanePanel({
       {/* Footer Action Button */}
       <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
         <span className="text-3xs text-slate-500">
-          {hasOpenSession ? "Đóng phiên cũ & Check-in" : "Mở barrier cho xe vào"}
+          {hasOpenSession ? "Chờ xử lý phiên cũ của xe" : "Mở barrier cho xe vào"}
         </span>
         <button
           type="button"
-          disabled={isActionPending || isBlacklisted || !detectedPlate}
+          disabled={isActionPending || isBlacklisted || !detectedPlate || hasOpenSession}
           onClick={onConfirmEntry}
-          className={`px-4 py-2 text-white rounded-xl font-semibold text-xs shadow-xs transition-colors flex items-center gap-1.5 ${
-            hasOpenSession
-              ? "bg-amber-600 hover:bg-amber-700"
-              : "bg-emerald-600 hover:bg-emerald-700"
-          } disabled:opacity-50`}
+          className="px-4 py-2 text-white rounded-xl font-semibold text-xs shadow-xs transition-colors flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
           {isActionPending ? (
             <>
@@ -131,7 +129,7 @@ export default function EntryLanePanel({
               <span>Đang xử lý...</span>
             </>
           ) : hasOpenSession ? (
-            <span>⚡ Đóng phiên cũ & Check-in Vào</span>
+            <span>⛔ Vui lòng đóng phiên cũ trước</span>
           ) : (
             <span>✓ Xác nhận Xe Vào & Mở Barrier</span>
           )}

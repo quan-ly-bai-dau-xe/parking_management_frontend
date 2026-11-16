@@ -3,9 +3,9 @@ import { updateSlotStatus, getSlots } from "./parkingLotService.js";
 import { mockParkingHistory } from "../mocks/parkingHistoryData.js";
 import { mockVehicles } from "../mocks/vehicleData.js";
 import { calculateParkingFee } from "../utils/parking/parkingFeeCalculator.js";
+import { IS_MOCK_ENABLED } from "../config/appConfig.js";
 
-const USE_MOCK =
-  import.meta.env?.VITE_USE_MOCK?.trim().toLowerCase() === "true";
+const USE_MOCK = IS_MOCK_ENABLED;
 
 export { calculateParkingFee, validateVehicleEntry } from "../utils/parking/parkingFeeCalculator.js";
 
@@ -342,7 +342,7 @@ export async function forceCloseSessionAndReleaseSlot({
       const feeData = calculateParkingFee({
         vehicleType: mockParkingHistory[idx].vehicleType || "CAR",
         durationMinutes: 120,
-        hasActiveTicket,
+        hasActiveTicket: false, // Phân định rõ xe trừ ví theo giờ, không miễn 0đ tự động
       });
 
       mockParkingHistory[idx].exitTime = new Date().toLocaleString("vi-VN", {
@@ -436,11 +436,7 @@ export async function previewParkingFee({ licensePlate, sessionCode } = {}) {
       : new Date(now.getTime() - 65 * 60 * 1000);
     const durationMinutes = Math.max(1, Math.round((now - entryDate) / (1000 * 60)));
     const targetVeh = cleanPlate ? mockVehicles.find((v) => v.licensePlate === cleanPlate) : null;
-    const hasActiveTicket = Boolean(
-      targetSession?.hasActiveTicket ||
-      targetVeh?.ticket?.status === "active" ||
-      targetVeh?.ticketState === "active"
-    );
+    const hasActiveTicket = false; // Luồng xe liên kết ví App tính phí theo giờ đỗ, không gán 0đ của vé tháng
 
     const feeData = calculateParkingFee({
       vehicleType: targetSession?.vehicleType || targetVeh?.vehicleType || "CAR",
@@ -456,7 +452,7 @@ export async function previewParkingFee({ licensePlate, sessionCode } = {}) {
     return {
       session_id: targetSession?.id || 1,
       session_code: targetSession?.sessionCode || cleanCode || "SS-PREVIEW",
-      license_plate: cleanPlate || targetSession?.licensePlate || "51A-897.14",
+      license_plate: cleanPlate || targetSession?.licensePlate || "—",
       entry_time: entryDate.toISOString(),
       duration_minutes: durationMinutes,
       duration_text: durationText,
@@ -527,7 +523,7 @@ export async function checkOutVehicle({
   const feeData = calculateParkingFee({
     vehicleType,
     durationMinutes,
-    hasActiveTicket,
+    hasActiveTicket: false, // Xe liên kết ví / vãng lai không miễn vé tháng 0đ
     isExempt,
   });
 

@@ -5,6 +5,8 @@ import {
   formatCurrencyVND,
 } from "../../../constants/paymentConstants.js";
 import { checkIsManager } from "../../../constants/roleConstants.js";
+import { useCurrentUser } from "../../../hooks/useCurrentUser.js";
+import { getCustomerWalletBalance } from "../../../services/walletService.js";
 
 const UNKNOWN_ENTRY_TIME_LABEL = "Chưa rõ giờ vào";
 
@@ -36,13 +38,11 @@ export default function ExitLanePanel({
   onConfirmExit,
   hasValidTicket = false,
 }) {
-  const isManager = checkIsManager(currentUserRole);
+  const { role: authUserRole } = useCurrentUser();
+  const effectiveRole = currentUserRole ?? authUserRole;
+  const isManager = checkIsManager(effectiveRole);
 
-  const isTicketActive = Boolean(
-    backendFeePreview?.has_active_ticket ||
-    backendFeePreview?.is_exempt ||
-    hasValidTicket
-  );
+  const isTicketActive = false; // Phân định rõ: Luồng xe liên kết ví App tính cước theo giờ, không miễn 0đ tự động
 
   // Cước phí và nhãn hiển thị dựa hoàn toàn trên Backend Fee Preview (Single Source of Truth per Rule 12)
   let displayFeeText = "—";
@@ -51,10 +51,6 @@ export default function ExitLanePanel({
 
   if (isFeeExempt) {
     displayFeeText = "0đ (Miễn cước đặc cách)";
-    displayFeeAmount = 0;
-    isZeroFee = true;
-  } else if (isTicketActive) {
-    displayFeeText = "0đ (Vé tháng có hiệu lực)";
     displayFeeAmount = 0;
     isZeroFee = true;
   } else if (backendFeePreview?.fee_amount !== undefined) {
@@ -158,6 +154,38 @@ export default function ExitLanePanel({
             </span>
           </div>
         </div>
+
+        {/* Khung đối soát ảnh vào / ra chống đánh tráo xe/biển số */}
+        <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-3xs">
+          <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+            <span className="font-semibold text-slate-600 block mb-1">📸 Ảnh lúc Vào (Gốc):</span>
+            {rawLookup?.open_session?.entry_image_url || backendFeePreview?.entry_image_url || scanDetails?.imageUrl ? (
+              <img
+                src={rawLookup?.open_session?.entry_image_url || backendFeePreview?.entry_image_url || scanDetails?.imageUrl}
+                alt="Ảnh xe lúc vào"
+                className="w-full h-16 object-cover rounded border border-slate-200"
+              />
+            ) : (
+              <div className="w-full h-16 flex items-center justify-center bg-slate-100 text-slate-400 rounded text-4xs">
+                Chưa có ảnh vào
+              </div>
+            )}
+          </div>
+          <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+            <span className="font-semibold text-slate-600 block mb-1">📷 Camera lúc Ra (Hiện tại):</span>
+            {scanDetails?.imageUrl || (matchedVehicle?.imageUrl?.startsWith("http") ? matchedVehicle.imageUrl : null) ? (
+              <img
+                src={scanDetails?.imageUrl || matchedVehicle?.imageUrl}
+                alt="Ảnh xe lúc ra"
+                className="w-full h-16 object-cover rounded border border-slate-200"
+              />
+            ) : (
+              <div className="w-full h-16 flex items-center justify-center bg-emerald-50 text-emerald-700 font-mono rounded text-4xs">
+                Camera Live
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Biểu phí & Thanh toán */}
@@ -243,8 +271,10 @@ export default function ExitLanePanel({
                 matchedVehicle?.customerId ||
                 (matchedVehicle?.customer?.name && matchedVehicle?.customer?.name !== "Khách vãng lai")
               );
-              // Sử dụng cấu hình số dư chuẩn từ WALLET_CONFIG thay vì magic number
-              const userWalletBalance = matchedVehicle?.customer?.walletBalance ?? WALLET_CONFIG.DEFAULT_INITIAL_BALANCE_VND;
+              const userWalletBalance = getCustomerWalletBalance({
+                customerId: matchedVehicle?.customer?.id || matchedVehicle?.customerId,
+                licensePlate: detectedPlate || matchedVehicle?.licensePlate,
+              });
               const isWalletSufficient = userWalletBalance >= displayFeeAmount;
 
               return (
@@ -344,8 +374,14 @@ export default function ExitLanePanel({
                         * Lưu ý: Giao dịch trừ ví đang chạy ở chế độ mô phỏng giao diện (Chưa trừ tiền tài khoản ngân hàng thật).
                       </div>
                       {!isWalletSufficient && (
-                        <div className="text-amber-800 bg-amber-100/80 p-1.5 rounded text-3xs font-medium">
-                          ⚠️ Số dư ví không đủ. Vui lòng chuyển sang Quẹt thẻ VNPAY hoặc Tiền mặt.
+                        <div className="text-amber-900 bg-amber-100 p-2 rounded-lg text-3xs font-medium space-y-1">
+                          <div className="flex items-center justify-between font-bold">
+                            <span>⚠️ Số dư ví không đủ trừ toàn bộ:</span>
+                            <span>Thiếu {formatCurrencyVND(displayFeeAmount - userWalletBalance)}</span>
+                          </div>
+                          <div>
+                            Hệ thống sẽ trừ hết số dư ví ({formatCurrencyVND(userWalletBalance)}). Phần còn lại ({formatCurrencyVND(displayFeeAmount - userWalletBalance)}) vui lòng thu qua Tiền mặt hoặc VietQR.
+                          </div>
                         </div>
                       )}
                     </div>
