@@ -1,22 +1,120 @@
 /**
- * Biểu phí chuẩn đồng bộ Backend API (OQ-85 & TL-50):
- * - Đơn giá chuẩn cho ô tô vãng lai: 10.000đ/giờ (PARKING_HOURLY_RATE_VND).
- * - Miễn phí hoàn toàn (0đ) đối với xe có vé tháng ACTIVE còn hiệu lực hoặc được miễn trừ đặc cách.
- * - Thời gian ân hạn (Grace Period): Dưới 15 phút ra vào không tính cước (0đ).
- * - Cơ chế bảo vệ Trần giá ngày (Daily Cap): Tối đa 100.000đ / chu kỳ 24h nhằm chống trừ tiền quá lớn khi đỗ xe qua đêm.
+ * ============================================================================
+ * MODULE TÍNH TOÁN CƯỚC PHÍ GỬI XE (PARKING TARIFF & BILLING ENGINE)
+ * ============================================================================
+ * Mục tiêu thiết kế:
+ * 1. Tập trung hóa (Single Source of Truth): Mọi quy tắc tính cước, bảng giá,
+ *    miễn giảm và trần chi phí nằm duy nhất tại file này.
+ * 2. Cấu hình linh hoạt (Pluggable Config): Khi Backend trả về biểu phí mới hoặc
+ *    Ban quản lý thay đổi chính sách, chỉ cần cập nhật `TARIFF_POLICY` hoặc truyền
+ *    config từ API vào mà không phải sửa logic tính toán.
+ * 3. Minh bạch & Dễ hiểu (Clarity & Auditability):
+ *    - Bước 1: Kiểm tra miễn phí (Vé tháng / Đặc cách / Miễn trừ).
+ *    - Bước 2: Kiểm tra thời gian ân hạn (Grace Period).
+ *    - Bước 3: Tính số giờ làm tròn (Round-up Hours theo quy tắc tối thiểu 1h).
+ *    - Bước 4: Áp dụng cơ chế trần giá (Daily Max Cap) chống đội giá khi gửi lâu.
+ *    - Bước 5: Đánh giá cảnh báo xe tồn bãi (Overstay Warning).
+ * ============================================================================
  */
-export const DEFAULT_HOURLY_RATE_VND = 10000;
-export const GRACE_PERIOD_MINUTES = 15;
-export const DAILY_MAX_CAP_VND = 100000;
 
+// ----------------------------------------------------------------------------
+// 1. CẤU HÌNH BIỂU PHÍ MẶC ĐỊNH (POLICY CONFIGURATION)
+// Đồng bộ 100% với Backend Specs (OQ-85 & TL-50)
+// ----------------------------------------------------------------------------
+export const DEFAULT_PARKING_TARIFF_CONFIG = {
+  // Đơn giá tiêu chuẩn mỗi giờ (VND)
+  HOURLY_RATE_VND: 10000,
+
+  // Thời gian ân hạn miễn phí (phút).
+  // Mặc định = 0 theo quy định OQ-85: Vào bãi dưới 15 phút vẫn tính đủ 1 giờ đầu (10.000đ).
+  // Nếu sau này nhóm quyết định miễn phí 15 phút đầu, chỉ cần đổi thành 15.
+  GRACE_PERIOD_MINUTES: 0,
+
+  // Số giờ làm tròn tối thiểu khi bắt đầu phát sinh cước
+  MINIMUM_BILLED_HOURS: 1,
+
+  // Giới hạn cước tối đa trong 1 ngày (24 giờ liên tục) (VND)
+  // Ngăn tình trạng xe gửi qua đêm hoặc nhiều ngày bị cộng dồn giá quá lớn.
+  // Ví dụ: 24h x 10.000đ = 240.000đ -> Chỉ tính tối đa 100.000đ/ngày.
+  DAILY_MAX_CAP_VND: 100000,
+
+  // Ngưỡng phát hiện & cảnh báo xe lưu bãi quá lâu (giờ)
+  OVERSTAY_WARNING_HOURS: 24,   // > 24h: Cảnh báo qua đêm
+  OVERSTAY_CRITICAL_HOURS: 72,  // > 72h: Cảnh báo xe bỏ quên / tồn bãi dài hạn
+};
+
+// Backward-compatibility exports
+export const DEFAULT_HOURLY_RATE_VND = DEFAULT_PARKING_TARIFF_CONFIG.HOURLY_RATE_VND;
+export const GRACE_PERIOD_MINUTES = DEFAULT_PARKING_TARIFF_CONFIG.GRACE_PERIOD_MINUTES;
+export const DAILY_MAX_CAP_VND = DEFAULT_PARKING_TARIFF_CONFIG.DAILY_MAX_CAP_VND;
+
+// ----------------------------------------------------------------------------
+// 2. HELPER FUNCTIONS NỘI BỘ (TÁCH BẠCH RÕ RÀNG TỪNG PHÉP TÍNH)
+// ----------------------------------------------------------------------------
+
+/**
+ * Tính số giờ tính cước dựa trên số phút gửi thực tế:
+ * - Dưới 60 phút -> Tính tối thiểu 1 giờ (theo OQ-85).
+ * - Làm tròn lên từng giờ: ví dụ 65 phút -> 2 giờ.
+ */
+function calculateBilledHours(durationMinutes, minimumHours = 1) {
+  const safeMinutes = Math.max(0, Number(durationMinutes) || 0);
+  const rawHours = Math.ceil(safeMinutes / 60);
+  return Math.max(minimumHours, rawHours);
+}
+
+/**
+ * Áp dụng trần giá theo chu kỳ ngày (24 giờ):
+ * - Nếu dailyCap <= 0 hoặc null: Không áp trần giá (tính lũy kế theo số giờ thực tế).
+ * - Nếu có trần giá: Mỗi block 24h được chốt tối đa bằng `dailyCap`. Phần giờ lẻ còn lại tính theo giờ thường, không vượt quá trần 1 ngày.
+ */
+function calculateCappedFee(hours, hourlyRate, dailyCap) {
+  if (!dailyCap || dailyCap <= 0) {
+    return hours * hourlyRate;
+  }
+  const fullDays = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+
+  const costForFullDays = fullDays * dailyCap;
+  const costForRemainingHours = Math.min(dailyCap, remainingHours * hourlyRate);
+
+  return costForFullDays + costForRemainingHours;
+}
+
+/**
+ * Xác định mức độ cảnh báo xe lưu bãi lâu ngày
+ */
+function getOverstayLevel(hours, warningThreshold, criticalThreshold) {
+  if (hours >= criticalThreshold) return "critical";
+  if (hours >= warningThreshold) return "warning";
+  return "normal";
+}
+
+// ----------------------------------------------------------------------------
+// 3. HÀM TÍNH TOÁN CƯỚC PHÍ CHÍNH (MAIN BILLING ENGINE)
+// ----------------------------------------------------------------------------
 export function calculateParkingFee({
   vehicleType = "CAR",
   durationMinutes = 0,
   hasActiveTicket = false,
   hasValidTicket = false,
   isExempt = false,
+  tariffConfig = {},
 }) {
-  void vehicleType;
+  void vehicleType; // Dành cho việc mở rộng phân loại xe máy / xe tải sau này
+
+  // Hợp nhất cấu hình tùy biến với cấu hình mặc định (hỗ trợ cả camelCase và UPPER_CASE)
+  const config = {
+    hourlyRateVnd: tariffConfig.hourlyRateVnd ?? tariffConfig.HOURLY_RATE_VND ?? DEFAULT_PARKING_TARIFF_CONFIG.HOURLY_RATE_VND,
+    gracePeriodMinutes: tariffConfig.gracePeriodMinutes ?? tariffConfig.GRACE_PERIOD_MINUTES ?? DEFAULT_PARKING_TARIFF_CONFIG.GRACE_PERIOD_MINUTES,
+    // Cấu hình trần cước theo ngày (Daily cap): nếu null hoặc <= 0 nghĩa là KHÔNG áp trần (tính lũy kế theo giờ thực tế)
+    dailyMaxCapVnd: tariffConfig.dailyMaxCapVnd ?? tariffConfig.DAILY_MAX_CAP_VND ?? DEFAULT_PARKING_TARIFF_CONFIG.DAILY_MAX_CAP_VND,
+    minimumBilledHours: tariffConfig.minimumBilledHours ?? tariffConfig.MINIMUM_BILLED_HOURS ?? DEFAULT_PARKING_TARIFF_CONFIG.MINIMUM_BILLED_HOURS,
+    overstayWarningHours: tariffConfig.overstayWarningHours ?? tariffConfig.OVERSTAY_WARNING_HOURS ?? DEFAULT_PARKING_TARIFF_CONFIG.OVERSTAY_WARNING_HOURS,
+    overstayCriticalHours: tariffConfig.overstayCriticalHours ?? tariffConfig.OVERSTAY_CRITICAL_HOURS ?? DEFAULT_PARKING_TARIFF_CONFIG.OVERSTAY_CRITICAL_HOURS,
+  };
+
+  // --- BƯỚC 1: XỬ LÝ MIỄN PHÍ (Vé tháng, Khách ưu tiên, Xe sự cố) ---
   const isTicketValid = Boolean(hasActiveTicket || hasValidTicket);
   if (isTicketValid || isExempt) {
     return {
@@ -27,37 +125,43 @@ export function calculateParkingFee({
         ? "Được miễn cước (Đặc cách / Sự cố kỹ thuật)"
         : "Phương tiện đã đăng ký vé tháng còn hiệu lực",
       hoursBilled: 0,
+      isCapped: false,
+      overstayLevel: "normal",
     };
   }
 
-  // Grace period: Ra vào dưới 15 phút (đón trả khách hoặc quay đầu) miễn phí
-  if (durationMinutes < GRACE_PERIOD_MINUTES) {
+  // --- BƯỚC 2: XỬ LÝ ÂN HẠN (GRACE PERIOD) ---
+  if (config.gracePeriodMinutes > 0 && durationMinutes < config.gracePeriodMinutes) {
     return {
       feeAmount: 0,
-      feeFormatted: "0đ (Miễn phí dưới 15 phút)",
+      feeFormatted: `0đ (Miễn phí dưới ${config.gracePeriodMinutes} phút)`,
       isCoveredByTicket: false,
-      calculationBreakdown: `Thời gian đỗ ${durationMinutes} phút thuộc diện ân hạn (< ${GRACE_PERIOD_MINUTES} phút)`,
+      calculationBreakdown: `Thời gian đỗ ${durationMinutes} phút thuộc diện ân hạn (< ${config.gracePeriodMinutes} phút)`,
       hoursBilled: 0,
+      isCapped: false,
+      overstayLevel: "normal",
     };
   }
 
-  // Số giờ tính phí làm tròn lên từng giờ theo chuẩn OQ-85
-  const hours = Math.max(1, Math.ceil(durationMinutes / 60));
-  const rawFee = hours * DEFAULT_HOURLY_RATE_VND;
+  // --- BƯỚC 3: TÍNH TOÁN SỐ GIỜ TÍNH CƯỚC ---
+  const hours = calculateBilledHours(durationMinutes, config.minimumBilledHours);
+  const uncappedFee = hours * config.hourlyRateVnd;
 
-  // Áp dụng trần tối đa theo ngày (24h) để tránh tính phí quá lớn khi gửi qua đêm
-  const days = Math.floor(hours / 24);
-  const remainingHours = hours % 24;
-  const cappedFee =
-    days * DAILY_MAX_CAP_VND + Math.min(DAILY_MAX_CAP_VND, remainingHours * DEFAULT_HOURLY_RATE_VND);
-  const totalFee = Math.min(rawFee, cappedFee);
+  // --- BƯỚC 4: ÁP DỤNG TRẦN BẢO VỆ THEO NGÀY (DAILY CAP) ---
+  const cappedFee = calculateCappedFee(hours, config.hourlyRateVnd, config.dailyMaxCapVnd);
+  const totalFee = Math.min(uncappedFee, cappedFee);
+  const isCapped = totalFee < uncappedFee;
 
+  // Soạn diễn giải chi tiết cho người dùng và nhân viên bãi
   let breakdown;
-  if (totalFee < rawFee) {
-    breakdown = `${hours}h đỗ -> Áp dụng trần tối đa theo ngày (${DAILY_MAX_CAP_VND.toLocaleString("vi-VN")}đ/24h)`;
+  if (isCapped) {
+    breakdown = `${hours}h đỗ -> Áp dụng trần tối đa theo ngày (${config.dailyMaxCapVnd.toLocaleString("vi-VN")}đ/24h)`;
   } else {
-    breakdown = `${hours}h x ${DEFAULT_HOURLY_RATE_VND.toLocaleString("vi-VN")}đ/h (Đơn giá chuẩn OQ-85)`;
+    breakdown = `${hours}h x ${config.hourlyRateVnd.toLocaleString("vi-VN")}đ/h (Đơn giá chuẩn OQ-85, tối thiểu 1h đầu)`;
   }
+
+  // --- BƯỚC 5: ĐÁNH GIÁ MỨC ĐỘ XE TỒN BÃI ---
+  const overstayLevel = getOverstayLevel(hours, config.overstayWarningHours, config.overstayCriticalHours);
 
   return {
     feeAmount: totalFee,
@@ -65,6 +169,8 @@ export function calculateParkingFee({
     isCoveredByTicket: false,
     calculationBreakdown: breakdown,
     hoursBilled: hours,
+    isCapped,
+    overstayLevel,
   };
 }
 

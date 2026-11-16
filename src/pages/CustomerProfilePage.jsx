@@ -3,6 +3,11 @@ import AppTopHeader from "../components/layout/AppTopHeader";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { apiClient } from "../services/apiClient";
 import { MOCK_CUSTOMERS } from "../mocks/customerSideData";
+import {
+  WALLET_CONFIG,
+  PAYMENT_METHODS,
+  formatCurrencyVND,
+} from "../constants/paymentConstants.js";
 
 const MOCK_TRANSACTIONS = [
   {
@@ -74,8 +79,17 @@ export default function CustomerProfilePage() {
     identityCard: initialCustomerData.identity_card_number || "",
   });
 
-  const [walletBalance] = useState(0);
+  const [walletBalance, setWalletBalance] = useState(
+    WALLET_CONFIG.DEFAULT_INITIAL_BALANCE_VND
+  );
   const [activeFilter, setActiveFilter] = useState("all");
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [depositAmount, setDepositAmount] = useState(
+    WALLET_CONFIG.DEFAULT_DEPOSIT_AMOUNT_VND
+  );
+  const [depositMethod, setDepositMethod] = useState(PAYMENT_METHODS.VNPAY);
+  const [isDepositing, setIsDepositing] = useState(false);
+  const [depositSuccessMsg, setDepositSuccessMsg] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -317,34 +331,42 @@ export default function CustomerProfilePage() {
           <div className="lg:col-span-4 space-y-6">
             {/* Card Ví Smart Parking */}
             <section className="bg-gradient-to-tr from-[#0F172A] to-[#1E293B] text-white rounded-3xl p-6 sm:p-7 shadow-xl shadow-slate-900/10 space-y-4">
-              <span className="text-[0.68rem] font-bold tracking-widest text-slate-300 uppercase block">
-                VÍ SMART PARKING
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-[0.68rem] font-bold tracking-widest text-slate-300 uppercase block">
+                  VÍ SMART PARKING
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[10px] font-semibold">
+                  Mô phỏng UI
+                </span>
+              </div>
 
               <div>
                 <span className="text-xs text-slate-400 block mb-1">
-                  Số dư khả dụng
+                  Số dư khả dụng (Mô phỏng)
                 </span>
                 <div className="text-3xl font-extrabold tracking-tight font-mono">
-                  {walletBalance.toLocaleString("vi-VN")}{" "}
-                  <span className="underline text-2xl font-bold">đ</span>
+                  {formatCurrencyVND(walletBalance)}
                 </div>
               </div>
 
               <p className="text-xs text-slate-300 leading-relaxed font-normal">
-                Dùng để mua vé và thanh toán phí đỗ xe.
+                Dùng để mua vé và thanh toán phí đỗ xe. Số dư này hiện đang ở chế độ mô phỏng giao diện.
               </p>
 
               <button
                 type="button"
+                onClick={() => {
+                  setDepositSuccessMsg("");
+                  setIsDepositModalOpen(true);
+                }}
                 className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span className="text-base font-bold leading-none">+</span>
-                <span>Nạp tiền vào ví</span>
+                <span>Nạp tiền thử nghiệm qua VNPAY</span>
               </button>
 
               <p className="text-[11px] text-slate-400 text-center pt-1">
-                Giao dịch được cập nhật tự động sau khi hoàn tất.
+                * Chưa kết nối cổng thanh toán thật. Không phát sinh trừ tiền thẻ.
               </p>
             </section>
 
@@ -495,6 +517,108 @@ export default function CustomerProfilePage() {
           </span>
         </div>
       </footer>
+
+      {/* Modal Nạp tiền VNPAY vào Ví Smart Parking */}
+      {isDepositModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-base text-slate-900">Nạp tiền vào Ví Smart Parking</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold">
+                    Sandbox Test
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">Thanh toán thử nghiệm mô phỏng qua cổng VNPAY</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDepositModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold flex items-center justify-center cursor-pointer transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Chọn số tiền nạp */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-700 block">Chọn số tiền nạp:</label>
+              <div className="grid grid-cols-3 gap-2">
+                {WALLET_CONFIG.DEPOSIT_PRESET_AMOUNTS_VND.map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setDepositAmount(amt)}
+                    className={`py-2 px-3 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                      depositAmount === amt
+                        ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {formatCurrencyVND(amt)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Cổng thanh toán */}
+            <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-2xl flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white border border-indigo-200 flex items-center justify-center font-bold text-indigo-700 text-xs shadow-2xs">
+                VNPAY
+              </div>
+              <div className="text-xs">
+                <div className="font-bold text-indigo-950 flex items-center gap-1.5">
+                  <span>Cổng thanh toán điện tử VNPAY</span>
+                  <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded font-semibold">Thử nghiệm</span>
+                </div>
+                <div className="text-3xs text-indigo-700">Môi trường giả lập giao dịch — Tiền trong tài khoản ngân hàng sẽ không bị trừ.</div>
+              </div>
+            </div>
+
+            {depositSuccessMsg && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold text-center">
+                {depositSuccessMsg}
+              </div>
+            )}
+
+            <div className="pt-2 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDepositModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer transition"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={isDepositing}
+                onClick={() => {
+                  setIsDepositing(true);
+                  setTimeout(() => {
+                    setWalletBalance((prev) => prev + depositAmount);
+                    setIsDepositing(false);
+                    setDepositSuccessMsg(`✓ Đã nạp thành công ${formatCurrencyVND(depositAmount)} vào ví!`);
+                    setTimeout(() => {
+                      setIsDepositModalOpen(false);
+                    }, 1200);
+                  }, 800);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-md cursor-pointer transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {isDepositing ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Đang kết nối VNPAY...</span>
+                  </>
+                ) : (
+                  <span>Xác nhận nạp {formatCurrencyVND(depositAmount)}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

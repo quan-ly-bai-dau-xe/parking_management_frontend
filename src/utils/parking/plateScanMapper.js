@@ -1,5 +1,6 @@
 import { ParkingSessionSchema } from "../../schemas/parkingSessionSchema.js";
 import { formatIsoDateToDisplay } from "../formatDateTime.js";
+import { calculateParkingFee } from "./parkingFeeCalculator.js";
 
 /**
  * Hằng số cấu hình mặc định dùng chung cho mapper
@@ -274,6 +275,28 @@ export function mapParkingSession(raw) {
     status = MAPPER_DEFAULTS.STATUS_COMPLETED;
   }
 
+  // Tự động tính cước phí tạm tính & cảnh báo lưu bãi quá lâu nếu xe đang đỗ (in_progress)
+  let estimatedFee = null;
+  let overstayLevel = "normal";
+  const hasActiveTicket = Boolean(raw.has_active_ticket ?? raw.hasActiveTicket);
+
+  if (status === MAPPER_DEFAULTS.STATUS_IN_PROGRESS && entryTimeRaw) {
+    try {
+      const entryDate = new Date(entryTimeRaw);
+      if (!Number.isNaN(entryDate.getTime())) {
+        const elapsedMinutes = Math.max(0, Math.round((Date.now() - entryDate.getTime()) / (1000 * 60)));
+        estimatedFee = calculateParkingFee({
+          vehicleType: raw.vehicleType || "CAR",
+          durationMinutes: elapsedMinutes,
+          hasActiveTicket,
+        });
+        overstayLevel = estimatedFee.overstayLevel || "normal";
+      }
+    } catch {
+      // Fallback an toàn nếu thời gian vào không hợp lệ
+    }
+  }
+
   return {
     id: String(raw.id || sessionCode),
     sessionCode,
@@ -293,8 +316,10 @@ export function mapParkingSession(raw) {
     durationMinutes: raw.duration_minutes ?? null,
     fee: feeDisplay,
     feeNumber,
+    estimatedFee,
+    overstayLevel,
     status,
-    hasActiveTicket: Boolean(raw.has_active_ticket ?? raw.hasActiveTicket),
+    hasActiveTicket,
     ticketType: raw.ticket_type_name || raw.ticketType || MAPPER_DEFAULTS.DEFAULT_TICKET_TYPE,
   };
 }
@@ -398,6 +423,12 @@ export function mapPlateScanToVehicle(scanResult) {
         : ticket.hasActiveTicket
         ? MAPPER_DEFAULTS.STATUS_ACTIVE
         : MAPPER_DEFAULTS.STATUS_LEFT),
+    isBlacklisted: Boolean(
+      scanResult.is_blacklisted ||
+      scanResult.vehicle_lookup?.is_blacklisted ||
+      rawVehicle.is_blacklisted ||
+      rawVehicle.status === "BLACKLISTED"
+    ),
     imageUrl: resolveMediaUrl(scanResult.image_url || scanResult.plate_image_url),
     rawScan: scanResult,
   };
@@ -460,6 +491,12 @@ export function mapVehicleLookupToVehicle(lookupResult) {
     status: isSessionOpen
       ? MAPPER_DEFAULTS.STATUS_PARKED
       : (lookupResult.status || (ticket.hasActiveTicket ? MAPPER_DEFAULTS.STATUS_ACTIVE : MAPPER_DEFAULTS.STATUS_LEFT)),
+    isBlacklisted: Boolean(
+      lookupResult.is_blacklisted ||
+      lookupResult.details?.is_blacklisted ||
+      rawVehicle.is_blacklisted ||
+      rawVehicle.status === "BLACKLISTED"
+    ),
     rawLookup: lookupResult,
   };
 }
@@ -477,4 +514,106 @@ export function mapSessionToFrontend(session) {
   }
 
   return mapParkingSession(session);
+}
+
+/**
+ * parseEntryTimeToDate: Chuyển đổi chuỗi thời gian vào (entry_time) sang đối tượng Date.
+ * Hỗ trợ các định dạng: HH:mm dd/MM/yyyy, dd/MM/yyyy HH:mm, ISO 8601 string.
+ */
+export const parseEntryTimeToDate = (entryTimeStr) => {
+  if (!entryTimeStr) return null;
+  const str = String(entryTimeStr).trim();
+  const timeFirst = str.match(/^(\d{1,2}):(\d{1,2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (timeFirst) {
+    const [, hour, min, day, month, year] = timeFirst;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(min));
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  const dateFirst = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?$/);
+  if (dateFirst) {
+    const [, day, month, year, hour = "0", min = "0"] = dateFirst;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(min));
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  const d = new Date(str);
+  if (!Number.isNaN(d.getTime())) return d;
+  return null;
+};
+
+/**
+ * normalizePlate: Chuẩn hóa biển số xe thành chữ in hoa và loại bỏ ký tự đặc biệt.
+ */
+export const normalizePlate = (str) =>
+  (str || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+
+/**
+ * createWalkInVehicle: Tạo đối tượng phương tiện vãng lai (khách vãng lai / vé lượt) chuẩn hóa.
+ * Đảm bảo đầy đủ các trường dữ liệu tương thích hoàn toàn với model Vehicle của hệ thống.
+ */
+export function createWalkInVehicle(rawPlate, options = {}) {
+  const { isBlacklisted = false, openSession = null, customId = null } = options;
+  const cleanPlate = (rawPlate || "").trim().toUpperCase();
+  const customer = {
+    id: null,
+    name: `${MAPPER_DEFAULTS.GUEST_CUSTOMER} (Vé lượt)`,
+    phone: MAPPER_DEFAULTS.EMPTY_PLACEHOLDER,
+    code: "",
+  };
+  const ticket = {
+    type: MAPPER_DEFAULTS.DEFAULT_TICKET_TYPE,
+    status: MAPPER_DEFAULTS.STATUS_NONE,
+    effectiveTo: null,
+    hasActiveTicket: false,
+  };
+  const isSessionOpen = Boolean(
+    openSession?.id &&
+    !openSession.exit_time &&
+    openSession.status !== "completed" &&
+    openSession.status !== "closed"
+  );
+  const slotCode = openSession?.slot_code || MAPPER_DEFAULTS.UNASSIGNED_SLOT;
+
+  return {
+    id: customId || `WALK_IN_${Date.now()}`,
+    vehicleId: null,
+    licensePlate: cleanPlate || MAPPER_DEFAULTS.EMPTY_PLACEHOLDER,
+    confidence: 100,
+    isRecognized: Boolean(cleanPlate),
+    customerId: null,
+    customerName: customer.name,
+    customerPhone: customer.phone,
+    customerCode: "",
+    customer,
+    model: MAPPER_DEFAULTS.GUEST_CUSTOMER,
+    brand: MAPPER_DEFAULTS.EMPTY_PLACEHOLDER,
+    color: MAPPER_DEFAULTS.EMPTY_PLACEHOLDER,
+    vehicleType: MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE,
+    vehicleTypeId: MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE_ID,
+    vehicleTypeCode: MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE_CODE,
+    ticketType: ticket.type,
+    ticketStatus: ticket.status,
+    ticketExpiration: null,
+    ticket,
+    hasActiveTicket: false,
+    slotCode,
+    parkingPosition: null,
+    parkingSlot: {
+      slot: slotCode,
+      display: slotCode !== MAPPER_DEFAULTS.UNASSIGNED_SLOT ? slotCode : "Chưa có vị trí",
+      slotId: null,
+      floorName: "",
+      zoneCode: "",
+    },
+    status: isBlacklisted
+      ? "BLACKLISTED"
+      : isSessionOpen
+      ? MAPPER_DEFAULTS.STATUS_PARKED
+      : MAPPER_DEFAULTS.STATUS_ACTIVE,
+    isBlacklisted: Boolean(isBlacklisted),
+    rawLookup: {
+      ...(openSession ? { open_session: openSession } : {}),
+      is_blacklisted: Boolean(isBlacklisted),
+      status: isBlacklisted ? "BLACKLISTED" : undefined,
+    },
+  };
 }

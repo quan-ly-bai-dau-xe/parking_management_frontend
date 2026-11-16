@@ -509,6 +509,21 @@ export async function checkOutVehicle({
   const isWaive = Boolean(waiveFee || waive_fee);
   const finalWaiverReason = (waiverReason || waiver_reason || "").trim();
 
+  // Chuẩn hóa phương thức thanh toán an toàn cho Backend (Backend chỉ hỗ trợ CASH / VIETQR)
+  let backendPaymentMethod = "CASH";
+  let checkoutNotes = notes;
+
+  if (paymentMethod === "WALLET") {
+    backendPaymentMethod = "VIETQR";
+    checkoutNotes = notes
+      ? `${notes} (Thanh toán qua Ví Smart Parking)`
+      : "Thanh toán tự động qua Ví Smart Parking (App User)";
+  } else if (paymentMethod === "VNPAY" || paymentMethod === "VIETQR") {
+    backendPaymentMethod = "VIETQR";
+  } else {
+    backendPaymentMethod = "CASH";
+  }
+
   const feeData = calculateParkingFee({
     vehicleType,
     durationMinutes,
@@ -578,18 +593,16 @@ export async function checkOutVehicle({
   if (isWaive) {
     payload.waive_fee = true;
     payload.waiver_reason = finalWaiverReason;
-    if (notes) {
-      payload.notes = notes;
+    if (checkoutNotes) {
+      payload.notes = checkoutNotes;
     }
   } else {
     payload.payment_method =
       hasActiveTicket || isExempt
         ? "CASH"
-        : paymentMethod === "VIETQR"
-        ? "VIETQR"
-        : "CASH";
-    if (notes) {
-      payload.notes = notes;
+        : backendPaymentMethod;
+    if (checkoutNotes) {
+      payload.notes = checkoutNotes;
     }
   }
 
