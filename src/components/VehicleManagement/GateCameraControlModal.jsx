@@ -8,13 +8,13 @@ import {
   previewParkingFee,
 } from "../../services/parkingSessionService";
 import { usePlateAutoDetect } from "../../hooks/usePlateAutoDetect";
-import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { usePlateMatching } from "./scanPlate/hooks/usePlateMatching";
 import { parseEntryTimeToDate } from "../../utils/parking/plateScanMapper";
 
 import ScanPlateCameraFeed from "./scanPlate/ScanPlateCameraFeed";
 import EntryLanePanel from "./scanPlate/EntryLanePanel";
 import ExitLanePanel from "./scanPlate/ExitLanePanel";
+import CloseSessionSafetyModal from "./scanPlate/CloseSessionSafetyModal";
 import { formatLicensePlateForDisplay } from "../../utils/plateFormatter";
 import { getEntryErrorMessage, getExitErrorMessage } from "../../utils/parking/gateErrorMapper";
 
@@ -44,8 +44,6 @@ export default function GateCameraControlModal({
   const actionPendingRef = useRef(false);
   const barrierTimerRef = useRef(null);
   const barrierAutoCloseTimerRef = useRef(null);
-
-  const { role: currentUserRole } = useCurrentUser();
 
   // State phân tách rõ ràng giữa Camera và Tra cứu thủ công (Finding 5)
   const [cameraDetectedPlate, setCameraDetectedPlate] = useState("");
@@ -85,6 +83,7 @@ export default function GateCameraControlModal({
 
   const [backendFeePreview, setBackendFeePreview] = useState(null);
   const [isLoadingFeePreview, setIsLoadingFeePreview] = useState(false);
+  const [isSafetyModalOpen, setIsSafetyModalOpen] = useState(false);
 
   const activeGateId =
     gateId || (laneMode === "entry" ? DEFAULT_ENTRY_GATE_ID : DEFAULT_EXIT_GATE_ID);
@@ -341,8 +340,12 @@ export default function GateCameraControlModal({
     return Math.max(1, Math.floor(diffMs / 60000));
   }, [rawLookup?.open_session?.entry_time, currentTimestamp]);
 
-  const handleForceCloseSession = async () => {
-    const licensePlate = detectedPlate || matchedVehicle?.licensePlate;
+  const handleOpenSafetyModal = () => {
+    setIsSafetyModalOpen(true);
+  };
+
+  const handleConfirmCloseSafety = async (options = {}) => {
+    const licensePlate = options.licensePlate || detectedPlate || matchedVehicle?.licensePlate;
     if (!licensePlate || actionPendingRef.current) return;
 
     actionPendingRef.current = true;
@@ -350,12 +353,23 @@ export default function GateCameraControlModal({
     setErrorMessage("");
 
     try {
+      const isGlitch = options.actionType === "cancel_glitch";
+      const notes = isGlitch
+        ? `Hủy phiên do quét sai/nhầm: ${options.reason || "Ngoại lệ"}`
+        : options.reason || "Đóng phiên cũ có thu tiền tại làn kiểm soát";
+
       await forceCloseSessionAndReleaseSlot({
         licensePlate,
-        notes: "Cưỡng chế đóng phiên cũ bị treo tại cổng",
+        sessionCode: options.sessionCode,
+        notes,
       });
       setRawLookup((prev) => (prev ? { ...prev, open_session: null } : null));
-      setActionSuccessMessage("✓ Đã đóng phiên cũ thành công. Sẵn sàng đón lượt mới!");
+      setIsSafetyModalOpen(false);
+      setActionSuccessMessage(
+        isGlitch
+          ? "✓ Đã hủy phiên cũ do quét nhầm thành công (0đ)."
+          : "✓ Đã thu tiền & đóng phiên cũ thành công. Sẵn sàng đón lượt mới!"
+      );
     } catch (err) {
       setErrorMessage(err?.data?.message || err?.message || "Không thể cưỡng chế đóng phiên.");
     } finally {
@@ -366,6 +380,11 @@ export default function GateCameraControlModal({
 
   const handleConfirmEntry = async () => {
     if (actionPendingRef.current) return;
+    if (hasOpenSession) {
+      setErrorMessage("⛔ Xe đang có phiên gửi cũ chưa đóng. Vui lòng đối soát và đóng phiên cũ trước.");
+      return;
+    }
+
     actionPendingRef.current = true;
     setIsActionPending(true);
     setErrorMessage("");
@@ -375,13 +394,6 @@ export default function GateCameraControlModal({
     try {
       const chosenSlot = availableSlots.find((s) => s.id === selectedSlotId);
       const targetSlotId = chosenSlot?.id ?? 1;
-
-      if (hasOpenSession) {
-        await forceCloseSessionAndReleaseSlot({
-          licensePlate: detectedPlate || matchedVehicle?.licensePlate,
-          notes: "Tự động đóng phiên cũ bị treo để tạo phiên check-in mới",
-        });
-      }
 
       // Sửa lỗi nghiêm trọng G-FE-01: TUYỆT ĐỐI KHÔNG gửi chuỗi Base64 Data URL từ canvas
       let entryImageUrl = null;
@@ -727,7 +739,7 @@ export default function GateCameraControlModal({
                   hasOpenSession={hasOpenSession}
                   isActionPending={isActionPending}
                   onConfirmEntry={handleConfirmEntry}
-                  onForceCloseSession={handleForceCloseSession}
+                  onForceCloseSession={handleOpenSafetyModal}
                 />
               ) : (
                 <ExitLanePanel
@@ -743,7 +755,6 @@ export default function GateCameraControlModal({
                   setIsFeeExempt={setIsFeeExempt}
                   waiverReason={waiverReason}
                   setWaiverReason={setWaiverReason}
-                  currentUserRole={currentUserRole}
                   paymentMethod={paymentMethod}
                   setPaymentMethod={setPaymentMethod}
                   isActionPending={isActionPending}
@@ -774,6 +785,16 @@ export default function GateCameraControlModal({
           )}
         </div>
       </div>
+
+      {/* Modal bảo vệ đối soát an toàn phiên gửi cũ */}
+      <CloseSessionSafetyModal
+        isOpen={isSafetyModalOpen}
+        onClose={() => setIsSafetyModalOpen(false)}
+        licensePlate={detectedPlate || matchedVehicle?.licensePlate}
+        openSession={rawLookup?.open_session}
+        onConfirmClose={handleConfirmCloseSafety}
+        isLoading={isActionPending}
+      />
     </div>
   );
 }

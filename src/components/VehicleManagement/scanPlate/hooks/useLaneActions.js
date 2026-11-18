@@ -4,6 +4,7 @@ import {
   checkOutVehicle,
   forceCloseSessionAndReleaseSlot,
 } from "../../../../services/parkingSessionService";
+import { deductFromCustomerWallet } from "../../../../services/walletService";
 
 export const DEFAULT_ENTRY_GATE_ID = 1;
 export const DEFAULT_EXIT_GATE_ID = 3;
@@ -101,8 +102,8 @@ export function useLaneActions({
     setActionSuccessMessage("");
   };
 
-  const handleForceCloseSession = async () => {
-    const licensePlate = detectedPlate || matchedVehicle?.licensePlate;
+  const handleForceCloseSession = async (options = {}) => {
+    const licensePlate = options.licensePlate || detectedPlate || matchedVehicle?.licensePlate;
     if (!licensePlate || actionPendingRef.current) return;
 
     actionPendingRef.current = true;
@@ -110,12 +111,39 @@ export function useLaneActions({
     setErrorMessage("");
 
     try {
+      const isGlitch = options.actionType === "cancel_glitch";
+      let notes = options.reason;
+
+      if (!isGlitch && options.paymentMethod === "WALLET" && options.feeAmount > 0) {
+        const deductResult = deductFromCustomerWallet({
+          licensePlate,
+          amount: options.feeAmount,
+          sessionCode: options.sessionCode,
+        });
+        if (!deductResult.success) {
+          setErrorMessage(deductResult.message);
+          return;
+        }
+        notes = `${notes ? notes + " - " : ""}Thanh toán tự động trừ Ví App (${options.feeAmount.toLocaleString("vi-VN")}đ)`;
+      } else if (isGlitch) {
+        notes = `Hủy phiên do quét nhầm/sai: ${options.reason || "Ngoại lệ"}`;
+      } else {
+        notes = notes || "Đóng phiên cũ có thu tiền tại làn kiểm soát";
+      }
+
       await forceCloseSessionAndReleaseSlot({
         licensePlate,
-        notes: "Cưỡng chế đóng phiên cũ bị treo tại cổng",
+        sessionCode: options.sessionCode,
+        notes,
       });
       setRawLookup((prev) => (prev ? { ...prev, open_session: null } : null));
-      setActionSuccessMessage("✓ Đã đóng phiên cũ thành công. Sẵn sàng đón lượt mới!");
+      setActionSuccessMessage(
+        isGlitch
+          ? "✓ Đã hủy phiên cũ do quét nhầm thành công (0đ)."
+          : options.paymentMethod === "WALLET"
+          ? `✓ Đã trừ ${options.feeAmount.toLocaleString("vi-VN")}đ vào Ví App và đóng phiên thành công!`
+          : "✓ Đã thu tiền & đóng phiên cũ thành công. Sẵn sàng đón lượt mới!"
+      );
     } catch (err) {
       setErrorMessage(err?.data?.message || err?.message || "Không thể cưỡng chế đóng phiên.");
     } finally {
@@ -126,6 +154,11 @@ export function useLaneActions({
 
   const handleConfirmEntry = async () => {
     if (actionPendingRef.current) return;
+    if (hasOpenSession) {
+      setErrorMessage("⛔ Xe đang có phiên gửi cũ chưa đóng. Vui lòng đối soát và đóng phiên cũ trước.");
+      return;
+    }
+
     actionPendingRef.current = true;
     setIsActionPending(true);
     setErrorMessage("");
@@ -134,13 +167,6 @@ export function useLaneActions({
     try {
       const chosenSlot = availableSlots.find((s) => s.id === selectedSlotId);
       const targetSlotId = chosenSlot?.id ?? 1;
-
-      if (hasOpenSession) {
-        await forceCloseSessionAndReleaseSlot({
-          licensePlate: detectedPlate || matchedVehicle?.licensePlate,
-          notes: "Tự động đóng phiên cũ bị treo để tạo phiên check-in mới",
-        });
-      }
 
       const entryImageUrl =
         scanDetails?.imageUrl ||
@@ -193,19 +219,34 @@ export function useLaneActions({
     setActionSuccessMessage("");
 
     try {
-      const isExemptActive = hasValidTicket || isFeeExempt;
+      const isExemptActive = isFeeExempt;
+      const feeAmount = isExemptActive ? 0 : (exitFeeCalc?.feeAmount ?? 0);
       const chosenMethod = isExemptActive ? "TICKET_EXEMPT" : paymentMethod;
+      const targetPlate = detectedPlate || matchedVehicle?.licensePlate;
+
+      if (!isExemptActive && chosenMethod === "WALLET" && feeAmount > 0) {
+        const deductResult = deductFromCustomerWallet({
+          licensePlate: targetPlate,
+          amount: feeAmount,
+        });
+        if (!deductResult.success) {
+          setErrorMessage(deductResult.message);
+          return;
+        }
+      }
 
       await checkOutVehicle({
-        licensePlate: detectedPlate || matchedVehicle?.licensePlate,
+        licensePlate: targetPlate,
         exitGateId: DEFAULT_EXIT_GATE_ID,
         paymentMethod: chosenMethod,
-        feePaid: isExemptActive ? 0 : exitFeeCalc.feeAmount,
+        feePaid: feeAmount,
       });
 
       triggerBarrierOpen();
       setActionSuccessMessage(
-        `✓ Check-out hoàn tất (${exitFeeCalc.feeFormatted})! Mở barrier mời xe ra bãi.`
+        chosenMethod === "WALLET"
+          ? `✓ Trừ Ví App thành công (${exitFeeCalc?.feeFormatted ?? feeAmount.toLocaleString("vi-VN") + "đ"})! Mở barrier mời xe ra bãi.`
+          : `✓ Check-out hoàn tất (${exitFeeCalc?.feeFormatted ?? feeAmount.toLocaleString("vi-VN") + "đ"})! Mở barrier mời xe ra bãi.`
       );
     } catch (err) {
       setErrorMessage(err?.data?.message || err?.message || "Không thể thực hiện Check-out xe.");

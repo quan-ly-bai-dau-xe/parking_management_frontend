@@ -175,6 +175,40 @@ export function calculateParkingFee({
 }
 
 /**
+ * Định dạng số phút thành chuỗi thời lượng hiển thị tiếng Việt chuẩn hóa.
+ * Ví dụ: 65 -> "1 giờ 5 phút", 45 -> "45 phút"
+ */
+export function formatDurationFromMinutes(totalMinutes) {
+  const safeMinutes = Math.max(0, Math.round(Number(totalMinutes) || 0));
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
+  if (hours > 0) {
+    return minutes > 0 ? `${hours} giờ ${minutes} phút` : `${hours} giờ`;
+  }
+  return `${minutes} phút`;
+}
+
+/**
+ * Tính toán thời lượng đỗ (phút & text) từ mốc giờ vào và giờ ra.
+ * Tái sử dụng đồng nhất toàn hệ thống, tránh trùng lặp tính toán.
+ */
+export function calculateParkingDuration(entryTime, exitTime = new Date()) {
+  if (!entryTime) return null;
+  const start = entryTime instanceof Date ? entryTime.getTime() : new Date(entryTime).getTime();
+  const end = exitTime instanceof Date ? exitTime.getTime() : new Date(exitTime).getTime();
+
+  if (Number.isNaN(start) || Number.isNaN(end) || start > end) {
+    return null;
+  }
+
+  const durationMinutes = Math.max(1, Math.round((end - start) / (1000 * 60)));
+  return {
+    durationMinutes,
+    durationText: formatDurationFromMinutes(durationMinutes),
+  };
+}
+
+/**
  * Kiểm tra điều kiện xe vào (Entry eligibility check)
  */
 export function validateVehicleEntry({ vehicle, lookupResult }) {

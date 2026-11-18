@@ -606,7 +606,6 @@ export default function VehicleManagement() {
           handleOpenAssignSlot={handleOpenAssignSlot}
           renderTicketBadge={renderTicketBadge}
           renderStatusBadge={renderStatusBadge}
-          isManager={isManager}
         />
 
         <Pagination
@@ -664,7 +663,6 @@ export default function VehicleManagement() {
         isOpen={deleteModalState.isOpen}
         onClose={handleCloseDeleteModal}
         vehicle={deleteModalState.vehicle}
-        isManager={isManager}
         isParked={deleteModalState.isParked}
         hasActiveTicket={deleteModalState.hasActiveTicket}
         onConfirmDelete={handleConfirmDelete}

@@ -1,12 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { BaseModal } from "../common/modal";
+import { EMPLOYEE_ROLE_TITLES } from "../../constants/roleConstants";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 
-const ROLE_OPTIONS = [
-  "Quản lý",
-  "Nhân viên vận hành",
-  "Nhân viên thu ngân",
-  "Kỹ thuật viên",
-];
+const ROLE_OPTIONS = EMPLOYEE_ROLE_TITLES;
 
 const TONE_OPTIONS = [
   { value: "indigo", label: "Chàm (Indigo)" },
@@ -20,18 +17,25 @@ const TONE_OPTIONS = [
 ];
 
 function EmployeeModalContent({ onClose, employee, onSave }) {
+  const { isManager } = useCurrentUser();
   const isEditing = Boolean(employee && employee.id);
 
+  // Khóa lạm quyền RBAC: Chỉ Manager mới có quyền bổ nhiệm hoặc sửa người có chức vụ "Quản lý"
+  const allowedRoleOptions = useMemo(() => {
+    if (isManager) return ROLE_OPTIONS;
+    return ROLE_OPTIONS.filter((item) => item !== "Quản lý");
+  }, [isManager]);
+
   const [formData, setFormData] = useState(() => ({
-    id: employee?.id || "",
-    name: employee?.name || "",
-    email: employee?.email || "",
-    phone: employee?.phone || "",
-    role: employee?.role || "Nhân viên vận hành",
-    area: employee?.area || "",
-    city: employee?.city || "Đà Nẵng",
-    status: employee?.status || "active",
-    tone: employee?.tone || "blue",
+    id: employee?.id ?? "",
+    name: employee?.name ?? "",
+    email: employee?.email ?? "",
+    phone: employee?.phone ?? "",
+    role: employee?.role ?? "",
+    area: employee?.area ?? "",
+    city: employee?.city ?? "",
+    status: employee?.status ?? (isEditing ? "" : "active"),
+    tone: employee?.tone ?? "blue",
   }));
 
   const [errors, setErrors] = useState({});
@@ -48,6 +52,9 @@ function EmployeeModalContent({ onClose, employee, onSave }) {
     }
     if (!formData.phone.trim()) {
       newErrors.phone = "Số điện thoại không được để trống";
+    }
+    if (!formData.role.trim()) {
+      newErrors.role = "Vui lòng chọn vai trò/chức danh";
     }
     if (!formData.area.trim()) {
       newErrors.area = "Khu vực không được để trống";
@@ -171,14 +178,25 @@ function EmployeeModalContent({ onClose, employee, onSave }) {
                   name="role"
                   value={formData.role}
                   onChange={handleChange}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-700 outline-none focus:border-blue-500 bg-white"
+                  className={`w-full px-3.5 py-2 rounded-xl border text-xs text-slate-700 outline-none focus:border-blue-500 bg-white ${
+                    errors.role ? "border-rose-300 bg-rose-50/30" : "border-slate-200"
+                  }`}
                 >
-                  {ROLE_OPTIONS.map((item) => (
+                  <option value="">-- Chọn chức vụ nhân viên --</option>
+                  {allowedRoleOptions.map((item) => (
                     <option key={item} value={item}>
                       {item}
                     </option>
                   ))}
                 </select>
+                {!isManager && (
+                  <p className="text-3xs text-amber-600 mt-1">
+                    * Chỉ Quản lý mới có quyền phân bổ chức danh Quản lý.
+                  </p>
+                )}
+                {errors.role && (
+                  <p className="text-2xs text-rose-500 mt-1 font-medium">{errors.role}</p>
+                )}
               </div>
 
               <div>

@@ -11,9 +11,9 @@ import {
   parseEntryTimeToDate,
   normalizePlate,
 } from "../utils/parking/plateScanMapper.js";
+import { IS_MOCK_ENABLED } from "../config/appConfig.js";
 
-const USE_MOCK =
-  import.meta.env?.VITE_USE_MOCK?.trim().toLowerCase() === "true";
+const USE_MOCK = IS_MOCK_ENABLED;
 
 export {
   mapParkingSession,
