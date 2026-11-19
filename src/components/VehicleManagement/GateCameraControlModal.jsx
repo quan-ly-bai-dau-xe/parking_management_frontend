@@ -130,7 +130,7 @@ export default function GateCameraControlModal({
     };
   }, []);
 
-  const fetchFeePreview = useCallback(async (plate, sessionCode) => {
+  const fetchFeePreview = useCallback(async (plate, sessionCode, entryTime = null) => {
     const cleanPlate = (plate || "").trim();
     const cleanCode = (sessionCode || "").trim();
     if (!cleanPlate && !cleanCode) return;
@@ -139,6 +139,7 @@ export default function GateCameraControlModal({
       const preview = await previewParkingFee({
         licensePlate: cleanPlate || undefined,
         sessionCode: cleanCode || undefined,
+        entryTime: entryTime || undefined,
       });
       if (preview) {
         setBackendFeePreview(preview);
@@ -151,7 +152,11 @@ export default function GateCameraControlModal({
   }, []);
 
   const handleMatchSuccess = useCallback((result, rawInput) => {
-    fetchFeePreview(rawInput, result.openSession?.session_code);
+    const entryTime =
+      result.openSession?.entry_time ||
+      result.openSession?.entryTime ||
+      result.rawLookup?.open_session?.entry_time;
+    fetchFeePreview(rawInput, result.openSession?.session_code, entryTime);
   }, [fetchFeePreview]);
 
   // Hook tra cứu & đối soát biển số xe (Single Source of Truth)
@@ -617,8 +622,9 @@ export default function GateCameraControlModal({
                   if (barrierAutoCloseTimerRef.current) clearTimeout(barrierAutoCloseTimerRef.current);
                   const targetPlate = detectedPlate || matchedVehicle?.licensePlate;
                   const targetCode = rawLookup?.open_session?.session_code;
+                  const targetEntryTime = rawLookup?.open_session?.entry_time;
                   if (targetPlate || targetCode) {
-                    fetchFeePreview(targetPlate, targetCode);
+                    fetchFeePreview(targetPlate, targetCode, targetEntryTime);
                   }
                 }}
                 className={`px-3 py-1 rounded-lg text-2xs font-semibold transition-all ${

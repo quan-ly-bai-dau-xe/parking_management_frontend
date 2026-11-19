@@ -18,7 +18,7 @@ export function formatDisplayDateToIso(dateStr) {
 }
 
 /**
- * Format string "YYYY-MM-DD" sang "dd/mm/yyyy" cho hiển thị người dùng
+ * Format string "YYYY-MM-DD" hoặc ISO timestamp sang "dd/mm/yyyy" cho hiển thị người dùng
  */
 export function formatIsoDateToDisplay(dateStr) {
   if (!dateStr || typeof dateStr !== "string") return "";
@@ -26,6 +26,14 @@ export function formatIsoDateToDisplay(dateStr) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
     const [year, month, day] = trimmed.split("-");
     return `${day}/${month}/${year}`;
+  }
+  const date = new Date(trimmed);
+  if (!Number.isNaN(date.getTime())) {
+    return new Intl.DateTimeFormat("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(date);
   }
   return trimmed;
 }

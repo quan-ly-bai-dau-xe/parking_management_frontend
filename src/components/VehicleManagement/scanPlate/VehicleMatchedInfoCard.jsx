@@ -1,4 +1,4 @@
-import { isVehicleTicketActive } from "../../../utils/parking/plateScanMapper.js";
+import { isVehicleTicketActive, formatDate } from "../../../utils/parking/plateScanMapper.js";
 
 /**
  * VehicleMatchedInfoCard
@@ -30,7 +30,14 @@ export default function VehicleMatchedInfoCard({
     "Chưa có vị trí";
   const hasAssignedSlot = Boolean(matchedVehicle?.parkingSlot?.display);
 
-  const isTicketActive = isVehicleTicketActive(matchedVehicle, hasValidTicket);
+  const hasRecognizedPlate = Boolean(
+    matchedVehicle &&
+    (matchedVehicle.licensePlate || matchedVehicle.license_plate) &&
+    matchedVehicle.licensePlate !== "—" &&
+    matchedVehicle.license_plate !== "—"
+  );
+
+  const isTicketActive = hasRecognizedPlate && isVehicleTicketActive(matchedVehicle, hasValidTicket);
 
   const rawTicketType =
     matchedVehicle?.ticket?.ticket_type_name ||
@@ -39,6 +46,9 @@ export default function VehicleMatchedInfoCard({
     "";
 
   const displayTicketType = (() => {
+    if (!hasRecognizedPlate) {
+      return "—";
+    }
     if (!rawTicketType || rawTicketType === "—") {
       return isTicketActive ? "Vé tháng" : "Vé lượt";
     }
@@ -56,7 +66,7 @@ export default function VehicleMatchedInfoCard({
     matchedVehicle?.ticket?.effective_to ||
     null;
 
-  const ticketExpiration = rawExpiration ? String(rawExpiration).trim() : null;
+  const ticketExpiration = rawExpiration ? formatDate(rawExpiration) : null;
 
   const isTicketExpired =
     matchedVehicle?.ticketStatus === "expired" ||
@@ -98,13 +108,19 @@ export default function VehicleMatchedInfoCard({
               AI: {formattedConfidence}
             </span>
           )}
-          {isTicketActive ? (
-            <span className="px-2 py-0.5 rounded text-3xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-              📱 Xe liên kết Ví App
-            </span>
+          {hasRecognizedPlate ? (
+            isTicketActive ? (
+              <span className="px-2 py-0.5 rounded text-3xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                📱 Xe liên kết Ví App
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded text-3xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                Vé lượt vãng lai
+              </span>
+            )
           ) : (
-            <span className="px-2 py-0.5 rounded text-3xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
-              Vé lượt vãng lai
+            <span className="px-2 py-0.5 rounded text-3xs font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+              Chưa nhận diện xe
             </span>
           )}
         </div>
@@ -157,6 +173,11 @@ export default function VehicleMatchedInfoCard({
           <div className="mt-0.5">
             <span className="font-semibold text-slate-800 truncate block text-2xs" title={displayTicketType}>
               {displayTicketType}
+              {matchedVehicle?.ticket?.code || matchedVehicle?.ticketCode ? (
+                <span className="text-3xs font-mono text-emerald-700 font-normal ml-1">
+                  ({matchedVehicle?.ticket?.code || matchedVehicle?.ticketCode})
+                </span>
+              ) : null}
             </span>
             {ticketExpiration && (
               <span className="text-3xs text-slate-500 font-mono block truncate" title={`Hạn dùng: ${ticketExpiration}`}>

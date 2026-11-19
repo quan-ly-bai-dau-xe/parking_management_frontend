@@ -37,9 +37,13 @@ export default function CloseSessionModal({
       const fetchFee = async () => {
         setIsPreviewLoading(true);
         try {
+          const entryTime = session.entryTime || session.entry_time || session.entryTimeRaw;
           const res = await previewParkingFee({
             licensePlate: session.licensePlate || session.license_plate,
             sessionCode: session.sessionCode || session.session_code,
+            entryTime,
+            vehicleType: session.vehicleType || session.vehicle_type || "CAR",
+            hasActiveTicket: Boolean(session.hasActiveTicket),
           });
           setFeePreview(res);
         } catch (err) {

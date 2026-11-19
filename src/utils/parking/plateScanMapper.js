@@ -156,6 +156,7 @@ function extractTicket(rawTicket = {}, source = {}, hasPlate = false) {
   );
 
   return {
+    code: rawTicket.code || rawTicket.ticket_code || source.ticket_code || null,
     type: ticketType,
     status: ticketStatus,
     effectiveTo,
@@ -404,9 +405,11 @@ export function mapPlateScanToVehicle(scanResult) {
     vehicleTypeId: rawVehicle.vehicle_type_id || scanResult.vehicle_type_id || MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE_ID,
     vehicleTypeCode: rawVehicle.vehicle_type_code || MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE_CODE,
     ticketType: ticket.type,
+    ticketCode: ticket.code,
     ticketStatus: ticket.status,
     ticketExpiration: ticket.effectiveTo,
     ticket: {
+      code: ticket.code,
       type: ticket.type,
       status: ticket.status,
       effectiveTo: ticket.effectiveTo,
@@ -477,9 +480,11 @@ export function mapVehicleLookupToVehicle(lookupResult) {
     vehicleTypeId: rawVehicle.vehicle_type_id || lookupResult.vehicle_type_id || MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE_ID,
     vehicleTypeCode: rawVehicle.vehicle_type_code || lookupResult.vehicle_type_code || MAPPER_DEFAULTS.DEFAULT_VEHICLE_TYPE_CODE,
     ticketType: ticket.type,
+    ticketCode: ticket.code,
     ticketStatus: ticket.status,
     ticketExpiration: ticket.effectiveTo,
     ticket: {
+      code: ticket.code,
       type: ticket.type,
       status: ticket.status,
       effectiveTo: ticket.effectiveTo,

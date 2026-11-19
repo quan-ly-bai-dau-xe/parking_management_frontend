@@ -74,8 +74,15 @@ export default function ExitLanePanel({
     displayFeeText = "Đang tải cước...";
   }
 
-  // Thời lượng đỗ
-  const displayDuration = backendFeePreview?.duration_text
+  // Kiểm tra tính hợp lệ của giờ vào thực tế
+  const hasValidEntryTime = Boolean(
+    backendFeePreview?.entry_time || rawLookup?.open_session?.entry_time
+  );
+
+  // Thời lượng đỗ: Bắt buộc hiển thị "—" nếu chưa rõ giờ vào, tránh bug hiển thị "Chưa rõ giờ vào" nhưng "1 giờ"
+  const displayDuration = !hasValidEntryTime
+    ? "—"
+    : backendFeePreview?.duration_text && backendFeePreview.duration_text !== "—"
     ? backendFeePreview.duration_text
     : exitFeeCalc?.hoursBilled !== undefined && exitFeeCalc.hoursBilled > 0
     ? `${exitFeeCalc.hoursBilled} giờ`
@@ -90,6 +97,8 @@ export default function ExitLanePanel({
     ? `Miễn cước đặc cách: ${waiverReason.trim() || "Chưa nhập lý do"}`
     : isTicketActive
     ? "Được đài thọ bởi vé tháng hiệu lực"
+    : !hasValidEntryTime
+    ? "Chưa xác định được thời gian vào bãi"
     : backendFeePreview
     ? `Thời lượng: ${displayDuration} • Đơn giá: ${backendFeePreview.hourly_rate ? formatCurrencyVND(backendFeePreview.hourly_rate) : "—"}/giờ`
     : exitFeeCalc?.calculationBreakdown
@@ -98,11 +107,19 @@ export default function ExitLanePanel({
     ? "Đang đối soát cước phí với hệ thống..."
     : "—";
 
+  // Cảnh báo Ghost Exit khi có biển số nhưng không tìm thấy phiên đỗ đang mở
+  const isGhostExit = Boolean(
+    detectedPlate && !rawLookup?.open_session && !backendFeePreview?.entry_time && !isLoadingFeePreview
+  );
+
+  // Điều kiện vô hiệu hóa xác nhận xuất bãi (Bảo vệ an toàn chống Ghost Exit theo ST-CORE-07)
   const isWaiverInvalid = isFeeExempt && (!isManager || !waiverReason.trim());
+  const isGhostExitBlocked = isGhostExit && (!isManager || !isFeeExempt || !waiverReason.trim());
   const isConfirmDisabled =
     isActionPending ||
     !detectedPlate ||
-    isWaiverInvalid;
+    isWaiverInvalid ||
+    isGhostExitBlocked;
 
   return (
     <div className="flex flex-col h-full space-y-3">
@@ -115,13 +132,18 @@ export default function ExitLanePanel({
       />
 
       {/* Cảnh báo Ghost Exit khi không tìm thấy phiên đỗ đang mở */}
-      {detectedPlate && !rawLookup?.open_session && !isLoadingFeePreview && (
-        <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2 text-2xs text-amber-900 shadow-2xs">
-          <span className="text-base leading-none">⚠️</span>
-          <div>
-            <span className="font-bold block">Cảnh báo Ghost Exit (Không tìm thấy phiên vào)</span>
-            <span className="text-3xs text-amber-800 leading-relaxed block">
-              Phương tiện này không có phiên đỗ đang mở trong bãi. Kiểm tra lại biển số hoặc xác minh thẻ trước khi xử lý ra bãi.
+      {isGhostExit && (
+        <div className="p-2.5 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2 text-2xs text-rose-900 shadow-2xs">
+          <span className="text-base leading-none">⛔</span>
+          <div className="space-y-1">
+            <span className="font-bold block text-rose-800">Cảnh báo Ghost Exit (Không tìm thấy phiên vào)</span>
+            <span className="text-3xs text-rose-700 leading-relaxed block">
+              Phương tiện này không có phiên đỗ đang mở trong bãi. Hệ thống tự động khóa xuất bãi để ngăn ngừa mở barrier bất hợp pháp (ST-CORE-07).
+            </span>
+            <span className="text-3xs text-rose-600 font-semibold block">
+              {isManager
+                ? "Quản lý có thể chọn 'Miễn cước đặc cách' và nhập lý do sự cố để giải phóng xe."
+                : "Nhân viên vận hành không thể tự ý mở barrier. Vui lòng liên hệ Quản lý để xử lý sự cố."}
             </span>
           </div>
         </div>
@@ -435,7 +457,11 @@ export default function ExitLanePanel({
       {/* Footer Action Button */}
       <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
         <span className="text-3xs text-slate-500">
-          {isFeeExempt
+          {isGhostExitBlocked
+            ? isManager
+              ? "Ghost Exit: Cần tích chọn Miễn cước và nhập lý do sự cố"
+              : "Ghost Exit: Cần Quản lý phê duyệt giải quyết sự cố (ST-CORE-07)"
+            : isFeeExempt
             ? isManager
               ? waiverReason.trim()
                 ? "Đủ điều kiện miễn cước"
@@ -454,7 +480,9 @@ export default function ExitLanePanel({
           disabled={isConfirmDisabled}
           onClick={onConfirmExit}
           className={`px-4 py-2 text-white rounded-xl font-semibold text-xs shadow-xs transition-colors flex items-center gap-1.5 ${
-            isFeeExempt
+            isGhostExitBlocked
+              ? "bg-rose-500 cursor-not-allowed opacity-60"
+              : isFeeExempt
               ? isManager && waiverReason.trim()
                 ? "bg-emerald-600 hover:bg-emerald-700"
                 : "bg-slate-400 cursor-not-allowed"
@@ -472,6 +500,8 @@ export default function ExitLanePanel({
               <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
               <span>Đang xử lý...</span>
             </>
+          ) : isGhostExitBlocked ? (
+            <span>⛔ Khóa: Ghost Exit (ST-CORE-07)</span>
           ) : isFeeExempt ? (
             <span>
               {isManager

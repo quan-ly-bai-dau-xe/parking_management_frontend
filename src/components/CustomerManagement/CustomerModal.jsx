@@ -24,18 +24,18 @@ export default function CustomerModal({
     >
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-2xs font-semibold text-slate-600">
-              Mã khách hàng {editingCustomerId ? "" : "(Để trống hệ thống tự sinh)"}
-            </label>
-            <input
-              value={customerData.customerCode}
-              onChange={(e) => onChange("customerCode", e.target.value)}
-              placeholder={editingCustomerId ? "Mã khách hàng" : "Để trống hoặc nhập KHxxxx..."}
-              disabled={Boolean(editingCustomerId)}
-              className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
-            />
-          </div>
+          {editingCustomerId && (
+            <div className="flex flex-col gap-1 sm:col-span-2">
+              <label className="text-2xs font-semibold text-slate-600">
+                Mã khách hàng
+              </label>
+              <input
+                value={customerData.customerCode}
+                disabled
+                className="h-9 w-full rounded-lg border border-slate-300 bg-slate-100 px-3 text-xs text-slate-700 outline-none cursor-not-allowed"
+              />
+            </div>
+          )}
 
           <div className="flex flex-col gap-1">
             <label className="text-2xs font-semibold text-slate-600">

@@ -685,3 +685,227 @@ test("GateFlow: Finding 3 - New camera detection restores camera overlay box, la
   assert.equal(effectiveCameraPlate, "59T249609", "Overlay label must show newly detected plate");
 });
 
+// ============================================================================
+// 10. UNKNOWN ENTRY TIME & UNRECOGNIZED VEHICLE TICKET TYPE DEFENSIVE TESTS
+// ============================================================================
+
+test("GateFlow: calculateLocalFeePreview handles unknown entry time without fabricating duration or hours", async () => {
+  const { calculateLocalFeePreview } = await import("../src/services/parkingSessionService.js");
+
+  // 1. Trường hợp không truyền entryTime hoặc entryTime là null/undefined/không hợp lệ
+  const previewNoTime = calculateLocalFeePreview({
+    licensePlate: "30H-123.47",
+    sessionCode: "PK-20261118-005",
+    entryTime: null,
+  });
+
+  assert.equal(previewNoTime.duration_text, "—", "duration_text must be placeholder '—' when entry time is unknown");
+  assert.equal(previewNoTime.duration_minutes, 0, "duration_minutes must be 0 when entry time is unknown");
+  assert.equal(previewNoTime.fee_amount, 0, "fee_amount must not fabricate arbitrary fee when entry time is unknown");
+  assert.equal(previewNoTime.unknown_entry_time, true, "unknown_entry_time flag must be true");
+
+  // 2. Trường hợp có entryTime chuẩn hợp lệ (ví dụ cách đây 120 phút)
+  const twoHoursAgo = new Date(Date.now() - 120 * 60 * 1000);
+  const previewValidTime = calculateLocalFeePreview({
+    licensePlate: "30H-123.47",
+    sessionCode: "PK-20261118-005",
+    entryTime: twoHoursAgo.toISOString(),
+  });
+
+  assert.ok(previewValidTime.duration_text.includes("2 giờ"), "Valid entry time must calculate hours correctly");
+  assert.ok(previewValidTime.duration_minutes >= 119, "Valid entry time must have accurate duration_minutes");
+  assert.equal(previewValidTime.unknown_entry_time, false);
+});
+
+test("GateFlow: ExitLanePanel defensive logic - displayDuration must be '—' when entry time is unknown", () => {
+  // Mô phỏng logic tính displayDuration của ExitLanePanel
+  const evaluateDisplayDuration = ({ backendFeePreview, rawLookup, exitFeeCalc, calculatedDurationMinutes }) => {
+    const hasValidEntryTime = Boolean(
+      backendFeePreview?.entry_time || rawLookup?.open_session?.entry_time
+    );
+
+    return !hasValidEntryTime
+      ? "—"
+      : backendFeePreview?.duration_text && backendFeePreview.duration_text !== "—"
+      ? backendFeePreview.duration_text
+      : exitFeeCalc?.hoursBilled !== undefined && exitFeeCalc.hoursBilled > 0
+      ? `${exitFeeCalc.hoursBilled} giờ`
+      : rawLookup?.open_session?.entry_time && calculatedDurationMinutes > 0
+      ? Math.floor(calculatedDurationMinutes / 60) > 0
+        ? `${Math.floor(calculatedDurationMinutes / 60)}h ${calculatedDurationMinutes % 60}m`
+        : `${calculatedDurationMinutes % 60}m`
+      : "—";
+  };
+
+  // Trường hợp 1: Có exitFeeCalc (1 giờ) nhưng entry_time là null (Ghost exit / Chưa rõ giờ vào)
+  const durationUnknown = evaluateDisplayDuration({
+    backendFeePreview: null,
+    rawLookup: { open_session: null },
+    exitFeeCalc: { hoursBilled: 1 },
+    calculatedDurationMinutes: 0,
+  });
+
+  assert.equal(
+    durationUnknown,
+    "—",
+    "ExitLanePanel must NEVER display '1 giờ' when entry time is unknown, must be '—'"
+  );
+
+  // Trường hợp 2: Có open_session hợp lệ với entry_time rõ ràng
+  const durationKnown = evaluateDisplayDuration({
+    backendFeePreview: { entry_time: "2026-11-19T07:30:00Z", duration_text: "1 giờ 10 phút" },
+    rawLookup: { open_session: { entry_time: "2026-11-19T07:30:00Z" } },
+    exitFeeCalc: null,
+    calculatedDurationMinutes: 70,
+  });
+
+  assert.equal(durationKnown, "1 giờ 10 phút");
+});
+
+test("GateFlow: VehicleMatchedInfoCard defensive logic - unrecognised vehicle must display '—' and not 'Vé lượt'", () => {
+  // Mô phỏng quy tắc xác định displayTicketType và badge khi chưa nhận diện biển số
+  const evaluateTicketTypeDisplay = (matchedVehicle, hasValidTicket = false) => {
+    const hasRecognizedPlate = Boolean(
+      matchedVehicle &&
+      (matchedVehicle.licensePlate || matchedVehicle.license_plate) &&
+      matchedVehicle.licensePlate !== "—" &&
+      matchedVehicle.license_plate !== "—"
+    );
+
+    const isTicketActive = hasRecognizedPlate && Boolean(
+      hasValidTicket ||
+      matchedVehicle?.ticket?.status === "active" ||
+      matchedVehicle?.ticketState === "active"
+    );
+
+    const rawTicketType =
+      matchedVehicle?.ticket?.ticket_type_name ||
+      matchedVehicle?.ticketType ||
+      matchedVehicle?.ticket?.type ||
+      "";
+
+    const displayTicketType = (() => {
+      if (!hasRecognizedPlate) {
+        return "—";
+      }
+      if (!rawTicketType || rawTicketType === "—") {
+        return isTicketActive ? "Vé tháng" : "Vé lượt";
+      }
+      const upper = String(rawTicketType).trim().toUpperCase();
+      if (upper === "MONTHLY") return "Vé tháng";
+      if (upper === "DAILY") return "Vé lượt";
+      return String(rawTicketType).trim();
+    })();
+
+    const badgeLabel = hasRecognizedPlate
+      ? (isTicketActive ? "📱 Xe liên kết Ví App" : "Vé lượt vãng lai")
+      : "Chưa nhận diện xe";
+
+    return { displayTicketType, badgeLabel, hasRecognizedPlate };
+  };
+
+  // Case 1: Chưa quét gì, matchedVehicle là null
+  const initialEmpty = evaluateTicketTypeDisplay(null, false);
+  assert.equal(initialEmpty.displayTicketType, "—", "Ticket type must be '—' when no vehicle is detected");
+  assert.equal(initialEmpty.badgeLabel, "Chưa nhận diện xe", "Badge must show 'Chưa nhận diện xe' instead of 'Vé lượt vãng lai'");
+
+  // Case 2: matchedVehicle có placeholder '—'
+  const placeholderVehicle = evaluateTicketTypeDisplay({ licensePlate: "—" }, false);
+  assert.equal(placeholderVehicle.displayTicketType, "—");
+  assert.equal(placeholderVehicle.badgeLabel, "Chưa nhận diện xe");
+
+  // Case 3: Đã quét được xe vãng lai thực tế (không có vé tháng)
+  const walkInVehicle = evaluateTicketTypeDisplay({ licensePlate: "43A-123.45", ticketType: "" }, false);
+  assert.equal(walkInVehicle.displayTicketType, "Vé lượt");
+  assert.equal(walkInVehicle.badgeLabel, "Vé lượt vãng lai");
+
+  // Case 4: Đã quét được xe có vé tháng
+  const monthlyVehicle = evaluateTicketTypeDisplay({ licensePlate: "30A-999.99", ticket: { status: "active", type: "MONTHLY" } }, true);
+  assert.equal(monthlyVehicle.displayTicketType, "Vé tháng");
+  assert.equal(monthlyVehicle.badgeLabel, "📱 Xe liên kết Ví App");
+});
+
+test("GateFlow: ST-CORE-07 ExitLanePanel Ghost Exit Defense - blocks checkout when open session is missing", () => {
+  const exitPanelPath = path.resolve(__dirname, "../src/components/VehicleManagement/scanPlate/ExitLanePanel.jsx");
+  const exitPanelCode = fs.readFileSync(exitPanelPath, "utf-8");
+
+  // Đảm bảo code chứa biến logic phòng thủ Ghost Exit theo ST-CORE-07
+  assert.ok(exitPanelCode.includes("isGhostExit"), "Must identify Ghost Exit condition");
+  assert.ok(exitPanelCode.includes("isGhostExitBlocked"), "Must calculate isGhostExitBlocked flag");
+  assert.ok(exitPanelCode.includes("ST-CORE-07"), "Must reference ST-CORE-07 defense policy");
+
+  // Mô phỏng logic xác định trạng thái nút xác nhận của ExitLanePanel
+  const evaluateGhostExitConfirmState = ({
+    detectedPlate,
+    rawLookup,
+    backendFeePreview,
+    isLoadingFeePreview = false,
+    isFeeExempt = false,
+    waiverReason = "",
+    isManager = false,
+    isActionPending = false,
+  }) => {
+    const isGhostExit = Boolean(
+      detectedPlate && !rawLookup?.open_session && !backendFeePreview?.entry_time && !isLoadingFeePreview
+    );
+    const isWaiverInvalid = isFeeExempt && (!isManager || !waiverReason.trim());
+    const isGhostExitBlocked = isGhostExit && (!isManager || !isFeeExempt || !waiverReason.trim());
+    const isConfirmDisabled =
+      isActionPending ||
+      !detectedPlate ||
+      isWaiverInvalid ||
+      isGhostExitBlocked;
+
+    return { isGhostExit, isGhostExitBlocked, isConfirmDisabled };
+  };
+
+  // Case 1: Xe lạ / Ghost Exit (không có open_session), nhân viên EMPLOYEE xử lý
+  const employeeGhost = evaluateGhostExitConfirmState({
+    detectedPlate: "43A-999.99",
+    rawLookup: null,
+    backendFeePreview: null,
+    isManager: false,
+    isFeeExempt: false,
+  });
+  assert.equal(employeeGhost.isGhostExit, true, "Must flag as Ghost Exit");
+  assert.equal(employeeGhost.isGhostExitBlocked, true, "Ghost exit must be blocked for employee");
+  assert.equal(employeeGhost.isConfirmDisabled, true, "Confirm button must be disabled for employee on Ghost Exit");
+
+  // Case 2: Ghost Exit, Quản lý (MANAGER) can thiệp nhưng chưa tích miễn cước / chưa nhập lý do
+  const managerNoWaiver = evaluateGhostExitConfirmState({
+    detectedPlate: "43A-999.99",
+    rawLookup: null,
+    backendFeePreview: null,
+    isManager: true,
+    isFeeExempt: false,
+    waiverReason: "",
+  });
+  assert.equal(managerNoWaiver.isGhostExitBlocked, true, "Manager must still provide waiver with reason to unlock Ghost Exit");
+  assert.equal(managerNoWaiver.isConfirmDisabled, true);
+
+  // Case 3: Ghost Exit, Quản lý (MANAGER) phê duyệt miễn cước đặc cách có lý do sự cố
+  const managerApproved = evaluateGhostExitConfirmState({
+    detectedPlate: "43A-999.99",
+    rawLookup: null,
+    backendFeePreview: null,
+    isManager: true,
+    isFeeExempt: true,
+    waiverReason: "Lỗi camera vào lúc mất điện, bảo vệ xác nhận xe vào lúc 8h",
+  });
+  assert.equal(managerApproved.isGhostExitBlocked, false, "Manager with valid waiver reason must unblock Ghost Exit");
+  assert.equal(managerApproved.isConfirmDisabled, false, "Confirm button must be enabled for Manager override");
+
+  // Case 4: Xe có phiên đỗ hợp lệ (Normal exit)
+  const normalExit = evaluateGhostExitConfirmState({
+    detectedPlate: "43A-123.45",
+    rawLookup: { open_session: { id: 10, entry_time: "2026-11-19T07:00:00Z" } },
+    backendFeePreview: { entry_time: "2026-11-19T07:00:00Z", fee_amount: 10000 },
+    isManager: false,
+    isFeeExempt: false,
+  });
+  assert.equal(normalExit.isGhostExit, false, "Legitimate session must not be flagged as Ghost Exit");
+  assert.equal(normalExit.isGhostExitBlocked, false);
+  assert.equal(normalExit.isConfirmDisabled, false);
+});
+
+
