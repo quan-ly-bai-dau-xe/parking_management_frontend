@@ -85,3 +85,40 @@ export function checkIsManager(roleOrUser) {
 
   return false;
 }
+
+/**
+ * Pure function kiểm tra xem một role hoặc user có quyền Nhân viên hoặc Quản lý hay không.
+ * Tương ứng chặt chẽ với backend permission IsEmployeeOrManager: Account.role in ('EMPLOYEE', 'MANAGER').
+ *
+ * @param {string|object|null|undefined} roleOrUser - Mã vai trò hoặc đối tượng user
+ * @returns {boolean} true nếu có quyền Nhân viên hoặc Quản lý
+ */
+export function checkIsEmployeeOrManager(roleOrUser) {
+  if (!roleOrUser) return false;
+  if (checkIsManager(roleOrUser)) return true;
+
+  const rawRole =
+    typeof roleOrUser === "object"
+      ? roleOrUser.role ||
+        roleOrUser.role_name ||
+        roleOrUser.roleName ||
+        roleOrUser.role_code ||
+        ""
+      : roleOrUser;
+
+  if (typeof rawRole !== "string") return false;
+
+  const trimmedRole = rawRole.trim();
+  const upperRole = trimmedRole.toUpperCase();
+
+  if (upperRole === USER_ROLES.EMPLOYEE) {
+    return true;
+  }
+
+  if (trimmedRole === ROLE_DISPLAY_NAMES[USER_ROLES.EMPLOYEE] || trimmedRole.toLowerCase() === "nhân viên") {
+    return true;
+  }
+
+  return false;
+}
+

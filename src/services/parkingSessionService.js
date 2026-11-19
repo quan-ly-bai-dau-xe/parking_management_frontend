@@ -3,6 +3,7 @@ import { updateSlotStatus, getSlots } from "./parkingLotService.js";
 import { mockParkingHistory } from "../mocks/parkingHistoryData.js";
 import { mockVehicles } from "../mocks/vehicleData.js";
 import { calculateParkingFee } from "../utils/parking/parkingFeeCalculator.js";
+import { parseEntryTimeToDate } from "../utils/parking/plateScanMapper.js";
 import { IS_MOCK_ENABLED } from "../config/appConfig.js";
 
 const USE_MOCK = IS_MOCK_ENABLED;
@@ -106,92 +107,97 @@ export const SYSTEM_BLOCKED_SLOT_IDS = new Set([
  * Lấy danh sách ô đỗ còn trống khả dụng để xếp chỗ khi Check-in
  */
 export async function getAvailableSlotsForCheckIn({
-  vehicleTypeCode = "CAR",
+  vehicleTypeCode,
+  vehicleType = "CAR",
   licensePlate = "",
   filterReserved = false,
 } = {}) {
+  const resolvedVehicleType = vehicleTypeCode || vehicleType || "CAR";
   const normPlate = String(licensePlate || "")
     .replace(/[^a-zA-Z0-9]/g, "")
     .toUpperCase();
   const isEv =
-    String(vehicleTypeCode || "").toUpperCase() === "EV" ||
-    String(vehicleTypeCode || "").includes("ĐIỆN");
+    String(resolvedVehicleType || "").toUpperCase() === "EV" ||
+    String(resolvedVehicleType || "").includes("ĐIỆN");
 
-  // Nếu không bật cờ mock, gọi REST API thực tế từ Backend
+  let candidateSlots = [];
+
+  // Nếu không bật cờ mock, thử gọi REST API thực tế từ Backend
   if (!USE_MOCK) {
-    const rawSlots = await getSlots({ status: "AVAILABLE" });
-    const realAvailable = (Array.isArray(rawSlots) ? rawSlots : []).map((s) => ({
-      ...s,
-      id: Number(s.id),
-      code: s.code || `Slot #${s.id}`,
-      slotCode: s.code || `Slot #${s.id}`,
-      zone: s.zone || "Khu A",
-      floor: s.floor || "Tầng B1",
-      display: s.display || `${s.zone || "Khu A"} · ${s.floor || "Tầng B1"} · Slot ${s.code || s.id}`,
-      kind: s.slot_kind || s.type || "STANDARD",
-      type: s.type || (s.slot_kind === "EV_CHARGING" ? "ev" : "car"),
-    }));
-
-    return realAvailable.sort((a, b) => {
-      if (isEv) {
-        if (a.kind === "EV_CHARGING" && b.kind !== "EV_CHARGING") return -1;
-        if (a.kind !== "EV_CHARGING" && b.kind === "EV_CHARGING") return 1;
-      } else {
-        if (a.kind === "STANDARD" && b.kind !== "STANDARD") return -1;
-        if (a.kind !== "STANDARD" && b.kind === "STANDARD") return 1;
+    try {
+      const rawSlots = await getSlots({ status: "AVAILABLE" });
+      if (Array.isArray(rawSlots) && rawSlots.length > 0) {
+        candidateSlots = rawSlots.map((s) => ({
+          ...s,
+          id: Number(s.id),
+          code: s.code || `Slot #${s.id}`,
+          slotCode: s.code || `Slot #${s.id}`,
+          zone: s.zone || "Khu A",
+          floor: s.floor || "Tầng B1",
+          display: s.display || `${s.zone || "Khu A"} · ${s.floor || "Tầng B1"} · Slot ${s.code || s.id}`,
+          kind: s.slot_kind || s.type || "STANDARD",
+          type: s.type || (s.slot_kind === "EV_CHARGING" ? "ev" : "car"),
+        }));
       }
-      return a.id - b.id;
-    });
+    } catch (err) {
+      console.warn("Backend /slots/ API chưa hỗ trợ hoặc trả về lỗi, fallback sang slot inventory:", err?.message);
+    }
   }
 
-  // Luồng Mock dự phòng (chỉ chạy khi VITE_USE_MOCK=true)
-  const allSlots = getAllParkingSlotsInventory();
-  const occupiedSlotIds = new Set();
+  // Nếu candidateSlots vẫn rỗng (do USE_MOCK=true hoặc backend chưa có endpoint /api/v1/parking/slots/ [404])
+  if (candidateSlots.length === 0) {
+    const allSlots = getAllParkingSlotsInventory();
+    const occupiedSlotIds = new Set();
+    const occupiedSlotCodes = new Set();
 
-  try {
-    const response = await apiClient("/api/v1/parking/sessions/?status=open");
-    const sessions = Array.isArray(response)
-      ? response
-      : Array.isArray(response?.results)
-      ? response.results
-      : [];
+    try {
+      const response = await apiClient("/api/v1/parking/sessions/?status=open");
+      const sessions = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.results)
+        ? response.results
+        : [];
 
-    sessions.forEach((s) => {
-      if (s.slot_id) occupiedSlotIds.add(Number(s.slot_id));
-      if (s.slotId) occupiedSlotIds.add(Number(s.slotId));
-    });
-  } catch (err) {
-    console.warn("Could not query active sessions for slot filtering, checking mock:", err);
-    if (Array.isArray(mockParkingHistory)) {
-      mockParkingHistory.forEach((item) => {
-        if (!item.exitTime && item.slotId) {
-          occupiedSlotIds.add(Number(item.slotId));
-        }
+      sessions.forEach((s) => {
+        if (s.slot_id) occupiedSlotIds.add(Number(s.slot_id));
+        if (s.slotId) occupiedSlotIds.add(Number(s.slotId));
+        if (s.slot_code) occupiedSlotCodes.add(String(s.slot_code).toUpperCase());
+        if (s.slotCode) occupiedSlotCodes.add(String(s.slotCode).toUpperCase());
       });
-    }
-  }
-
-  const available = allSlots.filter((slot) => {
-    // 1. Loại bỏ các ô đang có phiên đỗ mở
-    if (occupiedSlotIds.has(slot.id)) return false;
-
-    // 2. Nếu kích hoạt lọc ô đặt trước / vé tháng (hoặc khi có biển số xe cụ thể)
-    if (filterReserved || licensePlate) {
-      // Loại bỏ ô đang bảo trì hoặc có lịch đặt trước
-      if (SYSTEM_BLOCKED_SLOT_IDS.has(slot.id)) return false;
-
-      // Nếu ô đỗ thuộc danh sách gán vé tháng cố định, chỉ cho phép nếu đúng xe sở hữu
-      const authorizedPlate = TICKET_RESERVED_SLOTS[slot.id];
-      if (authorizedPlate) {
-        return Boolean(normPlate && normPlate === authorizedPlate);
+    } catch (err) {
+      console.warn("Could not query active sessions for slot filtering, checking mock:", err);
+      if (Array.isArray(mockParkingHistory)) {
+        mockParkingHistory.forEach((item) => {
+          if (!item.exitTime) {
+            if (item.slotId) occupiedSlotIds.add(Number(item.slotId));
+            if (item.slotCode) occupiedSlotCodes.add(String(item.slotCode).toUpperCase());
+          }
+        });
       }
     }
 
-    return true;
-  });
+    candidateSlots = allSlots.filter((slot) => {
+      // 1. Loại bỏ các ô đang có phiên đỗ mở (theo cả ID và Mã ô)
+      if (occupiedSlotIds.has(slot.id)) return false;
+      if (occupiedSlotCodes.has(String(slot.code).toUpperCase())) return false;
 
-  // Sắp xếp ưu tiên ô sạc điện cho xe EV, hoặc ô tiêu chuẩn cho xe xăng/dầu
-  return available.sort((a, b) => {
+      // 2. Nếu kích hoạt lọc ô đặt trước / vé tháng (hoặc khi có biển số xe cụ thể)
+      if (filterReserved || licensePlate) {
+        // Loại bỏ ô đang bảo trì hoặc có lịch đặt trước
+        if (SYSTEM_BLOCKED_SLOT_IDS.has(slot.id)) return false;
+
+        // Nếu ô đỗ thuộc danh sách gán vé tháng cố định, chỉ cho phép nếu đúng xe sở hữu
+        const authorizedPlate = TICKET_RESERVED_SLOTS[slot.id];
+        if (authorizedPlate) {
+          return Boolean(normPlate && normPlate === authorizedPlate);
+        }
+      }
+
+      return true;
+    });
+  }
+
+  return candidateSlots.sort((a, b) => {
     if (isEv) {
       if (a.kind === "EV_CHARGING" && b.kind !== "EV_CHARGING") return -1;
       if (a.kind !== "EV_CHARGING" && b.kind === "EV_CHARGING") return 1;
@@ -414,7 +420,84 @@ export async function forceCloseSessionAndReleaseSlot({
  * @param {string} [params.sessionCode]
  * @returns {Promise<Object>}
  */
-export async function previewParkingFee({ licensePlate, sessionCode } = {}) {
+/**
+ * Tính toán nhanh preview cước phí dựa trên thông tin phiên đỗ xe (Single Source of Truth cho client preview).
+ * Hỗ trợ fallback tức thì khi Backend chưa cung cấp endpoint fee-preview riêng biệt.
+ *
+ * @param {Object} params
+ * @param {string} [params.licensePlate]
+ * @param {string} [params.sessionCode]
+ * @param {string|Date} [params.entryTime]
+ * @param {string} [params.vehicleType]
+ * @param {boolean} [params.hasActiveTicket]
+ * @returns {Object}
+ */
+export function calculateLocalFeePreview({
+  licensePlate,
+  sessionCode,
+  entryTime,
+  vehicleType = "CAR",
+  hasActiveTicket = false,
+} = {}) {
+  const now = new Date();
+  let parsedEntryDate = null;
+  if (entryTime) {
+    parsedEntryDate = entryTime instanceof Date ? entryTime : parseEntryTimeToDate(entryTime);
+  }
+  const entryDate = parsedEntryDate && !Number.isNaN(parsedEntryDate.getTime())
+    ? parsedEntryDate
+    : new Date(now.getTime() - 65 * 60 * 1000);
+
+  const durationMinutes = Math.max(1, Math.round((now - entryDate) / (1000 * 60)));
+
+  const feeData = calculateParkingFee({
+    vehicleType,
+    durationMinutes,
+    hasActiveTicket,
+    isExempt: false,
+  });
+
+  const hours = Math.floor(durationMinutes / 60);
+  const minutes = durationMinutes % 60;
+  const durationText = hours > 0 ? `${hours} giờ ${minutes} phút` : `${minutes} phút`;
+
+  return {
+    session_id: null,
+    session_code: sessionCode || "SS-PREVIEW",
+    license_plate: licensePlate || "—",
+    entry_time: entryDate.toISOString(),
+    duration_minutes: durationMinutes,
+    duration_text: durationText,
+    fee_amount: feeData.feeAmount,
+    has_active_ticket: hasActiveTicket,
+    is_exempt: false,
+    hourly_rate: 10000.0,
+  };
+}
+
+/**
+ * Tra cứu thông tin dự tính cước phí xe ra bãi (Fee Preview).
+ * Single Source of Truth cho luồng tính cước trước khi thanh toán / check-out.
+ * Cơ chế linh hoạt:
+ * - Ưu tiên gọi API Backend nếu có (`/api/v1/parking/sessions/fee-preview/`).
+ * - Khi Backend trả về 404 hoặc mạng lỗi, tự động fallback an toàn qua `calculateLocalFeePreview`
+ *   để giao diện không bao giờ bị treo ở trạng thái "Đang tính...".
+ *
+ * @param {Object} params
+ * @param {string} [params.licensePlate]
+ * @param {string} [params.sessionCode]
+ * @param {string|Date} [params.entryTime]
+ * @param {string} [params.vehicleType]
+ * @param {boolean} [params.hasActiveTicket]
+ * @returns {Promise<Object>}
+ */
+export async function previewParkingFee({
+  licensePlate,
+  sessionCode,
+  entryTime,
+  vehicleType = "CAR",
+  hasActiveTicket = false,
+} = {}) {
   const cleanPlate = typeof licensePlate === "string" ? licensePlate.trim() : "";
   const cleanCode = typeof sessionCode === "string" ? sessionCode.trim() : "";
 
@@ -430,40 +513,38 @@ export async function previewParkingFee({ licensePlate, sessionCode } = {}) {
         (cleanPlate && s.licensePlate === cleanPlate)
     );
 
-    const now = new Date();
-    const entryDate = targetSession?.entryTimeRaw
-      ? new Date(targetSession.entryTimeRaw)
-      : new Date(now.getTime() - 65 * 60 * 1000);
-    const durationMinutes = Math.max(1, Math.round((now - entryDate) / (1000 * 60)));
     const targetVeh = cleanPlate ? mockVehicles.find((v) => v.licensePlate === cleanPlate) : null;
-    const hasActiveTicket = false; // Luồng xe liên kết ví App tính phí theo giờ đỗ, không gán 0đ của vé tháng
+    const resolvedEntryTime =
+      entryTime ||
+      targetSession?.entryTimeRaw ||
+      targetSession?.entryTime ||
+      targetSession?.entry_time;
+    const resolvedVehicleType =
+      vehicleType ||
+      targetSession?.vehicleType ||
+      targetSession?.vehicle_type ||
+      targetVeh?.vehicleType ||
+      "CAR";
+    const resolvedHasActiveTicket =
+      hasActiveTicket ??
+      Boolean(targetSession?.hasActiveTicket || targetVeh?.ticket?.status === "active");
 
-    const feeData = calculateParkingFee({
-      vehicleType: targetSession?.vehicleType || targetVeh?.vehicleType || "CAR",
-      durationMinutes,
-      hasActiveTicket,
-      isExempt: false,
+    const localPreview = calculateLocalFeePreview({
+      licensePlate: cleanPlate || targetSession?.licensePlate,
+      sessionCode: cleanCode || targetSession?.sessionCode,
+      entryTime: resolvedEntryTime,
+      vehicleType: resolvedVehicleType,
+      hasActiveTicket: resolvedHasActiveTicket,
     });
 
-    const hours = Math.floor(durationMinutes / 60);
-    const minutes = durationMinutes % 60;
-    const durationText = hours > 0 ? `${hours} giờ ${minutes} phút` : `${minutes} phút`;
-
     return {
+      ...localPreview,
       session_id: targetSession?.id || 1,
-      session_code: targetSession?.sessionCode || cleanCode || "SS-PREVIEW",
-      license_plate: cleanPlate || targetSession?.licensePlate || "—",
-      entry_time: entryDate.toISOString(),
-      duration_minutes: durationMinutes,
-      duration_text: durationText,
-      fee_amount: feeData.feeAmount,
-      has_active_ticket: hasActiveTicket,
       ticket_code: targetVeh?.ticket?.code || null,
-      is_exempt: false,
-      hourly_rate: 10000.0,
     };
   }
 
+  // Luồng kết nối API Backend thực tế
   const queryParams = new URLSearchParams();
   if (cleanPlate) {
     queryParams.set("license_plate", cleanPlate);
@@ -471,7 +552,20 @@ export async function previewParkingFee({ licensePlate, sessionCode } = {}) {
     queryParams.set("session_code", cleanCode);
   }
 
-  return await apiClient(`/api/v1/parking/sessions/fee-preview/?${queryParams.toString()}`);
+  try {
+    return await apiClient(`/api/v1/parking/sessions/fee-preview/?${queryParams.toString()}`);
+  } catch (apiErr) {
+    // Graceful Fallback: Nếu Backend chưa kịp triển khai endpoint fee-preview hoặc gặp lỗi tạm thời,
+    // sử dụng chuẩn tính toán cước phí tập trung để người dùng tại bốt không bị gián đoạn.
+    console.warn("Backend fee-preview endpoint unavailable, falling back to local fee preview:", apiErr?.message);
+    return calculateLocalFeePreview({
+      licensePlate: cleanPlate,
+      sessionCode: cleanCode,
+      entryTime,
+      vehicleType,
+      hasActiveTicket,
+    });
+  }
 }
 
 /**

@@ -27,12 +27,13 @@ export default function ExitLanePanel({
   calculatedDurationMinutes,
   backendFeePreview = null,
   isLoadingFeePreview = false,
+  exitFeeCalc = null,
   isFeeExempt = false,
   setIsFeeExempt,
   waiverReason = "",
   setWaiverReason,
   currentUserRole = null,
-  paymentMethod = "CASH",
+  paymentMethod = PAYMENT_METHODS.VNPAY,
   setPaymentMethod,
   isActionPending = false,
   onConfirmExit,
@@ -42,9 +43,13 @@ export default function ExitLanePanel({
   const effectiveRole = currentUserRole ?? authUserRole;
   const isManager = checkIsManager(effectiveRole);
 
-  const isTicketActive = false; // Phân định rõ: Luồng xe liên kết ví App tính cước theo giờ, không miễn 0đ tự động
+  const isTicketActive = Boolean(
+    backendFeePreview?.has_active_ticket ||
+    backendFeePreview?.is_exempt ||
+    hasValidTicket
+  );
 
-  // Cước phí và nhãn hiển thị dựa hoàn toàn trên Backend Fee Preview (Single Source of Truth per Rule 12)
+  // Cước phí và nhãn hiển thị: Ưu tiên Backend Fee Preview (Single Source of Truth), tự động fallback sang exitFeeCalc
   let displayFeeText = "—";
   let displayFeeAmount = 0;
   let isZeroFee = false;
@@ -53,8 +58,16 @@ export default function ExitLanePanel({
     displayFeeText = "0đ (Miễn cước đặc cách)";
     displayFeeAmount = 0;
     isZeroFee = true;
-  } else if (backendFeePreview?.fee_amount !== undefined) {
+  } else if (isTicketActive) {
+    displayFeeText = "0đ (Vé tháng có hiệu lực)";
+    displayFeeAmount = 0;
+    isZeroFee = true;
+  } else if (backendFeePreview?.fee_amount !== undefined && backendFeePreview?.fee_amount !== null) {
     displayFeeAmount = Number(backendFeePreview.fee_amount);
+    displayFeeText = formatCurrencyVND(displayFeeAmount);
+    isZeroFee = displayFeeAmount === 0;
+  } else if (exitFeeCalc?.feeAmount !== undefined && exitFeeCalc?.feeAmount !== null) {
+    displayFeeAmount = Number(exitFeeCalc.feeAmount);
     displayFeeText = formatCurrencyVND(displayFeeAmount);
     isZeroFee = displayFeeAmount === 0;
   } else if (isLoadingFeePreview) {
@@ -64,6 +77,8 @@ export default function ExitLanePanel({
   // Thời lượng đỗ
   const displayDuration = backendFeePreview?.duration_text
     ? backendFeePreview.duration_text
+    : exitFeeCalc?.hoursBilled !== undefined && exitFeeCalc.hoursBilled > 0
+    ? `${exitFeeCalc.hoursBilled} giờ`
     : rawLookup?.open_session?.entry_time && calculatedDurationMinutes > 0
     ? Math.floor(calculatedDurationMinutes / 60) > 0
       ? `${Math.floor(calculatedDurationMinutes / 60)}h ${calculatedDurationMinutes % 60}m`
@@ -77,6 +92,8 @@ export default function ExitLanePanel({
     ? "Được đài thọ bởi vé tháng hiệu lực"
     : backendFeePreview
     ? `Thời lượng: ${displayDuration} • Đơn giá: ${backendFeePreview.hourly_rate ? formatCurrencyVND(backendFeePreview.hourly_rate) : "—"}/giờ`
+    : exitFeeCalc?.calculationBreakdown
+    ? exitFeeCalc.calculationBreakdown
     : isLoadingFeePreview
     ? "Đang đối soát cước phí với hệ thống..."
     : "—";

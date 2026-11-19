@@ -1,10 +1,11 @@
 import { useEffect } from "react";
-import { ConfirmModal, Pagination } from "../components/common";
+import { Pagination } from "../components/common";
 import { useParkingHistory } from "../hooks/useParkingHistory";
 import { PARKING_HISTORY_MESSAGES } from "../constants/parkingHistoryConstants";
 import ParkingHistoryFilters from "../components/ParkingHistory/ParkingHistoryFilters";
 import ParkingHistoryTable from "../components/ParkingHistory/ParkingHistoryTable";
 import ParkingImageModal from "../components/ParkingHistory/ParkingImageModal";
+import CloseSessionModal from "../components/ParkingHistory/CloseSessionModal";
 
 export default function ParkingHistory() {
   const { filters, table, modals } = useParkingHistory();
@@ -106,37 +107,14 @@ export default function ParkingHistory() {
         onClose={() => modals.setPreviewSession(null)}
       />
 
-      {/* Close Session Confirmation Modal */}
-      <ConfirmModal
+      {/* Close Session Business Scenarios Modal */}
+      <CloseSessionModal
         isOpen={Boolean(modals.sessionActionModal)}
         onClose={() => modals.setSessionActionModal(null)}
-        title="Xác nhận kết thúc phiên đỗ xe"
-        description="Đồng bộ trạng thái phiên đỗ xe và giải phóng vị trí"
-        variant="warning"
-        confirmText="Xác nhận kết thúc"
-        cancelText="Hủy"
-        loading={modals.isActionSubmitting}
-        onConfirm={modals.onConfirmCloseSession}
-        showCloseButton={true}
-      >
-        <div className="space-y-3 text-xs text-slate-600">
-          <p>
-            Bạn có chắc chắn muốn kết thúc phiên đỗ xe{" "}
-            <strong className="text-slate-900 font-mono font-semibold">
-              {modals.sessionActionModal?.sessionCode}
-            </strong>{" "}
-            (Biển số:{" "}
-            <strong className="text-blue-600 font-mono font-semibold">
-              {modals.sessionActionModal?.licensePlate}
-            </strong>
-            )?
-          </p>
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 leading-relaxed">
-            Hệ thống sẽ thực hiện đóng phiên đỗ, ghi nhận thời gian ra và chuyển trạng thái sang{" "}
-            <strong>Đã ra bãi</strong>. Dữ liệu cước phí và trạng thái sẽ được đồng bộ tức thì với máy chủ.
-          </div>
-        </div>
-      </ConfirmModal>
+        session={modals.sessionActionModal}
+        onSubmitAction={modals.onConfirmCloseSession}
+        isLoading={modals.isActionSubmitting}
+      />
     </div>
   );
 }

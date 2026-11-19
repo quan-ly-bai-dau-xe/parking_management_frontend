@@ -5,7 +5,21 @@ import {
   getParkingSessionStatus,
 } from "../../constants/parkingHistoryConstants";
 import ParkingSessionThumbnail from "./ParkingSessionThumbnail";
+import VehicleTicketTypeBadge from "../VehicleManagement/VehicleTicketTypeBadge";
 import { formatLicensePlateForDisplay } from "../../utils/plateFormatter";
+
+function getDisplayTicketType(item) {
+  const raw = item?.ticketType || item?.ticket_type_name || item?.ticket_type;
+  if (!raw || raw === "—") {
+    return item?.hasActiveTicket ? "Vé tháng" : "Vé lượt";
+  }
+  const upper = String(raw).trim().toUpperCase();
+  if (upper === "DAILY") return "Vé lượt";
+  if (upper === "MONTHLY") return "Vé tháng";
+  if (upper === "QUARTERLY") return "Vé quý";
+  if (upper === "YEARLY") return "Vé năm";
+  return String(raw).trim();
+}
 
 export default function ParkingHistoryTable({
   items,
@@ -16,11 +30,12 @@ export default function ParkingHistoryTable({
 }) {
   return (
     <div className="w-full overflow-x-auto">
-      <div className="min-w-[980px]">
+      <div className="min-w-[1080px]">
         {/* Table Header */}
-        <div className="bg-[#F1F5F9]/80 rounded-xl px-4 py-3 grid grid-cols-7 gap-4 text-xs font-semibold text-slate-600 items-center">
+        <div className="bg-[#F1F5F9]/80 rounded-xl px-4 py-3 grid grid-cols-8 gap-3 text-xs font-semibold text-slate-600 items-center">
           <div className="col-span-1">Mã phiên đỗ xe</div>
           <div className="col-span-1">Biển số xe</div>
+          <div className="col-span-1">Loại vé</div>
           <div className="col-span-1">Thời gian vào</div>
           <div className="col-span-1">Thời gian ra</div>
           <div className="col-span-1">Tổng thời gian đỗ</div>
@@ -54,15 +69,19 @@ export default function ParkingHistoryTable({
                 item.exitTime && item.exitTime !== PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT
                   ? item.exitTime
                   : PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT;
+              const displayTicketType = getDisplayTicketType(item);
 
               return (
                 <div
                   key={item.id}
-                  className="px-4 py-3.5 grid grid-cols-7 gap-4 items-center text-xs text-slate-700 hover:bg-slate-50/80 transition-colors"
+                  className="px-4 py-3.5 grid grid-cols-8 gap-3 items-center text-xs text-slate-700 hover:bg-slate-50/80 transition-colors"
                 >
                   <div className="col-span-1 font-medium text-slate-900">{item.sessionCode || item.session_code}</div>
                   <div className="col-span-1 font-semibold text-blue-600 font-mono tracking-wide">
                     {formatLicensePlateForDisplay(item.licensePlate || item.license_plate)}
+                  </div>
+                  <div className="col-span-1">
+                    <VehicleTicketTypeBadge ticketType={displayTicketType} />
                   </div>
                   <div className="col-span-1 text-slate-600">
                     {item.entryTime || item.entry_time || PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT}

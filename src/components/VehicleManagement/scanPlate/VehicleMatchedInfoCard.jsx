@@ -2,12 +2,13 @@ import { isVehicleTicketActive } from "../../../utils/parking/plateScanMapper.js
 
 /**
  * VehicleMatchedInfoCard
- * Card thông tin phương tiện chuẩn hóa hiển thị 5 trường thông tin cốt lõi:
+ * Card thông tin phương tiện chuẩn hóa hiển thị 6 trường thông tin cốt lõi (Phương án B):
  * 1. Tên xe (model)
  * 2. Hãng xe (brand)
  * 3. Tên khách hàng (customer.name)
  * 4. Số điện thoại (customer.phone)
- * 5. Vị trí đỗ (parkingSlot.display / slotCode)
+ * 5. Loại vé (ticketType / ticketExpiration / ticketStatus)
+ * 6. Vị trí đỗ (parkingSlot.display / slotCode)
  * Kèm theo huy hiệu loại vé và chỉ số độ tin cậy AI thực tế.
  */
 export default function VehicleMatchedInfoCard({
@@ -27,8 +28,40 @@ export default function VehicleMatchedInfoCard({
     matchedVehicle?.parkingSlot?.slot ||
     matchedVehicle?.slotCode ||
     "Chưa có vị trí";
+  const hasAssignedSlot = Boolean(matchedVehicle?.parkingSlot?.display);
 
   const isTicketActive = isVehicleTicketActive(matchedVehicle, hasValidTicket);
+
+  const rawTicketType =
+    matchedVehicle?.ticket?.ticket_type_name ||
+    matchedVehicle?.ticketType ||
+    matchedVehicle?.ticket?.type ||
+    "";
+
+  const displayTicketType = (() => {
+    if (!rawTicketType || rawTicketType === "—") {
+      return isTicketActive ? "Vé tháng" : "Vé lượt";
+    }
+    const upper = String(rawTicketType).trim().toUpperCase();
+    if (upper === "MONTHLY") return "Vé tháng";
+    if (upper === "DAILY") return "Vé lượt";
+    if (upper === "QUARTERLY") return "Vé quý";
+    if (upper === "YEARLY") return "Vé năm";
+    return String(rawTicketType).trim();
+  })();
+
+  const rawExpiration =
+    matchedVehicle?.ticketExpiration ||
+    matchedVehicle?.ticket?.effectiveTo ||
+    matchedVehicle?.ticket?.effective_to ||
+    null;
+
+  const ticketExpiration = rawExpiration ? String(rawExpiration).trim() : null;
+
+  const isTicketExpired =
+    matchedVehicle?.ticketStatus === "expired" ||
+    matchedVehicle?.ticket?.status === "expired" ||
+    matchedVehicle?.ticket?.is_expired === true;
 
   const rawConfidence = scanDetails?.confidence;
   const formattedConfidence = (() => {
@@ -77,7 +110,7 @@ export default function VehicleMatchedInfoCard({
         </div>
       </div>
 
-      {/* Grid 5 trường thông tin */}
+      {/* Grid 6 trường thông tin */}
       <div className="grid grid-cols-2 gap-2 text-2xs">
         <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
           <span className="text-slate-400 block text-3xs">Tên xe</span>
@@ -107,18 +140,47 @@ export default function VehicleMatchedInfoCard({
           </span>
         </div>
 
-        <div className="col-span-2 bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center justify-between">
-          <div>
+        {/* Ô 5: Loại vé & Hiệu lực */}
+        <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-slate-400 block text-3xs">Loại vé</span>
+            {isTicketExpired ? (
+              <span className="px-1.5 py-0.2 rounded text-4xs font-semibold bg-rose-100 text-rose-700 border border-rose-200">
+                Hết hạn
+              </span>
+            ) : isTicketActive ? (
+              <span className="px-1.5 py-0.2 rounded text-4xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                Hiệu lực
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-0.5">
+            <span className="font-semibold text-slate-800 truncate block text-2xs" title={displayTicketType}>
+              {displayTicketType}
+            </span>
+            {ticketExpiration && (
+              <span className="text-3xs text-slate-500 font-mono block truncate" title={`Hạn dùng: ${ticketExpiration}`}>
+                Hạn: {ticketExpiration}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Ô 6: Vị trí đỗ */}
+        <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
             <span className="text-slate-400 block text-3xs">Vị trí đỗ</span>
-            <span className="font-semibold text-slate-800 block text-2xs">
+            {hasAssignedSlot && (
+              <span className="px-1.5 py-0.2 rounded text-4xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                Đã gán ô
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5">
+            <span className="font-semibold text-slate-800 truncate block text-2xs" title={slotDisplay}>
               {slotDisplay}
             </span>
           </div>
-          {matchedVehicle?.parkingSlot?.display && (
-            <span className="px-1.5 py-0.5 rounded text-4xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Đã gán ô
-            </span>
-          )}
         </div>
       </div>
     </div>
