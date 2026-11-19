@@ -5,6 +5,43 @@ export const API_UNAVAILABLE_MESSAGE =
 
 let cachedCsrfToken = null;
 
+export const UNAUTHORIZED_EVENT_NAME = "app:auth-unauthorized";
+export const DEFAULT_UNAUTHORIZED_MESSAGE =
+    "Phiên đăng nhập đã hết hạn hoặc bạn chưa đăng nhập. Vui lòng đăng nhập lại.";
+
+// Dedupe cooldown: Ngăn bão event / toast khi hàng loạt API đồng thời trả về 401
+let lastUnauthorizedNotifyTime = 0;
+const UNAUTHORIZED_COOLDOWN_MS = 3000;
+
+export function notifyUnauthorized(message = DEFAULT_UNAUTHORIZED_MESSAGE) {
+    const now = Date.now();
+    if (now - lastUnauthorizedNotifyTime < UNAUTHORIZED_COOLDOWN_MS) {
+        return;
+    }
+    lastUnauthorizedNotifyTime = now;
+
+    // Dọn dẹp session đã hết hạn trong storage
+    try {
+        localStorage.removeItem("sp_user");
+        localStorage.removeItem("sp_auth_token");
+        sessionStorage.removeItem("sp_user");
+        sessionStorage.removeItem("sp_auth_token");
+    } catch {
+        // Safe-guard trong môi trường không có storage hoặc bị block
+    }
+
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(
+            new CustomEvent(UNAUTHORIZED_EVENT_NAME, {
+                detail: {
+                    message,
+                    timestamp: now,
+                },
+            })
+        );
+    }
+}
+
 export function getCookie(name) {
   if (typeof document === "undefined" || !document.cookie) {
     return null;
@@ -114,6 +151,18 @@ axiosInstance.interceptors.response.use(
 
     const { status, data, headers: resHeaders } = error.response;
 
+    // Xử lý 401 Unauthorized có Dedupe & Guard
+    // Không kích hoạt thông báo hết hạn phiên nếu endpoint đang gọi chính là API login (tránh nhầm với nhập sai mật khẩu)
+    const requestUrl = error.config?.url || "";
+    const isLoginEndpoint = requestUrl.includes("/api/v1/auth/login/");
+
+    if (status === 401 && !isLoginEndpoint) {
+      const unauthorizedMsg =
+        (typeof data === "object" && !(data instanceof Blob) && (data?.detail || data?.message)) ||
+        DEFAULT_UNAUTHORIZED_MESSAGE;
+      notifyUnauthorized(unauthorizedMsg);
+    }
+
     const validationMessage =
       typeof data === "object" && data && !(data instanceof Blob)
         ? Object.entries(data)
@@ -134,6 +183,7 @@ axiosInstance.interceptors.response.use(
     err.status = status;
     err.data = data;
     err.headers = resHeaders;
+    err.isUnauthorized = status === 401;
 
     const retryAfterHeader =
       resHeaders?.["retry-after"] ||

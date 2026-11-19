@@ -17,6 +17,8 @@ export const ROUTES = {
   ONBOARD: "/onboard",
   CUSTOMER_PROFILE: "/profile",
   CUSTOMER_OVERVIEW: "/overview",
+  CUSTOMER_VEHICLE: "/customerVehicle",
+  CUSTOEMR_TICKET: "/customerTicket",
 };
 
 export const DEFAULT_PATH = ROUTES.HOME;

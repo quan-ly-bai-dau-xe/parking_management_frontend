@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import ConfirmModal from "../common/modal/ConfirmModal";
 import { VEHICLE_DELETE_MESSAGES } from "../../constants/vehicleConstants";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 
 /**
  * DeleteVehicleModal
@@ -14,7 +15,7 @@ export default function DeleteVehicleModal({
   isOpen,
   onClose,
   vehicle,
-  isManager,
+  isManager: propIsManager,
   isParked,
   hasActiveTicket,
   onConfirmDelete,
@@ -23,6 +24,8 @@ export default function DeleteVehicleModal({
   onNavigateTickets,
   loading = false,
 }) {
+  const { isManager: authIsManager } = useCurrentUser();
+  const isManager = propIsManager ?? authIsManager;
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
   const [emergencyReason, setEmergencyReason] = useState("");
 

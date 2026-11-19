@@ -105,9 +105,25 @@ export default function ParkingHistoryTable({
                     )}
                   </div>
                   <div className="col-span-1 flex justify-between items-center">
-                    <span className="font-semibold text-emerald-600">
-                      {item.fee || (item.fee_amount !== undefined && item.fee_amount !== null ? `${item.fee_amount}đ` : "0đ")}
-                    </span>
+                    <div className="flex flex-col">
+                      {isOngoing && item.estimatedFee ? (
+                        <>
+                          <span
+                            className="font-semibold text-amber-700"
+                            title={`Tạm tính dựa trên thời gian đỗ thực tế: ${item.estimatedFee.calculationBreakdown}`}
+                          >
+                            ~{item.estimatedFee.feeFormatted}
+                          </span>
+                          <span className="text-[10px] text-amber-600/80">
+                            {item.estimatedFee.isCapped ? "(Đã áp trần 100k/ngày)" : "(Tạm tính)"}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="font-semibold text-emerald-600">
+                          {item.fee || (item.fee_amount !== undefined && item.fee_amount !== null ? `${item.fee_amount}đ` : "0đ")}
+                        </span>
+                      )}
+                    </div>
                     <ParkingSessionThumbnail item={item} onPreview={onPreviewImage} />
                   </div>
                 </div>

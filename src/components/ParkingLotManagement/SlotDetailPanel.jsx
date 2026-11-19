@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Button from "../common/button/Button";
 import OverstayAlertBanner from "./OverstayAlertBanner";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 
 export default function SlotDetailPanel({
   selectedSlot,
@@ -19,6 +20,7 @@ export default function SlotDetailPanel({
   onAcknowledgeOverstay,
   onReportViolation,
 }) {
+  const { isManager } = useCurrentUser();
   const handleStatusChange = (newStatus) => {
     if (onUpdateStatus && selectedSlot) {
       onUpdateStatus(selectedSlot, newStatus);
@@ -196,11 +198,17 @@ export default function SlotDetailPanel({
         </div>
       </div>
 
-      {/* 2. Cập nhật nhanh trạng thái */}
+      {/* 2. Cập nhật trạng thái bảo trì / vận hành */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-3 text-xs">
-        <span className="block font-bold text-slate-800">
-          Cập nhật nhanh trạng thái
-        </span>
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-slate-800">
+            Trạng thái vận hành
+          </span>
+          <span className="text-3xs text-slate-400">
+            {isManager ? "Toàn quyền Quản lý" : "Quyền Kỹ thuật"}
+          </span>
+        </div>
+        
         <div className="space-y-1.5">
           <button
             type="button"
@@ -208,32 +216,46 @@ export default function SlotDetailPanel({
             className="w-full py-2 px-3 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium text-left transition flex items-center gap-2 cursor-pointer"
           >
             <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span>Đặt làm ô trống</span>
+            <span>Sẵn sàng đón xe (Trống)</span>
           </button>
-          <button
-            type="button"
-            onClick={() => handleStatusChange("OCCUPIED")}
-            className="w-full py-2 px-3 rounded-lg border border-rose-200 bg-rose-50/50 text-rose-700 hover:bg-rose-100/60 font-medium text-left transition flex items-center gap-2 cursor-pointer"
-          >
-            <Car className="w-4 h-4 text-rose-500 shrink-0" />
-            <span>Đánh dấu có xe đỗ</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleStatusChange("RESERVED")}
-            className="w-full py-2 px-3 rounded-lg border border-amber-200 bg-amber-50/50 text-amber-700 hover:bg-amber-100/60 font-medium text-left transition flex items-center gap-2 cursor-pointer"
-          >
-            <Clock className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>Đánh dấu đã đặt trước</span>
-          </button>
+          
           <button
             type="button"
             onClick={() => handleStatusChange("MAINTENANCE")}
-            className="w-full py-2 px-3 rounded-lg border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100 font-medium text-left transition flex items-center gap-2 cursor-pointer"
+            className="w-full py-2 px-3 rounded-lg border border-amber-200 bg-amber-50/40 text-amber-800 hover:bg-amber-100/50 font-medium text-left transition flex items-center gap-2 cursor-pointer"
           >
-            <Wrench className="w-4 h-4 text-slate-500 shrink-0" />
-            <span>Đánh dấu bảo trì</span>
+            <Wrench className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Bảo trì / Tạm ngưng sử dụng</span>
           </button>
+
+          {/* Khóa bảo vệ: Chỉ Quản lý mới được phép can thiệp thủ công trạng thái có xe hoặc đặt trước ngoài cổng */}
+          {isManager ? (
+            <div className="pt-2 border-t border-slate-100 space-y-1.5">
+              <span className="block text-3xs text-slate-400 font-semibold uppercase tracking-wider">
+                Thao tác Quản trị đặc cách
+              </span>
+              <button
+                type="button"
+                onClick={() => handleStatusChange("OCCUPIED")}
+                className="w-full py-2 px-3 rounded-lg border border-rose-200 bg-rose-50/50 text-rose-700 hover:bg-rose-100/60 font-medium text-left transition flex items-center gap-2 cursor-pointer"
+              >
+                <Car className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>Gán thủ công: Có xe đỗ</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleStatusChange("RESERVED")}
+                className="w-full py-2 px-3 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 font-medium text-left transition flex items-center gap-2 cursor-pointer"
+              >
+                <Clock className="w-4 h-4 text-slate-500 shrink-0" />
+                <span>Gán thủ công: Đã đặt trước</span>
+              </button>
+            </div>
+          ) : (
+            <p className="text-3xs text-slate-400 pt-1">
+              * Trạng thái <strong>Có xe đỗ (OCCUPIED)</strong> được hệ thống Barrier tự động ghi nhận khi xe quét vào cổng.
+            </p>
+          )}
         </div>
       </div>
     </div>

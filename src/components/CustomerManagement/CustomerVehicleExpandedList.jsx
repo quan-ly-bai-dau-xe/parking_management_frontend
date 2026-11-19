@@ -5,7 +5,7 @@ export default function CustomerVehicleExpandedList({ customer, onClose }) {
   const [vehicles, setVehicles] = useState(customer?.vehicles || []);
   const [loading, setLoading] = useState(
     (!customer?.vehicles || customer.vehicles.length === 0) &&
-      (customer?.vehiclesCount > 0)
+    (customer?.vehiclesCount > 0)
   );
 
   useEffect(() => {

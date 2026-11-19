@@ -3,6 +3,7 @@ import DataTable from "../common/table/DataTable";
 import TableActions from "../common/table/TableActions";
 import VehicleTicketTypeBadge from "./VehicleTicketTypeBadge";
 import { DEFAULT_UNASSIGNED_SLOT_LABEL } from "../../constants/vehicleConstants";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 
 export default function VehicleTable({
   paginatedVehicles,
@@ -15,8 +16,10 @@ export default function VehicleTable({
   handleOpenAssignSlot,
   renderTicketBadge,
   renderStatusBadge,
-  isManager = false,
+  isManager: propIsManager,
 }) {
+  const { isManager: authIsManager } = useCurrentUser();
+  const isManager = propIsManager ?? authIsManager;
   const columns = [
     {
       header: "STT",
@@ -128,7 +131,12 @@ export default function VehicleTable({
     },
     {
       header: "Trạng thái",
-      accessor: (row) => renderStatusBadge(row.status, row.statusDisplay),
+      accessor: (row) => {
+        if (row.isBlacklisted || row.is_blacklisted || row.status === "BLACKLISTED") {
+          return renderStatusBadge("blacklisted", "Danh sách đen");
+        }
+        return renderStatusBadge(row.status, row.statusDisplay);
+      },
     },
     {
       header: "Thao tác",

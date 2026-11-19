@@ -95,7 +95,7 @@ export const getCustomerColumns = ({ onEdit, onDeleteClick }) => [
     header: "Trạng thái",
     accessor: "status",
     renderCell: (row) => {
-      const status = row.status || "Đang hoạt động";
+      const status = row.status || "Chưa xác định";
       if (status === "Đang hoạt động") {
         return (
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border bg-emerald-50 text-emerald-700 border-emerald-200">

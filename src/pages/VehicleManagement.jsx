@@ -50,11 +50,7 @@ function normalizeSearchText(str) {
 export default function VehicleManagement() {
   const toast = useToast();
   const navigate = useNavigate();
-  const { role } = useCurrentUser();
-  const isManager = useMemo(() => {
-    const cleanRole = String(role || "").toLowerCase().trim();
-    return cleanRole === "manager" || cleanRole === "quản lý" || cleanRole === "admin";
-  }, [role]);
+  const { isManager } = useCurrentUser();
 
   const {
     vehicles,
@@ -129,11 +125,23 @@ export default function VehicleManagement() {
         return false;
       }
       if (filters.status) {
-        const matchesStatus =
-          item.status === filters.status ||
-          (filters.status === "parked" && item.status === "parking") ||
-          (filters.status === "left" && item.status === "inactive");
-        if (!matchesStatus) return false;
+        if (filters.status === "blacklisted") {
+          const isBlacklisted = Boolean(
+            item.isBlacklisted ||
+            item.is_blacklisted ||
+            item.status === "BLACKLISTED" ||
+            item.status === "blacklisted" ||
+            item.note?.toLowerCase()?.includes("cảnh báo") ||
+            item.note?.toLowerCase()?.includes("blacklist")
+          );
+          if (!isBlacklisted) return false;
+        } else {
+          const matchesStatus =
+            item.status === filters.status ||
+            (filters.status === "parked" && item.status === "parking") ||
+            (filters.status === "left" && item.status === "inactive");
+          if (!matchesStatus) return false;
+        }
       }
       if (filters.ticketStatus && item.ticket?.status !== filters.ticketStatus) {
         return false;
@@ -598,7 +606,6 @@ export default function VehicleManagement() {
           handleOpenAssignSlot={handleOpenAssignSlot}
           renderTicketBadge={renderTicketBadge}
           renderStatusBadge={renderStatusBadge}
-          isManager={isManager}
         />
 
         <Pagination
@@ -656,7 +663,6 @@ export default function VehicleManagement() {
         isOpen={deleteModalState.isOpen}
         onClose={handleCloseDeleteModal}
         vehicle={deleteModalState.vehicle}
-        isManager={isManager}
         isParked={deleteModalState.isParked}
         hasActiveTicket={deleteModalState.hasActiveTicket}
         onConfirmDelete={handleConfirmDelete}

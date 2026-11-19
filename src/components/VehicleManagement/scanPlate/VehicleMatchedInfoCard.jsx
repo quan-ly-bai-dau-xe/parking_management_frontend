@@ -67,7 +67,7 @@ export default function VehicleMatchedInfoCard({
           )}
           {isTicketActive ? (
             <span className="px-2 py-0.5 rounded text-3xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Vé tháng hiệu lực
+              📱 Xe liên kết Ví App
             </span>
           ) : (
             <span className="px-2 py-0.5 rounded text-3xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">

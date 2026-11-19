@@ -6,15 +6,27 @@ import {
   SLOT_STATUS_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
 } from "../../constants/parkingLotConstants";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 
 function EditSlotForm({ slot, onClose, onSave }) {
+  const { isManager } = useCurrentUser();
   const [formData, setFormData] = useState({
-    status: slot?.status || "AVAILABLE",
-    plate: slot?.plate || slot?.licensePlate || "",
-    type: slot?.type || slot?.slot_kind || "STANDARD",
-    reservedBy: slot?.reservedBy || "",
-    note: slot?.note || slot?.notes || "",
+    status: slot?.status ?? "",
+    plate: slot?.plate ?? slot?.licensePlate ?? "",
+    type: slot?.type ?? slot?.slot_kind ?? "",
+    reservedBy: slot?.reservedBy ?? "",
+    note: slot?.note ?? slot?.notes ?? "",
   });
+
+  // Khóa lạm quyền Trạng thái Ô đỗ:
+  // - Quản lý (Manager): Có toàn quyền điều chỉnh mọi trạng thái
+  // - Nhân viên (Employee): Chỉ được phép thao tác trạng thái vận hành kỹ thuật (AVAILABLE, MAINTENANCE).
+  //   Tuyệt đối không được tự ý can thiệp các trạng thái hệ thống: OCCUPIED (Đang đỗ), OVERSTAY (Quá giờ), RESERVED (Đặt trước).
+  const allowedStatusOptions = isManager
+    ? SLOT_STATUS_OPTIONS
+    : SLOT_STATUS_OPTIONS.filter((opt) =>
+        [SLOT_STATUS.AVAILABLE, SLOT_STATUS.MAINTENANCE].includes(opt.value)
+      );
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -34,25 +46,42 @@ function EditSlotForm({ slot, onClose, onSave }) {
         <FormSelect
           label="Trạng thái"
           value={formData.status}
+          helperText={
+            !isManager
+              ? "Nhân viên chỉ có quyền chuyển đổi giữa Trống và Bảo trì."
+              : ""
+          }
           onChange={(e) =>
             setFormData((prev) => ({
               ...prev,
               status: e.target.value,
             }))
           }
-          options={SLOT_STATUS_OPTIONS}
+          options={[
+            { value: "", label: "-- Chọn trạng thái ô đỗ --" },
+            ...allowedStatusOptions,
+          ]}
         />
 
         <FormSelect
           label="Loại xe / Ô đỗ"
           value={formData.type}
+          disabled={!isManager}
+          helperText={
+            !isManager
+              ? "Chỉ Quản lý (Manager) mới có quyền thay đổi phân loại hạ tầng ô đỗ."
+              : ""
+          }
           onChange={(e) =>
             setFormData((prev) => ({
               ...prev,
               type: e.target.value,
             }))
           }
-          options={VEHICLE_TYPE_OPTIONS}
+          options={[
+            { value: "", label: "-- Chọn loại ô đỗ --" },
+            ...VEHICLE_TYPE_OPTIONS,
+          ]}
         />
       </div>
 

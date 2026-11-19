@@ -14,12 +14,25 @@ export const PARKING_ZONE_OPTIONS = [
   { value: "C", label: "Khu C" },
 ];
 
+export const SLOT_STATUS = Object.freeze({
+  AVAILABLE: "AVAILABLE",
+  OCCUPIED: "OCCUPIED",
+  OVERSTAY: "OVERSTAY",
+  RESERVED: "RESERVED",
+  MAINTENANCE: "MAINTENANCE",
+});
+
+export const SLOT_TYPES = Object.freeze({
+  STANDARD: "STANDARD",
+  PRIORITY: "PRIORITY",
+});
+
 export const SLOT_STATUS_OPTIONS = [
-  { value: "AVAILABLE", label: "Trống" },
-  { value: "OCCUPIED", label: "Đang đỗ" },
-  { value: "OVERSTAY", label: "Cảnh báo quá giờ" },
-  { value: "RESERVED", label: "Đã đặt trước" },
-  { value: "MAINTENANCE", label: "Bảo trì" },
+  { value: SLOT_STATUS.AVAILABLE, label: "Trống" },
+  { value: SLOT_STATUS.OCCUPIED, label: "Đang đỗ" },
+  { value: SLOT_STATUS.OVERSTAY, label: "Cảnh báo quá giờ" },
+  { value: SLOT_STATUS.RESERVED, label: "Đã đặt trước" },
+  { value: SLOT_STATUS.MAINTENANCE, label: "Bảo trì" },
 ];
 
 export const OVERSTAY_THRESHOLDS = {
@@ -30,8 +43,8 @@ export const OVERSTAY_THRESHOLDS = {
 };
 
 export const VEHICLE_TYPE_OPTIONS = [
-  { value: "STANDARD", label: "Ô tô tiêu chuẩn" },
-  { value: "PRIORITY", label: "Xe ưu tiên" },
+  { value: SLOT_TYPES.STANDARD, label: "Ô tô tiêu chuẩn" },
+  { value: SLOT_TYPES.PRIORITY, label: "Xe ưu tiên" },
 ];
 
 export const INITIAL_STRUCTURE_LIST = [

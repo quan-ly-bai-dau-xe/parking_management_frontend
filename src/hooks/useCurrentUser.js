@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { checkIsManager } from "../constants/roleConstants";
 
 function getStoredUser() {
   const storedUser = localStorage.getItem("sp_user") || sessionStorage.getItem("sp_user");
@@ -28,6 +29,9 @@ export function useCurrentUser() {
     };
   }, []);
 
+  const role = user?.role || user?.role_name || user?.roleName || "Chưa xác định";
+  const isManager = useMemo(() => checkIsManager(user || role), [user, role]);
+
   return {
     user,
     setUser,
@@ -37,6 +41,8 @@ export function useCurrentUser() {
       user?.fullName ||
       user?.username ||
       "",
-    role: user?.role || user?.role_name || user?.roleName || "Chưa xác định",
+    role,
+    isManager,
   };
 }
+

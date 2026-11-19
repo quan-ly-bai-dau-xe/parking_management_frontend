@@ -5,7 +5,6 @@ import Button from "../common/button/Button";
 import {
   PARKING_FLOOR_OPTIONS,
   PARKING_ZONE_OPTIONS,
-  SLOT_STATUS_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
 } from "../../constants/parkingLotConstants";
 
@@ -24,8 +23,8 @@ export default function AddSlotModal({
     row: "A",
     code: "",
     type: "STANDARD",
-    status: "AVAILABLE",
-    plate: "",
+    isUnderMaintenance: false,
+    maintenanceReason: "",
     note: "",
   });
   const [error, setError] = useState("");
@@ -36,6 +35,8 @@ export default function AddSlotModal({
         ...prev,
         floor: selectedFloor || floorOptions?.[0]?.value || "B1",
         zone: selectedZone || zoneOptions?.[0]?.value || "A",
+        isUnderMaintenance: false,
+        maintenanceReason: "",
       }));
       setError("");
     }
@@ -48,8 +49,22 @@ export default function AddSlotModal({
       return;
     }
 
+    if (formData.isUnderMaintenance && !formData.maintenanceReason.trim()) {
+      setError("Vui lòng nhập lý do bảo trì ô đỗ.");
+      return;
+    }
+
     const code = formData.code.trim().toUpperCase();
     const row = code.includes("-") ? code.split("-")[0] : formData.row || "A";
+
+    // Phân tách trạng thái an toàn:
+    // Tuyệt đối không cho phép tự ý gán có xe (OCCUPIED) hoặc đặt trước (RESERVED) khi tạo mới.
+    // Nếu có bảo trì/chưa nghiệm thu -> MAINTENANCE (kèm lý do bắt buộc).
+    // Nếu sẵn sàng đưa vào vận hành -> AVAILABLE.
+    const initialStatus = formData.isUnderMaintenance ? "MAINTENANCE" : "AVAILABLE";
+    const resolvedNotes = formData.isUnderMaintenance
+      ? `[Bảo trì hạ tầng] ${formData.maintenanceReason.trim()}${formData.note ? ` - ${formData.note.trim()}` : ""}`
+      : formData.note.trim();
 
     onAdd?.({
       id: code,
@@ -61,10 +76,10 @@ export default function AddSlotModal({
       zone: formData.zone,
       type: formData.type,
       slot_kind: formData.type,
-      status: formData.status,
-      plate: formData.plate.trim() || null,
-      licensePlate: formData.plate.trim() || "—",
-      note: formData.note.trim() || "",
+      status: initialStatus,
+      plate: null,
+      licensePlate: "—",
+      note: resolvedNotes,
       parkingLot: "Bãi xe Smart Mobility",
     });
 
@@ -74,8 +89,8 @@ export default function AddSlotModal({
       row: "A",
       code: "",
       type: "STANDARD",
-      status: "AVAILABLE",
-      plate: "",
+      isUnderMaintenance: false,
+      maintenanceReason: "",
       note: "",
     });
     setError("");
@@ -132,28 +147,48 @@ export default function AddSlotModal({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <FormSelect
-            label="Trạng thái ban đầu"
-            value={formData.status}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, status: e.target.value }))
-            }
-            options={SLOT_STATUS_OPTIONS}
-          />
-          <FormInput
-            label="Biển số xe (nếu có)"
-            placeholder="Ví dụ: 30A-999.99"
-            value={formData.plate}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, plate: e.target.value }))
-            }
-          />
+        {/* Khóa bảo vệ trạng thái: Không cho phép tự tạo xe ảo hay đặt chỗ ảo */}
+        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={formData.isUnderMaintenance}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  isUnderMaintenance: e.target.checked,
+                }))
+              }
+              className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+            />
+            <span>Ô đỗ chưa sẵn sàng khai thác / Đang bảo trì hạ tầng</span>
+          </label>
+
+          {formData.isUnderMaintenance ? (
+            <div className="pt-1 animate-in fade-in duration-150">
+              <FormInput
+                label="Lý do bảo trì / chưa nghiệm thu *"
+                placeholder="Ví dụ: Đang kẻ vạch, lắp cảm biến, chưa nghiệm thu PCCC..."
+                value={formData.maintenanceReason}
+                error={error.includes("lý do bảo trì") ? error : ""}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    maintenanceReason: e.target.value,
+                  }))
+                }
+              />
+            </div>
+          ) : (
+            <p className="text-3xs text-slate-500">
+              * Ô đỗ sẵn sàng khai thác sẽ được bàn giao trạng thái <strong>Trống (AVAILABLE)</strong> để cổng tự động phân bổ xe khi vào bãi.
+            </p>
+          )}
         </div>
 
         <FormInput
-          label="Ghi chú"
-          placeholder="Ghi chú thêm..."
+          label="Ghi chú thêm"
+          placeholder="Thông số kỹ thuật, ký hiệu đặc biệt..."
           value={formData.note}
           onChange={(e) =>
             setFormData((prev) => ({ ...prev, note: e.target.value }))

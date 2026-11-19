@@ -1,12 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  scanPlateImage,
-  lookupVehicleByPlate,
-  getParkingSessions,
-  mapPlateScanToVehicle,
-  mapVehicleLookupToVehicle,
-} from "../../services/plateScanService";
+import { scanPlateImage } from "../../services/plateScanService";
 import {
   validateVehicleEntry,
   calculateParkingFee,
@@ -15,65 +9,22 @@ import {
   forceCloseSessionAndReleaseSlot,
   getAvailableSlotsForCheckIn,
 } from "../../services/parkingSessionService";
-import { mockVehicles } from "../../mocks/vehicleData";
 import { usePlateAutoDetect } from "../../hooks/usePlateAutoDetect";
+import { usePlateMatching } from "./scanPlate/hooks/usePlateMatching";
+import { parseEntryTimeToDate, normalizePlate } from "../../utils/parking/plateScanMapper";
+import { getEntryErrorMessage } from "../../utils/parking/gateErrorMapper";
 
 import ScanPlateCameraFeed from "./scanPlate/ScanPlateCameraFeed";
 import ScanPlateImageUpload from "./scanPlate/ScanPlateImageUpload";
 import EntryLanePanel from "./scanPlate/EntryLanePanel";
 import ExitLanePanel from "./scanPlate/ExitLanePanel";
+import CloseSessionSafetyModal from "./scanPlate/CloseSessionSafetyModal";
 
 const DEFAULT_ENTRY_GATE_ID = 1;
 const DEFAULT_EXIT_GATE_ID = 3;
 const BARRIER_OPEN_DELAY_MS = 600;
-
-const getEntryErrorMessage = (err) => {
-  const backendMsg = err?.data?.message || err?.message;
-  const errorCode = err?.data?.code;
-
-  if (errorCode === "MSG-4.5.2-M02" || backendMsg?.includes("đã có xe đk vé")) {
-    return (
-      "⚠️ Vị trí đỗ này đã có xe đăng ký vé và đang sử dụng. " +
-      "Hệ thống đã tự động chọn ô trống khả dụng khác, vui lòng kiểm tra và xác nhận lại."
-    );
-  }
-  if (errorCode === "PROP-4.5.2-P01" || backendMsg?.includes("đang bảo trì")) {
-    return "⚠️ Vị trí đỗ này đang bảo trì, vui lòng chọn vị trí khác.";
-  }
-  if (errorCode === "PROP-4.5.1-P08") {
-    return "⛔ Biển số xe nằm trong danh sách đen (Blacklist), không được phép vào bãi.";
-  }
-  if (errorCode === "MSG-4.5.1-M01" || backendMsg?.includes("hết hạn")) {
-    return "⚠️ Vé đăng ký của xe đã hết hạn, hệ thống sẽ tự động chuyển sang chế độ tính vé lượt vãng lai.";
-  }
-  if (errorCode === "PROP-4.5.1-P05" || backendMsg?.includes("hết chỗ")) {
-    return "⚠️ Bãi đỗ xe đã đầy chỗ cho loại phương tiện này. Vui lòng hướng dẫn xe quay đầu.";
-  }
-  if (errorCode === "PROP-4.5.1-P09" || backendMsg?.includes("đang có phiên")) {
-    return "⚠️ Xe đang có phiên gửi chưa kết thúc. Vui lòng bấm nút 'Đóng phiên cũ' hoặc sang Làn Ra.";
-  }
-  return backendMsg || "Không thể thực hiện Check-in vào bãi. Vui lòng thử lại.";
-};
-
-const parseEntryTimeToDate = (entryTimeStr) => {
-  if (!entryTimeStr) return null;
-  const str = String(entryTimeStr).trim();
-  const timeFirst = str.match(/^(\d{1,2}):(\d{1,2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (timeFirst) {
-    const [, hour, min, day, month, year] = timeFirst;
-    const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(min));
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-  }
-  const dateFirst = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?$/);
-  if (dateFirst) {
-    const [, day, month, year, hour = "0", min = "0"] = dateFirst;
-    const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(min));
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-  }
-  const d = new Date(str);
-  if (!Number.isNaN(d.getTime())) return d;
-  return null;
-};
+const SEARCH_DEBOUNCE_MS = 450;
+const MIN_SEARCH_PLATE_LENGTH = 6;
 
 const captureVideoSnapshot = (videoEl) => {
   if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) return null;
@@ -107,17 +58,35 @@ export default function ScanPlateModal({
   const barrierTimerRef = useRef(null);
 
   const [scanSourceMode, setScanSourceMode] = useState("camera"); // 'camera' | 'image'
-  const [detectedPlate, setDetectedPlate] = useState("");
-  const [matchedVehicle, setMatchedVehicle] = useState(null);
-  const [scanDetails, setScanDetails] = useState(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [searchStatus, setSearchStatus] = useState("idle");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [rawLookup, setRawLookup] = useState(null);
+
+  const {
+    detectedPlate,
+    setDetectedPlate,
+    matchedVehicle,
+    setMatchedVehicle,
+    scanDetails,
+    setScanDetails,
+    isScanning,
+    searchStatus,
+    errorMessage,
+    setErrorMessage,
+    rawLookup,
+    setRawLookup,
+    handleMatchPlate,
+    handleImageScanned,
+    resetMatching,
+  } = usePlateMatching({
+    vehicles,
+    onResetBarrier: () => {
+      setActionSuccessMessage("");
+      setBarrierState("closed");
+    },
+  });
 
   const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedSlotId, setSelectedSlotId] = useState(null);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [isSafetyModalOpen, setIsSafetyModalOpen] = useState(false);
 
   // 2 chế độ rõ ràng: 'entry' | 'exit'
   const [laneMode, setLaneMode] = useState("entry");
@@ -191,114 +160,6 @@ export default function ScanPlateModal({
     };
   }, [isOpen, laneMode, matchedVehicle, detectedPlate]);
 
-  const normalizePlate = (str) =>
-    (str || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-
-  const findInLocalList = useCallback(
-    (norm) => {
-      const list = Array.isArray(vehicles) && vehicles.length > 0 ? vehicles : mockVehicles;
-      return list.find((v) => normalizePlate(v.licensePlate) === norm) || null;
-    },
-    [vehicles]
-  );
-
-  const resolveActiveSession = async (plate) => {
-    try {
-      const sessionRes = await getParkingSessions({ license_plate: plate, status: "open" });
-      const active = sessionRes?.items?.[0] || sessionRes?.results?.[0];
-      if (!active) return null;
-      const rawIso =
-        active.entryTimeRaw ||
-        active.rawEntryTime ||
-        active.entry_time ||
-        parseEntryTimeToDate(active.entryTime)?.toISOString() ||
-        active.entryTime;
-
-      return {
-        id: active.id,
-        session_code: active.sessionCode || active.session_code,
-        entry_time: rawIso,
-        entry_image_url: active.plateImageUrl || active.entryImageUrl || active.entry_image_url,
-        slot_code: active.slotCode || active.slot_code,
-      };
-    } catch {
-      return null;
-    }
-  };
-
-  const handleMatchPlate = useCallback(
-    async (plateInput) => {
-      const rawInput = (plateInput || "").trim();
-      const norm = normalizePlate(rawInput);
-      if (!norm) return;
-
-      setIsScanning(true);
-      setSearchStatus("idle");
-      setErrorMessage("");
-      setActionSuccessMessage("");
-      setBarrierState("closed");
-
-      try {
-        const lookupResult = await lookupVehicleByPlate(rawInput);
-        let openSession = lookupResult?.open_session || null;
-        if (!openSession) {
-          openSession = await resolveActiveSession(rawInput);
-        }
-        const consolidatedLookup = lookupResult
-          ? { ...lookupResult, open_session: openSession }
-          : openSession
-            ? { open_session: openSession }
-            : null;
-
-        setRawLookup(consolidatedLookup);
-        const vehicle = mapVehicleLookupToVehicle(consolidatedLookup);
-
-        if (vehicle) {
-          setMatchedVehicle(vehicle);
-          setSearchStatus("matched");
-        } else {
-          const found = findInLocalList(norm);
-          if (found) {
-            setMatchedVehicle(found);
-            setSearchStatus("matched");
-          } else {
-            setMatchedVehicle({
-              id: "WALK_IN_" + Date.now(),
-              licensePlate: rawInput.toUpperCase(),
-              vehicleType: "CAR",
-              model: "Khách vãng lai",
-              status: "active",
-              customer: { name: "Khách vãng lai (Vé lượt)" },
-            });
-            setSearchStatus("matched");
-          }
-        }
-      } catch {
-        const openSession = await resolveActiveSession(rawInput);
-        setRawLookup(openSession ? { open_session: openSession } : null);
-
-        const localFound = findInLocalList(norm);
-        if (localFound) {
-          setMatchedVehicle(localFound);
-          setSearchStatus("matched");
-        } else {
-          setMatchedVehicle({
-            id: "WALK_IN_" + Date.now(),
-            licensePlate: rawInput.toUpperCase(),
-            vehicleType: "CAR",
-            model: "Khách vãng lai",
-            status: "active",
-            customer: { name: "Khách vãng lai (Vé lượt)" },
-          });
-          setSearchStatus("matched");
-        }
-      } finally {
-        setIsScanning(false);
-      }
-    },
-    [findInLocalList]
-  );
-
   // Lắng nghe camera tự động nhận diện biển số
   useEffect(() => {
     const plate = detectedData?.plate_final;
@@ -316,55 +177,45 @@ export default function ScanPlateModal({
         imageUrl: detectedData?.image_url || detectedData?.plate_image_url || null,
       });
     }
-  }, [detectedData, detectedPlate, handleMatchPlate, scanSourceMode]);
+  }, [detectedData, detectedPlate, handleMatchPlate, scanSourceMode, setDetectedPlate, setScanDetails]);
 
-  // Xử lý kết quả quét từ ảnh tải lên
-  const handleImageScanned = (scanResult, previewUrl) => {
-    if (!scanResult) return;
-    const extractedPlate =
-      scanResult.plate_final ||
-      scanResult.best_candidate?.plate_text ||
-      scanResult.plate_raw ||
-      scanResult.license_plate ||
-      "";
+  // Tự động tìm kiếm biển số khi người dùng nhập tay (Debounce Search)
+  const lastAutoSearchedPlateRef = useRef("");
 
-    if (extractedPlate) {
-      setDetectedPlate(extractedPlate);
-      const conf =
-        scanResult.best_candidate?.confidence ??
-        scanResult.confidence ??
-        null;
-      setScanDetails({
-        confidence: conf,
-        plate: extractedPlate,
-        imageUrl: scanResult.image_url || previewUrl,
-        source: "image",
-      });
-
-      const mapped = mapPlateScanToVehicle(scanResult);
-      if (mapped && mapped.isRecognized) {
-        setMatchedVehicle(mapped);
-        setSearchStatus("matched");
-        setRawLookup(scanResult.vehicle_lookup || null);
-      } else {
-        handleMatchPlate(extractedPlate);
-      }
+  useEffect(() => {
+    if (!isOpen) {
+      lastAutoSearchedPlateRef.current = "";
+      return;
     }
-  };
+
+    const cleanInput = (detectedPlate || "").trim();
+    const normalizedInput = normalizePlate(cleanInput);
+
+    if (normalizedInput.length >= MIN_SEARCH_PLATE_LENGTH) {
+      if (normalizedInput === lastAutoSearchedPlateRef.current) return;
+
+      const timer = setTimeout(() => {
+        lastAutoSearchedPlateRef.current = normalizedInput;
+        handleMatchPlate(cleanInput);
+      }, SEARCH_DEBOUNCE_MS);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, detectedPlate, handleMatchPlate]);
 
   const handleManualSearch = (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === "function") {
+      e.preventDefault();
+    }
     if (!detectedPlate) return;
-    handleMatchPlate(detectedPlate);
+    const cleanInput = detectedPlate.trim();
+    lastAutoSearchedPlateRef.current = normalizePlate(cleanInput);
+    handleMatchPlate(cleanInput);
   };
 
   const handleReset = () => {
-    setDetectedPlate("");
-    setMatchedVehicle(null);
-    setScanDetails(null);
-    setSearchStatus("idle");
-    setErrorMessage("");
-    setRawLookup(null);
+    lastAutoSearchedPlateRef.current = "";
+    resetMatching();
     setActionSuccessMessage("");
     setBarrierState("closed");
     resetDetection();
@@ -380,9 +231,16 @@ export default function ScanPlateModal({
   const hasOpenSession = Boolean(rawLookup?.open_session);
   const entryValidation = validateVehicleEntry({
     vehicle: matchedVehicle,
-    openSession: rawLookup?.open_session,
+    lookupResult: rawLookup,
   });
-  const isBlacklisted = !entryValidation.isValid && entryValidation.isBlacklisted;
+  const isBlacklisted = Boolean(
+    rawLookup?.is_blacklisted ||
+      rawLookup?.status === "BLACKLISTED" ||
+      matchedVehicle?.isBlacklisted ||
+      matchedVehicle?.status === "BLACKLISTED" ||
+      entryValidation.reasonCode === "BLACKLISTED" ||
+      (!entryValidation.eligible && entryValidation.reasonCode === "BLACKLISTED")
+  );
   const hasValidTicket = Boolean(
     matchedVehicle?.ticketState === "active" ||
       matchedVehicle?.ticket?.is_valid ||
@@ -406,8 +264,12 @@ export default function ScanPlateModal({
     isExempt: isFeeExempt,
   });
 
-  const handleForceCloseSession = async () => {
-    const licensePlate = detectedPlate || matchedVehicle?.licensePlate;
+  const handleOpenSafetyModal = () => {
+    setIsSafetyModalOpen(true);
+  };
+
+  const handleConfirmCloseSafety = async (options = {}) => {
+    const licensePlate = options.licensePlate || detectedPlate || matchedVehicle?.licensePlate;
     if (!licensePlate || actionPendingRef.current) return;
 
     actionPendingRef.current = true;
@@ -415,12 +277,23 @@ export default function ScanPlateModal({
     setErrorMessage("");
 
     try {
+      const isGlitch = options.actionType === "cancel_glitch";
+      const notes = isGlitch
+        ? `Hủy phiên do quét sai/nhầm: ${options.reason || "Ngoại lệ"}`
+        : options.reason || "Đóng phiên cũ có thu tiền tại làn kiểm soát";
+
       await forceCloseSessionAndReleaseSlot({
         licensePlate,
-        notes: "Cưỡng chế đóng phiên cũ bị treo tại cổng",
+        sessionCode: options.sessionCode,
+        notes,
       });
       setRawLookup((prev) => (prev ? { ...prev, open_session: null } : null));
-      setActionSuccessMessage("✓ Đã đóng phiên cũ thành công. Sẵn sàng đón lượt mới!");
+      setIsSafetyModalOpen(false);
+      setActionSuccessMessage(
+        isGlitch
+          ? "✓ Đã hủy phiên cũ do quét nhầm thành công (0đ)."
+          : "✓ Đã thu tiền & đóng phiên cũ thành công. Sẵn sàng đón lượt mới!"
+      );
     } catch (err) {
       setErrorMessage(err?.data?.message || err?.message || "Không thể cưỡng chế đóng phiên.");
     } finally {
@@ -431,6 +304,11 @@ export default function ScanPlateModal({
 
   const handleConfirmEntry = async () => {
     if (actionPendingRef.current) return;
+    if (hasOpenSession) {
+      setErrorMessage("⛔ Xe đang có phiên gửi cũ chưa đóng. Vui lòng đối soát và đóng phiên cũ trước.");
+      return;
+    }
+
     actionPendingRef.current = true;
     setIsActionPending(true);
     setErrorMessage("");
@@ -439,13 +317,6 @@ export default function ScanPlateModal({
     try {
       const chosenSlot = availableSlots.find((s) => s.id === selectedSlotId);
       const targetSlotId = chosenSlot?.id ?? 1;
-
-      if (hasOpenSession) {
-        await forceCloseSessionAndReleaseSlot({
-          licensePlate: detectedPlate || matchedVehicle?.licensePlate,
-          notes: "Tự động đóng phiên cũ bị treo để tạo phiên check-in mới",
-        });
-      }
 
       const entryImageUrl =
         scanDetails?.imageUrl ||
@@ -732,7 +603,7 @@ export default function ScanPlateModal({
                   hasOpenSession={hasOpenSession}
                   isActionPending={isActionPending}
                   onConfirmEntry={handleConfirmEntry}
-                  onForceCloseSession={handleForceCloseSession}
+                  onForceCloseSession={handleOpenSafetyModal}
                   onSwitchToExit={() => setLaneMode("exit")}
                 />
               ) : (
@@ -791,6 +662,16 @@ export default function ScanPlateModal({
           </div>
         </div>
       </div>
+
+      {/* Modal bảo vệ đối soát an toàn phiên gửi cũ */}
+      <CloseSessionSafetyModal
+        isOpen={isSafetyModalOpen}
+        onClose={() => setIsSafetyModalOpen(false)}
+        licensePlate={detectedPlate || matchedVehicle?.licensePlate}
+        openSession={rawLookup?.open_session}
+        onConfirmClose={handleConfirmCloseSafety}
+        isLoading={isActionPending}
+      />
     </div>
   );
 }

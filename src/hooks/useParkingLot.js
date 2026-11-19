@@ -6,6 +6,10 @@ import {
 } from "../services/parkingLotService.js";
 import { getMockParkingSlots } from "../mocks/parkingSlotFallback";
 
+// const isMockEnabled =
+//   import.meta.env?.VITE_USE_MOCK?.trim().toLowerCase() === "true";
+
+const isMockEnabled = true; // Bật fallback sang mock data khi API lỗi hoặc trả về 404
 /**
  * Custom hook quản lý dữ liệu ô đỗ xe từ Backend API thực tế.
  * Tạm fallback về mock data khi API lỗi hoặc trả về 404 để giữ UI hoạt động.
@@ -51,9 +55,17 @@ export function useParkingLot({ floor, zone } = {}) {
           errorMessage = `Lỗi máy chủ (${err.status || err.code || "Error"}): ${err.message}`;
         }
 
-        console.warn("Fallback sang dữ liệu mock ô đỗ:", errorMessage);
-        setSlots(getMockParkingSlots(queryParams));
-        setError(null);
+        if (isMockEnabled) {
+          if (isMockEnabled) {
+            console.warn("Fallback sang dữ liệu mock ô đỗ:", errorMessage);
+            setSlots(getMockParkingSlots(queryParams));
+            setError(null);
+          } else {
+            setError(errorMessage);
+          }
+        } else {
+          setError(errorMessage);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -91,9 +103,13 @@ export function useParkingLot({ floor, zone } = {}) {
             errorMessage = `Lỗi máy chủ (${err.status || err.code || "Error"}): ${err.message}`;
           }
 
-          console.warn("Fallback sang dữ liệu mock ô đỗ:", errorMessage);
-          setSlots(getMockParkingSlots(queryParams));
-          setError(null);
+          if (isMockEnabled) {
+            console.warn("Fallback sang dữ liệu mock ô đỗ:", errorMessage);
+            setSlots(getMockParkingSlots(queryParams));
+            setError(null);
+          } else {
+            setError(errorMessage);
+          }
         }
       } finally {
         if (!isCancelled) {
