@@ -78,6 +78,14 @@ export async function lookupVehicleByPlate(licensePlate) {
 export async function getParkingSessions(filters = {}) {
   if (USE_MOCK) {
     let list = [...mockParkingHistory];
+    if (filters.search) {
+      const q = String(filters.search).toLowerCase().trim();
+      list = list.filter(
+        (s) =>
+          s.sessionCode?.toLowerCase().includes(q) ||
+          s.licensePlate?.toLowerCase().includes(q)
+      );
+    }
     if (filters.session_code) {
       const q = String(filters.session_code).toLowerCase().trim();
       list = list.filter((s) => s.sessionCode?.toLowerCase().includes(q));
@@ -93,6 +101,25 @@ export async function getParkingSessions(filters = {}) {
       } else if (st === "closed" || st === "completed") {
         list = list.filter((s) => s.status === "completed" || (s.exitTime && s.exitTime !== "—"));
       }
+    }
+    if (filters.ticket_type && filters.ticket_type !== "all") {
+      const targetType = String(filters.ticket_type).toUpperCase();
+      list = list.filter((s) => {
+        const itemType = String(s.ticketType || (s.hasActiveTicket ? "MONTHLY" : "DAILY")).toUpperCase();
+        if (targetType === "DAILY") {
+          return itemType.includes("DAILY") || itemType.includes("LƯỢT") || itemType.includes("NGÀY");
+        }
+        if (targetType === "MONTHLY") {
+          return itemType.includes("MONTHLY") || itemType.includes("THÁNG");
+        }
+        if (targetType === "QUARTERLY") {
+          return itemType.includes("QUARTERLY") || itemType.includes("QUÝ");
+        }
+        if (targetType === "YEARLY") {
+          return itemType.includes("YEARLY") || itemType.includes("NĂM");
+        }
+        return itemType.includes(targetType);
+      });
     }
     if (filters.min_fee !== undefined && filters.min_fee !== "") {
       list = list.filter((s) => (s.feeNumber ?? 0) >= Number(filters.min_fee));
@@ -115,10 +142,31 @@ export async function getParkingSessions(filters = {}) {
     };
   }
 
+  // Khi Backend DRF không hỗ trợ param 'search', ta phân giải sang session_code hoặc license_plate
+  let sessionCodeFilter = filters.session_code;
+  let licensePlateFilter = filters.license_plate;
+  if (!sessionCodeFilter && !licensePlateFilter && filters.search) {
+    const rawSearch = String(filters.search).trim();
+    if (rawSearch.startsWith("#") || rawSearch.toUpperCase().startsWith("PK-") || rawSearch.toUpperCase().startsWith("SS-")) {
+      sessionCodeFilter = rawSearch;
+    } else {
+      licensePlateFilter = rawSearch;
+    }
+  }
+
   const cleanFilters = {};
+  if (sessionCodeFilter && String(sessionCodeFilter).trim() !== "") {
+    cleanFilters.session_code = String(sessionCodeFilter).trim();
+  }
+  if (licensePlateFilter && String(licensePlateFilter).trim() !== "") {
+    cleanFilters.license_plate = String(licensePlateFilter).trim();
+  }
+
   for (const [key, value] of Object.entries(filters)) {
-    if (value !== undefined && value !== null && String(value).trim() !== "") {
-      cleanFilters[key] = String(value).trim();
+    if (key !== "search" && key !== "session_code" && key !== "license_plate") {
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        cleanFilters[key] = String(value).trim();
+      }
     }
   }
   const query = new URLSearchParams(cleanFilters).toString();

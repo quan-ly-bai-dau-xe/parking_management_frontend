@@ -9,6 +9,7 @@ export const PARKING_HISTORY_DEFAULTS = {
   PLACEHOLDER_TEXT: "—",
   DEFAULT_QUICK_FILTER: "30days",
   DEFAULT_STATUS_FILTER: "all",
+  DEFAULT_TICKET_TYPE_FILTER: "all",
   SEARCH_DEBOUNCE_MS: 350,
 };
 
@@ -32,6 +33,14 @@ export const SESSION_STATUS_FILTER_OPTIONS = [
   { value: "all", label: "Tất cả tình trạng" },
   { value: "in_progress", label: "Đang trong bãi" },
   { value: "completed", label: "Đã ra bãi" },
+];
+
+export const TICKET_TYPE_FILTER_OPTIONS = [
+  { value: "all", label: "Tất cả loại vé" },
+  { value: "DAILY", label: "Vé lượt" },
+  { value: "MONTHLY", label: "Vé tháng" },
+  { value: "QUARTERLY", label: "Vé quý" },
+  { value: "YEARLY", label: "Vé năm" },
 ];
 
 export const SESSION_STATUS_CONFIG = {

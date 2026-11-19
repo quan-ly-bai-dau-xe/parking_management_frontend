@@ -166,7 +166,11 @@ export function useLaneActions({
 
     try {
       const chosenSlot = availableSlots.find((s) => s.id === selectedSlotId);
-      const targetSlotId = chosenSlot?.id ?? 1;
+      if (!chosenSlot) {
+        setErrorMessage("⚠️ Vui lòng chọn một vị trí đỗ khả dụng trước khi xác nhận vào bãi.");
+        return;
+      }
+      const targetSlotId = chosenSlot.id;
 
       const entryImageUrl =
         scanDetails?.imageUrl ||
