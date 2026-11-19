@@ -167,9 +167,14 @@ export const customerService = {
       backendPayload.row_version = customerData.rowVersion;
     }
 
-    return await apiClient(`/api/v1/customers/${id}/`, {
+    const response = await apiClient(`/api/v1/customers/${id}/`, {
       method: "PATCH",
       body: JSON.stringify(backendPayload),
+    });
+
+    return mapCustomerListItem({
+      ...response,
+      packageType: customerData.packageType || "Vé tháng",
     });
   },
 
