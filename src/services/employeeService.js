@@ -132,8 +132,23 @@ function getToneForId(id) {
 export function mapBackendEmployeeToFrontend(emp) {
   if (!emp) return null;
   const roleName = emp.position?.name || emp.role || "Nhân viên vận hành";
-  const areaName = emp.area?.district_name || emp.area || "—";
-  const cityName = emp.area?.province_name || emp.city || "Đà Nẵng";
+
+  let areaName = "—";
+  let cityName = "Đà Nẵng";
+
+  if (typeof emp.area === "string") {
+    areaName = emp.area || "—";
+  } else if (emp.area && typeof emp.area === "object") {
+    areaName = emp.area.district_name || emp.address || "—";
+    cityName = emp.area.province_name || emp.city || "Đà Nẵng";
+  } else if (emp.address) {
+    areaName = emp.address;
+  }
+
+  if (typeof emp.city === "string" && emp.city) {
+    cityName = emp.city;
+  }
+
   const isActive = (emp.status || "").toUpperCase() === "ACTIVE" || emp.status === "active";
 
   return {
@@ -145,8 +160,8 @@ export function mapBackendEmployeeToFrontend(emp) {
     role: roleName,
     roleId: emp.position?.id,
     roleCode: emp.position?.code,
-    area: areaName,
-    city: cityName,
+    area: typeof areaName === "string" ? areaName : "—",
+    city: typeof cityName === "string" ? cityName : "Đà Nẵng",
     status: isActive ? "active" : "inactive",
     statusDisplay: emp.status_display || (isActive ? "Đang hoạt động" : "Không hoạt động"),
     tone: emp.tone || getToneForId(emp.id),

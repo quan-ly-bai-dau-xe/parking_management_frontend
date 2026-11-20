@@ -17,6 +17,8 @@ import { ROUTES } from "../config/navigation";
 import { VEHICLE_DELETE_MESSAGES } from "../constants/vehicleConstants";
 
 import {
+  AddVehicleModal,
+  VehicleDetailModal,
   ScanPlateModal,
   AssignSlotModal,
   PageSectionHeader,
@@ -63,6 +65,8 @@ export default function VehicleManagement() {
   } = useVehicleData();
 
   const [selectedVehicleId, setSelectedVehicleId] = useState(null);
+  const [viewingVehicle, setViewingVehicle] = useState(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingVehicleId, setEditingVehicleId] = useState(null);
@@ -222,20 +226,21 @@ export default function VehicleManagement() {
   };
 
   const handleOpenAddModal = () => {
-    setEditingVehicleId(null);
-    setNewVehicleDraft({
-      id: "NEW",
-      licensePlate: "",
-      vehicleType: "Ô tô",
-      brand: "",
-      model: "",
-      customer: { id: "", name: "", phone: "", email: "", totalVehicles: 1 },
-      ticket: { type: "Vé tháng", expiresAt: "", registeredAt: "", remainingDays: 0, status: "active", note: "" },
-      parkingSlot: { display: "", zone: "", floor: "", slot: "", type: "car" },
-      status: "active",
-      note: "",
-    });
-    setIsEditModalOpen(true);
+    setIsAddModalOpen(true);
+  };
+
+  const handleSaveNewVehicle = async (newVehicleData) => {
+    try {
+      await vehicleService.create(newVehicleData);
+      await reloadVehicles();
+      refreshStats();
+      toast.success(`Đăng ký thêm phương tiện ${newVehicleData.licensePlate} thành công!`);
+      setIsAddModalOpen(false);
+    } catch (err) {
+      console.error("Add new vehicle error:", err);
+      toast.error(err?.message || "Không thể thêm phương tiện mới vào hệ thống.");
+      throw err;
+    }
   };
 
   const handleCloseEditModal = () => {
@@ -601,6 +606,7 @@ export default function VehicleManagement() {
           setSelectedVehicleId={setSelectedVehicleId}
           currentPage={currentPage}
           itemsPerPage={itemsPerPage}
+          handleViewVehicle={(vehicle) => setViewingVehicle(vehicle)}
           handleOpenEditModal={handleOpenEditModal}
           handleDeleteVehicle={handleDeleteVehicle}
           handleOpenAssignSlot={handleOpenAssignSlot}
@@ -632,6 +638,26 @@ export default function VehicleManagement() {
       />
 
       {/* Modals */}
+      <AddVehicleModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSave={handleSaveNewVehicle}
+      />
+
+      <VehicleDetailModal
+        isOpen={Boolean(viewingVehicle)}
+        vehicle={viewingVehicle}
+        onClose={() => setViewingVehicle(null)}
+        onEdit={(v) => {
+          setViewingVehicle(null);
+          handleOpenEditModal(v.id);
+        }}
+        onAssignSlot={(v) => {
+          setViewingVehicle(null);
+          handleOpenAssignSlot(v);
+        }}
+      />
+
       <AssignSlotModal
         isOpen={Boolean(assignSlotVehicle)}
         onClose={handleCloseAssignSlot}

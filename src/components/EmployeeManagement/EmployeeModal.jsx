@@ -34,9 +34,10 @@ function EmployeeModalContent({ onClose, employee, onSave, positions = [] }) {
     name: employee?.name ?? "",
     email: employee?.email ?? "",
     phone: employee?.phone ?? "",
+    password: "",
     role: employee?.role ?? "",
-    area: employee?.area ?? "",
-    city: employee?.city ?? "Đà Nẵng",
+    area: typeof employee?.area === "string" ? employee.area : (employee?.area?.district_name || ""),
+    city: typeof employee?.city === "string" ? employee.city : (employee?.area?.province_name || "Đà Nẵng"),
     status: employee?.status ?? (isEditing ? "" : "active"),
     tone: employee?.tone ?? "blue",
     rowVersion: employee?.rowVersion || 1,
@@ -79,19 +80,19 @@ function EmployeeModalContent({ onClose, employee, onSave, positions = [] }) {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
-    onSave({
+    await onSave({
       ...formData,
       name: formData.name.trim(),
       email: formData.email.trim(),
       phone: formData.phone.trim(),
+      password: formData.password ? formData.password.trim() : undefined,
       area: formData.area.trim(),
       city: formData.city.trim(),
     });
-    onClose();
   };
 
   return (
@@ -266,19 +267,41 @@ function EmployeeModalContent({ onClose, employee, onSave, positions = [] }) {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Trạng thái
-              </label>
-              <select
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-700 outline-none focus:border-blue-500 bg-white"
-              >
-                <option value="active">Đang hoạt động</option>
-                <option value="inactive">Không hoạt động</option>
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {isEditing ? "Mật khẩu mới (Tùy chọn)" : "Mật khẩu đăng nhập"}
+                </label>
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder={isEditing ? "Để trống nếu không đổi" : "SmartPark@2026 (Mặc định)"}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-700 outline-none focus:border-blue-500"
+                />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {isEditing ? "Nhập mật khẩu mới nếu cần đổi mật khẩu nhân viên." : "Mặc định là SmartPark@2026 nếu để trống."}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Trạng thái
+                </label>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleChange}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-700 outline-none focus:border-blue-500 bg-white"
+                >
+                  <option value="active">Đang hoạt động</option>
+                  <option value="inactive">Không hoạt động</option>
+                </select>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Nhân viên không hoạt động sẽ bị khóa quyền đăng nhập.
+                </p>
+              </div>
             </div>
           </div>
 

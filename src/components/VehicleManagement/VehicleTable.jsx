@@ -14,6 +14,7 @@ export default function VehicleTable({
   handleOpenEditModal,
   handleDeleteVehicle,
   handleOpenAssignSlot,
+  handleViewVehicle,
   renderTicketBadge,
   renderStatusBadge,
   isManager: propIsManager,
@@ -31,9 +32,17 @@ export default function VehicleTable({
     {
       header: "Biển số xe",
       accessor: (row) => (
-        <span className="font-bold font-mono text-slate-900 tracking-wider">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewVehicle ? handleViewVehicle(row) : setSelectedVehicleId(row.id);
+          }}
+          className="font-bold font-mono text-slate-900 tracking-wider hover:text-blue-600 hover:underline cursor-pointer transition-colors text-left"
+          title="Nhấn để xem chi tiết phương tiện"
+        >
           {row.licensePlate}
-        </span>
+        </button>
       ),
     },
     {
@@ -152,6 +161,13 @@ export default function VehicleTable({
         return (
           <TableActions
             actions={[
+              {
+                label: "Xem",
+                icon: "view",
+                onClick: () => (handleViewVehicle ? handleViewVehicle(row) : setSelectedVehicleId(row.id)),
+                className: "text-slate-600 hover:text-blue-600",
+                title: "Xem thông tin chi tiết xe",
+              },
               ...(isParked
                 ? [
                     {

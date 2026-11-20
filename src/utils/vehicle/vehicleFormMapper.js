@@ -64,6 +64,7 @@ export function mapFormDataToVehicleEntity(formData, currentVehicle = {}, select
       : formData.customerId || undefined;
 
   const modelVal = (formData.model || "").trim() || "Ô tô";
+  const vehicleTypeId = Number(formData.vehicleTypeId || formData.vehicle_type_id || (formData.vehicleType === "EV" ? 2 : 1));
 
   return {
     ...currentVehicle,
@@ -72,9 +73,9 @@ export function mapFormDataToVehicleEntity(formData, currentVehicle = {}, select
     model_name: modelVal,
     brand: (formData.brand || "").trim(),
     color: (formData.color || "").trim(),
-    vehicleTypeId: 1,
-    vehicle_type_id: 1,
-    vehicleTypeCode: "CAR",
+    vehicleTypeId,
+    vehicle_type_id: vehicleTypeId,
+    vehicleTypeCode: vehicleTypeId === 2 ? "EV" : "CAR",
     customerId: cleanCustId,
     customer_id: cleanCustId,
     customerName: (formData.customerName || "").trim(),

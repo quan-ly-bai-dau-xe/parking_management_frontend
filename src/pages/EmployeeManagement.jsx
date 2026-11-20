@@ -1,7 +1,10 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { DataTable, TableActions, LoadingSpinner } from "../components/common";
 import EmployeeModal from "../components/EmployeeManagement/EmployeeModal";
+import ConfirmModal from "../components/common/modal/ConfirmModal";
 import { employeeService, INITIAL_EMPLOYEES } from "../services/employeeService";
+import { useToast } from "../context/ToastContext";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 const AVATAR_CLASSES = {
   indigo: "bg-indigo-100 text-indigo-600",
@@ -15,6 +18,9 @@ const AVATAR_CLASSES = {
 };
 
 export default function EmployeeManagement() {
+  const toast = useToast();
+  const { user } = useCurrentUser();
+
   const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
   const [positions, setPositions] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -26,6 +32,10 @@ export default function EmployeeManagement() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+
+  // Safe delete modal state
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchPositions = useCallback(async () => {
     try {
@@ -56,10 +66,11 @@ export default function EmployeeManagement() {
       setEmployees(res.data || []);
     } catch (err) {
       console.error("Lỗi khi tải danh sách nhân viên:", err);
+      toast.error("Không thể tải danh sách nhân viên từ CSDL.");
     } finally {
       setIsLoading(false);
     }
-  }, [search, role, status]);
+  }, [search, role, status, toast]);
 
   useEffect(() => {
     fetchPositions();
@@ -101,38 +112,70 @@ export default function EmployeeManagement() {
               : item
           )
         );
+        toast.success(`Cập nhật thông tin nhân viên ${employeeData.name} thành công!`);
       } else {
         // Thêm nhân viên mới
         const created = await employeeService.createEmployee(employeeData, positions);
         setEmployees((prev) => [created, ...prev]);
+        toast.success(`Đã thêm mới nhân viên ${created.name} (${created.id}) thành công!`);
       }
       fetchSummary();
-    } catch (err) {
-      alert(err.message || "Không thể lưu thông tin nhân viên");
-    } finally {
       handleCloseModal();
+    } catch (err) {
+      console.error("Save employee error:", err);
+      toast.error(err.message || "Không thể lưu thông tin nhân viên");
     }
   };
 
-  const handleDeleteEmployee = async (employee) => {
-    const confirmed = window.confirm(
-      `Bạn có chắc muốn xóa nhân viên ${employee.name} (${employee.id}) không?`
+  const handleDeleteEmployee = (employee) => {
+    const isSelf = Boolean(
+      user &&
+      (employee.email === user.email ||
+       employee.id === user.employee_code ||
+       employee.backendId === user.id)
     );
-    if (!confirmed) return;
 
+    if (isSelf) {
+      toast.error("Không thể tự xóa tài khoản của chính mình (Quy tắc an toàn DEL-01)!");
+      return;
+    }
+
+    setDeleteTarget(employee);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
       await employeeService.deleteEmployee(
-        employee.backendId || employee.id,
-        employee.rowVersion || 1
+        deleteTarget.backendId || deleteTarget.id,
+        deleteTarget.rowVersion || 1
       );
-      setEmployees((prev) => prev.filter((item) => item.id !== employee.id));
+      setEmployees((prev) => prev.filter((item) => item.id !== deleteTarget.id));
+      toast.success(`Đã xóa nhân viên ${deleteTarget.name} (${deleteTarget.id}) thành công!`);
       fetchSummary();
+      setDeleteTarget(null);
     } catch (err) {
-      alert(err.message || "Không thể xóa nhân viên");
+      console.error("Delete employee error:", err);
+      toast.error(err.message || "Không thể xóa nhân viên");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const toggleStatus = async (employee) => {
+    const isSelf = Boolean(
+      user &&
+      (employee.email === user.email ||
+       employee.id === user.employee_code ||
+       employee.backendId === user.id)
+    );
+
+    if (isSelf && employee.status === "active") {
+      toast.error("Không thể tự vô hiệu hóa tài khoản quản trị của chính mình (Quy tắc DEL-01)!");
+      return;
+    }
+
     const newStatus = employee.status === "active" ? "inactive" : "active";
     // Optimistic update
     setEmployees((items) =>
@@ -149,9 +192,12 @@ export default function EmployeeManagement() {
         { ...employee, status: newStatus },
         positions
       );
+      toast.success(`Đã ${newStatus === "active" ? "kích hoạt" : "tạm khóa"} nhân viên ${employee.name}`);
       fetchSummary();
     } catch (err) {
       console.warn("Could not sync status update to backend:", err);
+      toast.error(err.message || "Không thể thay đổi trạng thái nhân viên.");
+      fetchEmployees();
     }
   };
 
@@ -224,12 +270,23 @@ export default function EmployeeManagement() {
       },
       {
         header: "Khu vực",
-        accessor: (employee) => (
-          <div>
-            <span className="block text-slate-600">{employee.area}</span>
-            <span className="text-[10px] text-slate-400">{employee.city}</span>
-          </div>
-        ),
+        accessor: (employee) => {
+          const areaText =
+            typeof employee.area === "string"
+              ? employee.area
+              : employee.area?.district_name || "—";
+          const cityText =
+            typeof employee.city === "string"
+              ? employee.city
+              : employee.area?.province_name || "Đà Nẵng";
+
+          return (
+            <div>
+              <span className="block text-slate-600">{areaText}</span>
+              <span className="text-[10px] text-slate-400">{cityText}</span>
+            </div>
+          );
+        },
       },
       {
         header: "Trạng thái",
@@ -249,34 +306,55 @@ export default function EmployeeManagement() {
       {
         header: "Thao tác",
         className: "w-28 text-center",
-        accessor: (employee) => (
-          <TableActions
-            actions={[
-              {
-                label: "Chỉnh sửa",
-                className: "text-blue-600 hover:text-blue-700",
-                onClick: () => handleOpenEditModal(employee),
-              },
-              {
-                label: employee.status === "active" ? "Tạm khóa" : "Kích hoạt",
-                className: `${
-                  employee.status === "active"
-                    ? "text-amber-600 hover:text-amber-700"
-                    : "text-emerald-600 hover:text-emerald-700"
-                }`,
-                onClick: () => toggleStatus(employee),
-              },
-              {
-                label: "Xóa",
-                className: "text-rose-600 hover:text-rose-700",
-                onClick: () => handleDeleteEmployee(employee),
-              },
-            ]}
-          />
-        ),
+        accessor: (employee) => {
+          const isSelf = Boolean(
+            user &&
+            (employee.email === user.email ||
+             employee.id === user.employee_code ||
+             employee.backendId === user.id)
+          );
+
+          return (
+            <TableActions
+              actions={[
+                {
+                  label: "Chỉnh sửa",
+                  className: "text-blue-600 hover:text-blue-700",
+                  onClick: () => handleOpenEditModal(employee),
+                },
+                {
+                  label: employee.status === "active" ? "Tạm khóa" : "Kích hoạt",
+                  disabled: isSelf && employee.status === "active",
+                  title: isSelf && employee.status === "active"
+                    ? "Không thể tự vô hiệu hóa tài khoản quản trị của chính mình (DEL-01)"
+                    : employee.status === "active" ? "Tạm khóa tài khoản" : "Kích hoạt tài khoản",
+                  className: `${
+                    isSelf && employee.status === "active"
+                      ? "text-slate-300 cursor-not-allowed opacity-50"
+                      : employee.status === "active"
+                      ? "text-amber-600 hover:text-amber-700"
+                      : "text-emerald-600 hover:text-emerald-700"
+                  }`,
+                  onClick: () => toggleStatus(employee),
+                },
+                {
+                  label: "Xóa",
+                  disabled: isSelf,
+                  title: isSelf
+                    ? "Không thể tự xóa tài khoản của chính mình (Quy tắc DEL-01)"
+                    : "Xóa mềm hồ sơ nhân viên",
+                  className: isSelf
+                    ? "text-slate-300 cursor-not-allowed opacity-50"
+                    : "text-rose-600 hover:text-rose-700",
+                  onClick: () => !isSelf && handleDeleteEmployee(employee),
+                },
+              ]}
+            />
+          );
+        },
       },
     ],
-    [positions],
+    [positions, user],
   );
 
   const totalEmp = summary?.total_employees ?? employees.length;
@@ -392,6 +470,19 @@ export default function EmployeeManagement() {
         employee={selectedEmployee}
         onSave={handleSaveEmployee}
         positions={positions}
+      />
+
+      {/* Modal xác nhận xóa nhân viên an toàn DEL-01 */}
+      <ConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title="Xác nhận xóa nhân viên"
+        description={`Bạn có chắc chắn muốn xóa hồ sơ nhân viên ${deleteTarget?.name} (${deleteTarget?.id}) không? Hành động này sẽ thu hồi quyền truy cập và xóa mềm tài khoản trong hệ thống.`}
+        variant="error"
+        confirmText="Xác nhận xóa"
+        cancelText="Hủy bỏ"
+        onConfirm={handleConfirmDelete}
+        loading={isDeleting}
       />
     </>
   );
