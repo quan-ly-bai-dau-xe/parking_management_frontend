@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import ConfirmModal from "../common/Modal/ConfirmModal";
 import LoadingSpinner from "../common/LoadingSpinner";
 import { previewParkingFee } from "../../services/parkingSessionService";
 import { formatLicensePlateForDisplay } from "../../utils/plateFormatter";
+import { formatCurrencyVND } from "../../constants/paymentConstants";
 
 /**
  * CloseSessionModal
@@ -59,7 +60,13 @@ export default function CloseSessionModal({
   const sessionCode = session.sessionCode || session.session_code;
   const currentSlot = session.slotCode || session.slot_display || session.slot_code || "Chưa có vị trí";
 
+  const isFormValid =
+    actionType === "manual_checkout" ||
+    (actionType === "cancel_glitch" && reason.trim().length > 0) ||
+    (actionType === "release_slot" && reason.trim().length > 0);
+
   const handleConfirm = () => {
+    if (!isFormValid) return;
     onSubmitAction({
       actionType,
       session,
@@ -68,11 +75,6 @@ export default function CloseSessionModal({
       feePreview,
     });
   };
-
-  const isFormValid =
-    actionType === "manual_checkout" ||
-    (actionType === "cancel_glitch" && reason.trim().length > 0) ||
-    (actionType === "release_slot" && reason.trim().length > 0);
 
   return (
     <ConfirmModal
@@ -188,7 +190,7 @@ export default function CloseSessionModal({
               ) : (
                 <span className="font-bold text-base text-emerald-600 font-mono">
                   {feePreview?.fee_amount !== undefined
-                    ? `${Number(feePreview.fee_amount).toLocaleString("vi-VN")}đ`
+                    ? formatCurrencyVND(feePreview.fee_amount)
                     : "Đang tính..."}
                 </span>
               )}

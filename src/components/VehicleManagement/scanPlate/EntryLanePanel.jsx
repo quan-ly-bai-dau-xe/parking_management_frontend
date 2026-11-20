@@ -1,4 +1,5 @@
 import VehicleMatchedInfoCard from "./VehicleMatchedInfoCard";
+import ParkingSlotPicker from "../../common/parking/ParkingSlotPicker";
 
 /**
  * EntryLanePanel
@@ -73,20 +74,17 @@ export default function EntryLanePanel({
         )}
 
         <div className="space-y-1">
-          <label className="block text-3xs text-slate-500">
+          <label className="block text-3xs font-medium text-slate-600">
             Chọn ô đỗ thực tế khi vào:
           </label>
-          <select
-            value={selectedSlotId || ""}
-            onChange={(e) => setSelectedSlotId(e.target.value ? Number(e.target.value) : null)}
-            className="w-full text-2xs font-mono bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          >
-            {availableSlots.map((slot) => (
-              <option key={slot.id} value={slot.id}>
-                {slot.floor} - {slot.zone} - {slot.code} ({slot.kind || "STANDARD"})
-              </option>
-            ))}
-          </select>
+          <ParkingSlotPicker
+            availableSlots={availableSlots}
+            selectedSlotId={selectedSlotId}
+            onSelectSlot={(id) => setSelectedSlotId(id)}
+            isLoading={isLoadingSlots}
+            maxHeight="max-h-[140px]"
+            columns="grid-cols-4 sm:grid-cols-6"
+          />
         </div>
 
         {/* Warning open session */}
@@ -119,7 +117,7 @@ export default function EntryLanePanel({
         </span>
         <button
           type="button"
-          disabled={isActionPending || isBlacklisted || !detectedPlate || hasOpenSession}
+          disabled={isActionPending || isBlacklisted || !detectedPlate || hasOpenSession || availableSlots.length === 0}
           onClick={onConfirmEntry}
           className="px-4 py-2 text-white rounded-xl font-semibold text-xs shadow-xs transition-colors flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
@@ -130,6 +128,8 @@ export default function EntryLanePanel({
             </>
           ) : hasOpenSession ? (
             <span>⛔ Vui lòng đóng phiên cũ trước</span>
+          ) : availableSlots.length === 0 ? (
+            <span>⛔ Hết chỗ đỗ khả dụng</span>
           ) : (
             <span>✓ Xác nhận Xe Vào & Mở Barrier</span>
           )}

@@ -64,18 +64,18 @@ test.describe("Mission-Critical 2: Vehicle Management & Gate Control Workflow", 
     await expect(page.locator("body")).toContainText(/THÔNG TIN PHƯƠNG TIỆN RA/i);
     await expect(page.locator("body")).toContainText(/Phí gửi xe phải thu|Cước phí|0đ|VNĐ/i);
 
-    // 2. Kiểm tra các phương thức thanh toán có sẵn (Tiền mặt & VietQR)
-    const cashBtn = page.getByRole("button", { name: /Tiền mặt/i });
-    const qrBtn = page.getByRole("button", { name: /VietQR/i });
+    // 2. Kiểm tra các phương thức thanh toán có sẵn (Tiền mặt & VietQR / VNPAY)
+    const cashBtn = page.getByRole("button", { name: "💵 Tiền mặt" });
+    const qrBtn = page.getByRole("button", { name: /Quẹt Thẻ \/ VNPAY|VietQR/i });
 
     if (await cashBtn.isVisible()) {
       await expect(cashBtn).toBeVisible();
       await expect(qrBtn).toBeVisible();
 
-      // Click chọn hình thức VietQR
+      // Click chọn hình thức VietQR / VNPAY
       await qrBtn.click();
-      // Verify mã VietQR hoặc thông tin Napas xuất hiện
-      await expect(page.locator("body")).toContainText(/VietQR|Napas/i);
+      // Verify mã VietQR hoặc thông tin VNPAY/Napas xuất hiện
+      await expect(page.locator("body")).toContainText(/VietQR|VNPAY|Napas/i);
 
       // Chuyển lại hình thức Tiền mặt
       await cashBtn.click();
@@ -89,8 +89,21 @@ test.describe("Mission-Critical 2: Vehicle Management & Gate Control Workflow", 
   });
 
   test("Kiểm tra quét/tải ảnh biển số và tự động đối chiếu thông tin phương tiện & phiên gửi xe", async ({ page }) => {
-    // Biển số thực tế trong cơ sở dữ liệu: Vios 1.5G của Trịnh Xuân Trường (43K-860.50)
-    const realPlate = "43K-860.50";
+    // 0. Lấy động thông tin xe thực tế từ Backend API thay vì gán cứng
+    const res = await page.request.get("/api/v1/vehicles/?page_size=1");
+    expect(res.ok()).toBeTruthy();
+    const data = await res.json();
+    const vehicle = data.results?.[0];
+    expect(vehicle).toBeDefined();
+
+    const realPlate = vehicle.license_plate;
+    const expectedKeywords = [
+      vehicle.license_plate,
+      vehicle.model_name,
+      vehicle.brand,
+      vehicle.customer_name,
+    ].filter(Boolean);
+    const verifyPattern = new RegExp(expectedKeywords.join("|"), "i");
 
     // 1. Vào trang Quản lý xe và mở Modal Kiểm Soát Cổng
     await page.goto("/vehicles");
@@ -98,7 +111,23 @@ test.describe("Mission-Critical 2: Vehicle Management & Gate Control Workflow", 
     await expect(scanBtn).toBeVisible({ timeout: 10000 });
     await scanBtn.click();
 
-    // 2. Nhập trực tiếp biển số xe thật vào ô tra cứu bên trong Modal
+    // 2. Chuyển sang chế độ "Tải ảnh từ file" để kiểm tra tải file ảnh biển số
+    const uploadTabBtn = page.getByRole("button", { name: /Tải ảnh từ file/i });
+    await expect(uploadTabBtn).toBeVisible();
+    await uploadTabBtn.click();
+
+    // Tải ảnh mẫu biển số vào dropzone / file input
+    const fileInput = page.locator('input[type="file"]');
+    await fileInput.setInputFiles("tests/fixtures/sample_plate.jpg");
+    // Verify ảnh preview đã nạp thành công
+    await expect(page.locator('img[alt="Biển số đã tải lên"]').first()).toBeVisible({ timeout: 5000 });
+
+    // Chuyển lại chế độ Camera live
+    const cameraTabBtn = page.getByRole("button", { name: /Quét Camera trực tiếp/i });
+    await cameraTabBtn.click();
+    await expect(page.locator("body")).toContainText(/Camera Soi Biển Số/i);
+
+    // 3. Nhập trực tiếp biển số xe thật vào ô tra cứu bên trong Modal
     const modalInputPlate = page.getByPlaceholder(/Nhập hoặc quét biển số/i);
     await expect(modalInputPlate).toBeVisible();
     await modalInputPlate.fill(realPlate);
@@ -106,23 +135,46 @@ test.describe("Mission-Critical 2: Vehicle Management & Gate Control Workflow", 
     await expect(searchBtn).toBeEnabled();
     await searchBtn.click();
 
-    // 3. Đối soát thông tin nhận diện đối chiếu trực tiếp từ Backend
-    await expect(page.locator("body")).toContainText(/Vios|Toyota|Trịnh Xuân Trường|43K-860.50/i, {
+    // 4. Đối soát thông tin nhận diện đối chiếu trực tiếp từ Backend
+    await expect(page.locator("body")).toContainText(verifyPattern, {
       timeout: 10000,
     });
 
-    // 4. Chuyển sang Làn Ra để đối soát
+    // 5. Chuyển sang Làn Ra để đối soát
     const exitLaneBtn = page.getByRole("button", { name: /Làn Ra/i });
     await exitLaneBtn.click();
 
     // Đối chiếu thông tin phía Làn Ra
     await expect(page.locator("body")).toContainText(/THÔNG TIN PHƯƠNG TIỆN RA/i);
-    await expect(page.locator("body")).toContainText(/43K-860.50|Vios|Trịnh Xuân Trường/i);
+    await expect(page.locator("body")).toContainText(verifyPattern);
   });
 
   test("Kiểm tra bấm Xác nhận Xe Vào & Mở Barrier: Kiểm tra điều kiện trạng thái, lịch sử phiên và trạng thái nâng cần barrier", async ({ page }) => {
-    // Sử dụng biển số thực tế có trong hệ thống backend (Vios 1.5G của Trịnh Xuân Trường)
-    const realPlate = "43K-860.50";
+    // 0. Lấy động phương tiện thực tế chưa có phiên trong bãi (status=left hoặc status=active)
+    const res = await page.request.get("/api/v1/vehicles/?status=left&page_size=1");
+    let vehicle = null;
+    if (res.ok()) {
+      const data = await res.json();
+      vehicle = data.results?.[0];
+    }
+    // Fallback nếu không có xe status=left thì lấy xe bất kỳ trong danh sách
+    if (!vehicle) {
+      const fallbackRes = await page.request.get("/api/v1/vehicles/?page_size=5");
+      if (fallbackRes.ok()) {
+        const fallbackData = await fallbackRes.json();
+        vehicle = fallbackData.results?.[0];
+      }
+    }
+    expect(vehicle).toBeDefined();
+
+    const realPlate = vehicle.license_plate;
+    const expectedKeywords = [
+      vehicle.license_plate,
+      vehicle.model_name,
+      vehicle.brand,
+      vehicle.customer_name,
+    ].filter(Boolean);
+    const verifyPattern = new RegExp(expectedKeywords.join("|"), "i");
 
     // 1. Mở Modal Kiểm soát cổng tại Làn Vào
     await page.goto("/vehicles");
@@ -139,11 +191,22 @@ test.describe("Mission-Critical 2: Vehicle Management & Gate Control Workflow", 
     await expect(searchBtn).toBeEnabled();
     await searchBtn.click();
 
-    // 3. Đối soát trực tiếp thông tin xe trả về từ backend thật (Toyota Vios / Trịnh Xuân Trường)
-    await expect(page.locator("body")).toContainText(/Vios|Toyota|Trịnh Xuân Trường/i, {
+    // 3. Đối soát trực tiếp thông tin xe trả về từ backend thật
+    await expect(page.locator("body")).toContainText(verifyPattern, {
       timeout: 10000,
     });
     await expect(page.locator("body")).not.toContainText(/CẢNH BÁO: BIỂN SỐ TRONG DANH SÁCH ĐEN/i);
+
+    // Xử lý tự động đóng phiên cũ nếu có phiên tồn đọng từ các lần chạy trước (Đảm bảo Anti-Passback giải phóng an toàn)
+    const đốiSoátBtn = page.getByRole("button", { name: /Đối soát & Đóng phiên cũ/i });
+    if (await đốiSoátBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await đốiSoátBtn.click();
+      const confirmSafetyBtn = page.locator("button").filter({ hasText: /Xác nhận thu tiền|⚡ Trừ Ví App|Xác nhận hủy phiên/i }).first();
+      if (await confirmSafetyBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await confirmSafetyBtn.click();
+        await page.waitForTimeout(1000);
+      }
+    }
 
     // Kiểm tra trạng thái Barrier trước khi xác nhận: Phải là ĐANG ĐÓNG
     await expect(page.locator("body")).toContainText(/ĐANG ĐÓNG/i);
@@ -190,10 +253,18 @@ test.describe("Mission-Critical 2: Vehicle Management & Gate Control Workflow", 
     const normalConfirmBtn = page.getByRole("button", { name: /^✓ Xác nhận Xe Vào & Mở Barrier$/i });
     await expect(normalConfirmBtn).not.toBeVisible();
 
-    // Thay vào đó, hệ thống chuyển sang nút bảo vệ: "⚡ Đóng phiên cũ & Check-in Vào"
-    const defensiveBtn = page.getByRole("button", { name: /⚡ Đóng phiên cũ & Check-in Vào/i });
-    await expect(defensiveBtn).toBeVisible();
-    await expect(page.locator("body")).toContainText(/Đóng phiên cũ & Check-in/i);
+    // Thay vào đó, hệ thống chặn check-in và hiển thị nút khóa an toàn: "⛔ Vui lòng đóng phiên cũ trước" cùng nút đối soát
+    const blockedBtn = page.getByRole("button", { name: /⛔ Vui lòng đóng phiên cũ trước/i });
+    await expect(blockedBtn).toBeVisible();
+    await expect(blockedBtn).toBeDisabled();
+
+    // 3. Quy trình xử lý giải tỏa Anti-Passback an toàn: Bấm "🔍 Đối soát & Đóng phiên cũ" để mở Modal đối soát
+    const resolveSafetyBtn = page.getByRole("button", { name: /Đối soát & Đóng phiên cũ/i });
+    await expect(resolveSafetyBtn).toBeVisible();
+    await resolveSafetyBtn.click();
+
+    // Modal đối soát mở ra kiểm tra phiên cũ, cước phí và cho phép thu tiền hoặc hủy quét sai
+    await expect(page.locator("body")).toContainText(/Đối soát phiên cũ|Xử lý vi phạm Anti-Passback|Hình thức xử lý/i);
   });
 
   test("Kiểm tra sơ đồ bãi đỗ xe và danh sách ô đỗ", async ({ page }) => {
@@ -260,8 +331,8 @@ test.describe("Mission-Critical 2: Vehicle Management & Gate Control Workflow", 
     // 5. Assert: Cảnh báo Ghost Exit hoặc thông tin giờ vào không xác định
     await expect(page.locator("body")).toContainText(/Chưa rõ giờ vào|Cảnh báo Ghost Exit/i, { timeout: 10000 });
 
-    // 6. Bấm nút xác nhận ra bãi: Xác nhận Mở Barrier (0đ) hoặc Đã Thu Tiền & Mở Barrier
-    const confirmExitBtn = page.getByRole("button", { name: /Xác nhận|Đã Thu Tiền & Mở Barrier/i });
+    // 6. Bấm nút xác nhận ra bãi: Xác nhận Mở Barrier (0đ), Đã Thu Tiền Mặt, hoặc Đã Quẹt VNPAY & Mở Barrier
+    const confirmExitBtn = page.getByRole("button", { name: /Xác nhận.*Mở Barrier|Đã Thu Tiền.*Mở Barrier|Đã Quẹt.*Mở Barrier|Trừ Ví.*Mở Barrier/i });
     await expect(confirmExitBtn).toBeVisible();
     await confirmExitBtn.click();
 

@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import { getParkingSessions } from "../services/plateScanService";
-import { forceCloseSessionAndReleaseSlot } from "../services/parkingSessionService";
+import {
+  forceCloseSessionAndReleaseSlot,
+  checkOutVehicle,
+} from "../services/parkingSessionService";
+import { updateSlotStatus } from "../services/parkingLotService";
 import {
   PARKING_HISTORY_DEFAULTS,
   QUICK_FILTER_KEYS,
@@ -26,6 +30,7 @@ export function useParkingHistory() {
     return toISODate(d);
   }, [today]);
 
+  const [searchTerm, setSearchTerm] = useState(queryPlate);
   const [sessionCode, setSessionCode] = useState("");
   const [licensePlate, setLicensePlate] = useState(queryPlate);
   const [entryTimeFrom, setEntryTimeFrom] = useState("");
@@ -35,6 +40,9 @@ export function useParkingHistory() {
   const [feeMin, setFeeMin] = useState("");
   const [feeMax, setFeeMax] = useState("");
   const [statusFilter, setStatusFilter] = useState(PARKING_HISTORY_DEFAULTS.DEFAULT_STATUS_FILTER);
+  const [ticketTypeFilter, setTicketTypeFilter] = useState(
+    PARKING_HISTORY_DEFAULTS.DEFAULT_TICKET_TYPE_FILTER || "all"
+  );
   const [filterByTime, setFilterByTime] = useState(false);
   const [dateFrom, setDateFrom] = useState(minDateISO);
   const [dateTo, setDateTo] = useState(todayISO);
@@ -82,9 +90,11 @@ export function useParkingHistory() {
   );
 
   const handleResetFilters = useCallback(() => {
+    setSearchTerm("");
     setSessionCode("");
     setLicensePlate("");
     setStatusFilter(PARKING_HISTORY_DEFAULTS.DEFAULT_STATUS_FILTER);
+    setTicketTypeFilter(PARKING_HISTORY_DEFAULTS.DEFAULT_TICKET_TYPE_FILTER || "all");
     setEntryTimeFrom("");
     setEntryTimeTo("");
     setExitTimeFrom("");
@@ -99,9 +109,11 @@ export function useParkingHistory() {
   }, [minDateISO, todayISO]);
 
   const hasActiveFilters = Boolean(
-    sessionCode ||
+    searchTerm ||
+      sessionCode ||
       licensePlate ||
       statusFilter !== PARKING_HISTORY_DEFAULTS.DEFAULT_STATUS_FILTER ||
+      ticketTypeFilter !== (PARKING_HISTORY_DEFAULTS.DEFAULT_TICKET_TYPE_FILTER || "all") ||
       entryTimeFrom ||
       entryTimeTo ||
       exitTimeFrom ||
@@ -111,9 +123,10 @@ export function useParkingHistory() {
       activeQuickFilter !== QUICK_FILTER_KEYS.LAST_30_DAYS
   );
 
-  // Đồng bộ licensePlate khi URL search param thay đổi
+  // Đồng bộ searchTerm và licensePlate khi URL search param thay đổi
   useEffect(() => {
     if (queryPlate) {
+      setSearchTerm(queryPlate);
       setLicensePlate(queryPlate);
       setCurrentPage(1);
     }
@@ -133,10 +146,13 @@ export function useParkingHistory() {
           apiStatus = "closed";
         }
 
+        const trimmedSearch = searchTerm.trim();
         const res = await getParkingSessions({
-          session_code: sessionCode.trim(),
-          license_plate: licensePlate.trim(),
+          search: trimmedSearch || undefined,
+          session_code: sessionCode.trim() || undefined,
+          license_plate: licensePlate.trim() || undefined,
           status: apiStatus,
+          ticket_type: ticketTypeFilter !== "all" ? ticketTypeFilter : undefined,
           entry_time_from: dateFrom ? `${dateFrom}T00:00:00` : "",
           entry_time_to: dateTo ? `${dateTo}T23:59:59` : "",
           exit_time_from: filterByTime ? exitTimeFrom : "",
@@ -167,9 +183,11 @@ export function useParkingHistory() {
       cancelled = true;
     };
   }, [
+    searchTerm,
     sessionCode,
     licensePlate,
     statusFilter,
+    ticketTypeFilter,
     dateFrom,
     dateTo,
     filterByTime,
@@ -182,21 +200,71 @@ export function useParkingHistory() {
     refreshKey,
   ]);
 
-  const handleConfirmCloseSession = async () => {
-    if (!sessionActionModal || isActionSubmitting) return;
+  const handleConfirmCloseSession = async (payload) => {
+    const targetSession = payload?.session || sessionActionModal;
+    if (!targetSession || isActionSubmitting) return;
+
+    const actionType = payload?.actionType || "manual_checkout";
+    const paymentMethod = payload?.paymentMethod || "CASH";
+    const reason = payload?.reason || "";
+    const targetPlate = targetSession.licensePlate || targetSession.license_plate;
+    const targetSessionCode = targetSession.sessionCode || targetSession.session_code;
+
     setIsActionSubmitting(true);
     try {
-      const res = await forceCloseSessionAndReleaseSlot({
-        licensePlate: sessionActionModal.licensePlate,
-        sessionCode: sessionActionModal.sessionCode,
-        notes: "Đóng phiên đỗ từ màn hình Lịch sử ra/vào",
-      });
+      if (actionType === "release_slot") {
+        // Nghiệp vụ 3: Chỉ giải phóng ô đỗ ảo bị treo, giữ phiên xe an toàn
+        const slotId = targetSession.slotId || targetSession.slot_id;
+        if (!slotId) {
+          throw new Error("Phiên đỗ không liên kết với ID ô đỗ cụ thể để giải phóng.");
+        }
+        await updateSlotStatus(slotId, {
+          status: "AVAILABLE",
+          notes: reason ? `Giải phóng ô: ${reason}` : "Giải phóng ô từ Lịch sử ra/vào",
+        });
+        toast.success(`✓ Đã giải phóng ô đỗ thành công. Phiên xe ${targetPlate} được bảo lưu an toàn.`);
+      } else if (actionType === "cancel_glitch") {
+        // Nghiệp vụ 2: Hủy phiên ảo do camera quét lỗi (0đ, giải phóng vị trí)
+        const res = await forceCloseSessionAndReleaseSlot({
+          licensePlate: targetPlate,
+          sessionCode: targetSessionCode,
+          notes: reason ? `[HỦY PHIÊN ẢO]: ${reason}` : "Hủy phiên do quét sai",
+        });
+        const message = res?.alreadyClosed
+          ? PARKING_HISTORY_MESSAGES.CLOSE_SESSION_ALREADY(targetPlate)
+          : `✓ Đã hủy phiên ảo và giải phóng ô đỗ cho xe ${targetPlate} thành công!`;
+        toast.success(message);
+      } else {
+        // Nghiệp vụ 1: Xe ra bãi thủ công có thu tiền thực tế
+        const res = await checkOutVehicle({
+          sessionId: targetSession.id,
+          sessionCode: targetSessionCode,
+          licensePlate: targetPlate,
+          entryTimeRaw: targetSession.entryTime || targetSession.entry_time,
+          vehicleType: targetSession.vehicleType || targetSession.vehicle_type || "CAR",
+          paymentMethod,
+          notes: reason ? `Xuất bãi thủ công: ${reason}` : "Xuất bãi thủ công từ Lịch sử ra/vào",
+        });
 
-      const message = res?.alreadyClosed
-        ? PARKING_HISTORY_MESSAGES.CLOSE_SESSION_ALREADY(sessionActionModal.licensePlate)
-        : PARKING_HISTORY_MESSAGES.CLOSE_SESSION_SUCCESS(sessionActionModal.licensePlate);
+        const message = res?.alreadyClosed
+          ? PARKING_HISTORY_MESSAGES.CLOSE_SESSION_ALREADY(targetPlate)
+          : PARKING_HISTORY_MESSAGES.CLOSE_SESSION_SUCCESS(targetPlate);
+        toast.success(message);
+      }
 
-      toast.success(message);
+      // Phát sự kiện đồng bộ toàn hệ thống (Sơ đồ bãi, Bốt trực, Thống kê)
+      if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+        window.dispatchEvent(
+          new CustomEvent("parking-session-changed", {
+            detail: {
+              action: actionType === "release_slot" ? "slot-released" : "check-out",
+              licensePlate: targetPlate,
+              sessionCode: targetSessionCode,
+            },
+          })
+        );
+      }
+
       setSessionActionModal(null);
       setRefreshKey((k) => k + 1);
     } catch (err) {
@@ -210,12 +278,16 @@ export function useParkingHistory() {
 
   return {
     filters: {
+      searchTerm,
+      setSearchTerm: (val) => { setSearchTerm(val); setCurrentPage(1); },
       sessionCode,
       setSessionCode: (val) => { setSessionCode(val); setCurrentPage(1); },
       licensePlate,
       setLicensePlate: (val) => { setLicensePlate(val); setCurrentPage(1); },
       statusFilter,
       setStatusFilter: (val) => { setStatusFilter(val); setCurrentPage(1); },
+      ticketTypeFilter,
+      setTicketTypeFilter: (val) => { setTicketTypeFilter(val); setCurrentPage(1); },
       feeMin,
       setFeeMin: (val) => { setFeeMin(val); setCurrentPage(1); },
       feeMax,

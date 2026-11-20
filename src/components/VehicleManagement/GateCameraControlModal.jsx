@@ -77,7 +77,7 @@ export default function GateCameraControlModal({
   const [isActionPending, setIsActionPending] = useState(false);
   const [actionSuccessMessage, setActionSuccessMessage] = useState("");
 
-  const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [paymentMethod, setPaymentMethod] = useState("VNPAY");
   const [isFeeExempt, setIsFeeExempt] = useState(false);
   const [waiverReason, setWaiverReason] = useState("");
 
@@ -393,7 +393,11 @@ export default function GateCameraControlModal({
 
     try {
       const chosenSlot = availableSlots.find((s) => s.id === selectedSlotId);
-      const targetSlotId = chosenSlot?.id ?? 1;
+      if (!chosenSlot) {
+        setErrorMessage("⚠️ Vui lòng chọn một vị trí đỗ khả dụng trước khi xác nhận vào bãi.");
+        return;
+      }
+      const targetSlotId = chosenSlot.id;
 
       // Sửa lỗi nghiêm trọng G-FE-01: TUYỆT ĐỐI KHÔNG gửi chuỗi Base64 Data URL từ canvas
       let entryImageUrl = null;

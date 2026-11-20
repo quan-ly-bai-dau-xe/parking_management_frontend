@@ -51,4 +51,12 @@ export const ParkingSessionSchema = z.object({
   reviewReasons: z.unknown().optional(),
   vehicle_lookup: z.unknown().optional(),
   vehicle: z.unknown().optional(),
+
+  // Thông tin loại vé và trạng thái vé của phiên đỗ
+  ticket_type: z.string().nullable().optional(),
+  ticket_type_name: z.string().nullable().optional(),
+  ticketType: z.string().nullable().optional(),
+  has_active_ticket: z.boolean().nullable().optional(),
+  hasActiveTicket: z.boolean().nullable().optional(),
+  ticket: z.unknown().optional(),
 });

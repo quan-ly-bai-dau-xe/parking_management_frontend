@@ -95,7 +95,7 @@ export default function ScanPlateModal({
   const [isActionPending, setIsActionPending] = useState(false);
   const [actionSuccessMessage, setActionSuccessMessage] = useState("");
 
-  const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [paymentMethod, setPaymentMethod] = useState("VNPAY");
   const [isFeeExempt, setIsFeeExempt] = useState(false);
 
   const activeGateId = laneMode === "entry" ? DEFAULT_ENTRY_GATE_ID : DEFAULT_EXIT_GATE_ID;
@@ -145,7 +145,8 @@ export default function ScanPlateModal({
           setAvailableSlots(slots);
           const assignedId = matchedVehicle?.parkingSlot?.slotId;
           const assignedExists = slots.some((s) => s.id === assignedId);
-          setSelectedSlotId(assignedExists ? assignedId : slots[0].id);
+          // Nếu xe có ô đăng ký cố định thì chọn ô đó; nếu không thì mặc định null (Chưa chỉ định ô - Xe tự tìm chỗ)
+          setSelectedSlotId(assignedExists ? assignedId : null);
         }
       } catch (err) {
         console.warn("Không thể tải ô đỗ khả dụng:", err?.message);
@@ -316,7 +317,7 @@ export default function ScanPlateModal({
 
     try {
       const chosenSlot = availableSlots.find((s) => s.id === selectedSlotId);
-      const targetSlotId = chosenSlot?.id ?? 1;
+      const targetSlotId = chosenSlot?.id || null;
 
       const entryImageUrl =
         scanDetails?.imageUrl ||
