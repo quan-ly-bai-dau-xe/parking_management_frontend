@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 /**
  * FilterSelect component
  * Reusable select dropdown styled for filter toolbars and search panels.
@@ -23,10 +25,13 @@ export default function FilterSelect({
   id = "",
   name = "",
   disabled = false,
+  "aria-label": ariaLabel,
   className = "",
   containerClassName = "",
 }) {
-  const selectId = id || (name ? `filter-select-${name}` : undefined);
+  const generatedId = useId();
+  const selectId = id || (name ? `filter-select-${name}` : generatedId);
+  const effectiveAriaLabel = ariaLabel || (!label ? (placeholder || "Lọc dữ liệu") : undefined);
 
   return (
     <div className={containerClassName}>
@@ -44,6 +49,7 @@ export default function FilterSelect({
         value={value}
         onChange={onChange}
         disabled={disabled}
+        aria-label={effectiveAriaLabel}
         className={`w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white text-slate-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed ${className}`}
       >
         {placeholder && <option value="">{placeholder}</option>}

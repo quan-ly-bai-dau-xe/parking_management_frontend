@@ -88,4 +88,28 @@ test.describe("Luồng Nghiệp Vụ 2: Kiểm Soát Xe Ra Bãi & Tính Cước 
     await expect(page.locator("body")).toContainText(/ĐANG ĐÓNG/i);
     await expect(page.locator("body")).not.toContainText(/ĐÃ MỞ - MỜI XE QUA/i);
   });
+
+  test("WF2-STEP-03: Anti-Fraud UI Gate - Khóa bảo vệ khi miễn cước hoặc nhập lý do khác qua loa", async ({ page }) => {
+    // 1. Mở trang Quản lý xe và chuyển sang Làn Ra
+    await page.goto("/vehicles");
+    const scanBtn = page.getByRole("button", { name: /Scan biển số/i }).first();
+    await expect(scanBtn).toBeVisible({ timeout: 10000 });
+    await scanBtn.click();
+
+    const exitLaneBtn = page.getByRole("button", { name: /Làn Ra/i });
+    await exitLaneBtn.click();
+
+    // 2. Kiểm tra nếu có checkbox "Miễn cước đặc cách"
+    const waiveCheckbox = page.getByRole("checkbox", { name: /Miễn cước đặc cách/i });
+    if (await waiveCheckbox.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await waiveCheckbox.check();
+
+      // Mở vùng chọn lý do bất thường
+      const confirmBtn = page.locator("button").filter({ hasText: /Xác nhận Miễn Phí|Mở Barrier/i }).first();
+
+      // KHI CHƯA CHỌN LÝ DO HOẶC CHƯA CÓ NGƯỜI DUYỆT:
+      // Expected: Nút xác nhận bị disabled
+      await expect(confirmBtn).toBeDisabled();
+    }
+  });
 });

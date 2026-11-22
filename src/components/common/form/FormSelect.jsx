@@ -37,7 +37,11 @@ export default function FormSelect({
   containerClassName = "",
   ...rest
 }) {
-  const selectId = id || (name ? `select-${name}` : undefined);
+  const generatedId = React.useId();
+  const selectId = id || (name ? `select-${name}` : generatedId);
+  const errorId = error ? `${selectId}-error` : undefined;
+  const helperId = helperText ? `${selectId}-helper` : undefined;
+  const describedBy = errorId || helperId || undefined;
 
   const sizeClasses = {
     sm: "h-8 text-2xs px-2.5 rounded-lg",
@@ -68,6 +72,8 @@ export default function FormSelect({
         onChange={onChange}
         required={required}
         disabled={disabled}
+        aria-invalid={Boolean(error)}
+        aria-describedby={describedBy}
         className={`w-full border outline-none transition-all duration-150 focus:ring-2 cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed ${sizeClasses} ${stateClasses} ${className}`}
         {...rest}
       >
@@ -84,9 +90,9 @@ export default function FormSelect({
       </select>
 
       {error ? (
-        <p className="text-[11px] text-rose-500 font-medium leading-none">{error}</p>
+        <p id={errorId} className="text-[11px] text-rose-500 font-medium leading-none">{error}</p>
       ) : helperText ? (
-        <p className="text-[11px] text-slate-500 leading-none">{helperText}</p>
+        <p id={helperId} className="text-[11px] text-slate-500 leading-none">{helperText}</p>
       ) : null}
     </div>
   );

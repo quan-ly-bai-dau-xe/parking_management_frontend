@@ -9,6 +9,9 @@ import {
   mapVehicleLookupToVehicle,
   mapSessionToFrontend,
   MAPPER_DEFAULTS,
+  parseEntryTimeToDate,
+  normalizePlate,
+  createWalkInVehicle,
 } from "#src/utils/parking/plateScanMapper.js";
 import {
   getParkingSessionStatus,
@@ -232,4 +235,42 @@ test("getParkingSessionStatus classifies session status correctly", () => {
     getParkingSessionStatus(null).key,
     SESSION_STATUS_CONFIG.IN_PROGRESS.key
   );
+});
+
+test("parseEntryTimeToDate parses both DD/MM/YYYY HH:mm and HH:mm DD/MM/YYYY formats correctly", () => {
+  const d1 = parseEntryTimeToDate("08:30 15/11/2026");
+  assert.equal(d1.getFullYear(), 2026);
+  assert.equal(d1.getMonth(), 10);
+  assert.equal(d1.getDate(), 15);
+  assert.equal(d1.getHours(), 8);
+  assert.equal(d1.getMinutes(), 30);
+
+  const d2 = parseEntryTimeToDate("15/11/2026 14:45");
+  assert.equal(d2.getFullYear(), 2026);
+  assert.equal(d2.getHours(), 14);
+  assert.equal(d2.getMinutes(), 45);
+
+  assert.equal(parseEntryTimeToDate(null), null);
+  assert.equal(parseEntryTimeToDate("invalid-date-string"), null);
+});
+
+test("normalizePlate standardizes license plate strings", () => {
+  assert.equal(normalizePlate("30A-123.45"), "30A12345");
+  assert.equal(normalizePlate("  51k - 999.99 "), "51K99999");
+  assert.equal(normalizePlate(""), "");
+  assert.equal(normalizePlate(null), "");
+});
+
+test("createWalkInVehicle creates compliant walk-in vehicle model", () => {
+  const walkIn = createWalkInVehicle("51K-999.99", { isBlacklisted: false });
+  assert.equal(walkIn.licensePlate, "51K-999.99");
+  assert.equal(walkIn.isBlacklisted, false);
+  assert.equal(walkIn.status, "active");
+  assert.equal(walkIn.customer.name, "Khách vãng lai (Vé lượt)");
+  assert.equal(walkIn.ticket.type, "Vé lượt");
+
+  const blacklistedWalkIn = createWalkInVehicle("29A-666.66", { isBlacklisted: true });
+  assert.equal(blacklistedWalkIn.isBlacklisted, true);
+  assert.equal(blacklistedWalkIn.status, "BLACKLISTED");
+  assert.equal(blacklistedWalkIn.rawLookup.is_blacklisted, true);
 });

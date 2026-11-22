@@ -23,6 +23,9 @@ Gồm 3 file hạt nhân:
 
 *(Các mẫu chuẩn đã có sẵn tại `parking_management_frontend/docs/specs/_template/`)*.
 
+### Tài liệu Quy trình & Kiểm toán Chuyên biệt
+- [abnormal-session-handling.md](abnormal-session-handling.md): Quy trình xử lý phiên bất thường, ma trận phòng chống gian lận (Anti-Fraud Matrix), cơ chế phê duyệt 2 lớp và định dạng vết kiểm toán (Audit Trail) đóng gói trong `notes`.
+
 ---
 
 ## 3. Quy trình 4 bước khi làm việc với AI Agent

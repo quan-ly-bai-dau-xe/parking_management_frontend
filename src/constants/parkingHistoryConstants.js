@@ -43,6 +43,16 @@ export const TICKET_TYPE_FILTER_OPTIONS = [
   { value: "YEARLY", label: "Vé năm" },
 ];
 
+export const ABNORMAL_FILTER_OPTIONS = [
+  { value: "all", label: "Tất cả giao dịch" },
+  { value: "normal", label: "Giao dịch bình thường" },
+  { value: "abnormal_all", label: "Tất cả xử lý bất thường" },
+  { value: "ghost_exit", label: "Miễn cước đặc cách" },
+  { value: "cancel_glitch", label: "Hủy phiên lỗi OCR" },
+  { value: "release_slot", label: "Giải phóng ô ảo" },
+  { value: "manual_checkout", label: "Xuất bãi thủ công" },
+];
+
 export const SESSION_STATUS_CONFIG = {
   COMPLETED: {
     key: "completed",

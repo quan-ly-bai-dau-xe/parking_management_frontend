@@ -4,7 +4,7 @@ import {
   USER_ROLES,
   ROLE_DISPLAY_NAMES,
   checkIsManager,
-} from "../src/constants/roleConstants.js";
+} from "#src/constants/roleConstants.js";
 
 /**
  * Suite kiểm thử đơn vị cho chức năng phân quyền checkIsManager (RBAC).

@@ -322,6 +322,7 @@ export function mapParkingSession(raw) {
     status,
     hasActiveTicket,
     ticketType: raw.ticket_type_name || raw.ticketType || MAPPER_DEFAULTS.DEFAULT_TICKET_TYPE,
+    notes: raw.notes || raw.feeBreakdown || null,
   };
 }
 

@@ -43,6 +43,7 @@ export function useParkingHistory() {
   const [ticketTypeFilter, setTicketTypeFilter] = useState(
     PARKING_HISTORY_DEFAULTS.DEFAULT_TICKET_TYPE_FILTER || "all"
   );
+  const [abnormalFilter, setAbnormalFilter] = useState("all");
   const [filterByTime, setFilterByTime] = useState(false);
   const [dateFrom, setDateFrom] = useState(minDateISO);
   const [dateTo, setDateTo] = useState(todayISO);
@@ -153,6 +154,7 @@ export function useParkingHistory() {
           license_plate: licensePlate.trim() || undefined,
           status: apiStatus,
           ticket_type: ticketTypeFilter !== "all" ? ticketTypeFilter : undefined,
+          abnormal_type: abnormalFilter !== "all" ? abnormalFilter : undefined,
           entry_time_from: dateFrom ? `${dateFrom}T00:00:00` : "",
           entry_time_to: dateTo ? `${dateTo}T23:59:59` : "",
           exit_time_from: filterByTime ? exitTimeFrom : "",
@@ -188,6 +190,7 @@ export function useParkingHistory() {
     licensePlate,
     statusFilter,
     ticketTypeFilter,
+    abnormalFilter,
     dateFrom,
     dateTo,
     filterByTime,
@@ -288,6 +291,8 @@ export function useParkingHistory() {
       setStatusFilter: (val) => { setStatusFilter(val); setCurrentPage(1); },
       ticketTypeFilter,
       setTicketTypeFilter: (val) => { setTicketTypeFilter(val); setCurrentPage(1); },
+      abnormalFilter,
+      setAbnormalFilter: (val) => { setAbnormalFilter(val); setCurrentPage(1); },
       feeMin,
       setFeeMin: (val) => { setFeeMin(val); setCurrentPage(1); },
       feeMax,

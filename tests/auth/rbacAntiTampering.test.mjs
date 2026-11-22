@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 test("RBAC Anti-Tampering: EditSlotModal locks slot type and status editing for non-managers", () => {
-  const filePath = path.resolve(__dirname, "../src/components/ParkingLotManagement/EditSlotModal.jsx");
+  const filePath = path.resolve(__dirname, "../../src/components/ParkingLotManagement/EditSlotModal.jsx");
   const code = fs.readFileSync(filePath, "utf-8");
 
   // 1. Phải import useCurrentUser
@@ -34,7 +34,7 @@ test("RBAC Anti-Tampering: EditSlotModal locks slot type and status editing for 
 });
 
 test("RBAC Anti-Tampering: EmployeeModal locks Manager role assignment for non-managers", () => {
-  const filePath = path.resolve(__dirname, "../src/components/EmployeeManagement/EmployeeModal.jsx");
+  const filePath = path.resolve(__dirname, "../../src/components/EmployeeManagement/EmployeeModal.jsx");
   const code = fs.readFileSync(filePath, "utf-8");
 
   // 1. Phải import useCurrentUser
@@ -53,7 +53,7 @@ test("RBAC Anti-Tampering: EmployeeModal locks Manager role assignment for non-m
 });
 
 test("RBAC Anti-Tampering: AddSlotModal prevents tampered status & dummy vehicle creation", () => {
-  const filePath = path.resolve(__dirname, "../src/components/ParkingLotManagement/AddSlotModal.jsx");
+  const filePath = path.resolve(__dirname, "../../src/components/ParkingLotManagement/AddSlotModal.jsx");
   const code = fs.readFileSync(filePath, "utf-8");
 
   // 1. Không có dropdown chọn trạng thái tự do ban đầu
@@ -69,7 +69,7 @@ test("RBAC Anti-Tampering: AddSlotModal prevents tampered status & dummy vehicle
 });
 
 test("RBAC Anti-Tampering: SlotDetailPanel restricts OCCUPIED / RESERVED simulation to Manager", () => {
-  const filePath = path.resolve(__dirname, "../src/components/ParkingLotManagement/SlotDetailPanel.jsx");
+  const filePath = path.resolve(__dirname, "../../src/components/ParkingLotManagement/SlotDetailPanel.jsx");
   const code = fs.readFileSync(filePath, "utf-8");
 
   // 1. Phải import useCurrentUser và trích xuất isManager
@@ -82,4 +82,3 @@ test("RBAC Anti-Tampering: SlotDetailPanel restricts OCCUPIED / RESERVED simulat
   assert.ok(code.includes("Sẵn sàng đón xe (Trống)"), "Must allow operator to set ready status");
   assert.ok(code.includes("Bảo trì / Tạm ngưng sử dụng"), "Must allow operator to toggle maintenance");
 });
-

@@ -4,6 +4,7 @@ import {
   QUICK_FILTER_KEYS,
   SESSION_STATUS_FILTER_OPTIONS,
   TICKET_TYPE_FILTER_OPTIONS,
+  ABNORMAL_FILTER_OPTIONS,
   PARKING_HISTORY_DEFAULTS,
 } from "../../constants/parkingHistoryConstants";
 
@@ -18,6 +19,8 @@ export default function ParkingHistoryFilters({
   setStatusFilter,
   ticketTypeFilter = "all",
   setTicketTypeFilter,
+  abnormalFilter = "all",
+  setAbnormalFilter,
   feeMin,
   setFeeMin,
   feeMax,
@@ -155,6 +158,28 @@ export default function ParkingHistoryFilters({
             className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer shadow-2xs"
           >
             {TICKET_TYPE_FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Dropdown Xử lý bất thường & Kiểm toán đối soát */}
+        <div className="flex flex-col gap-1.5 md:col-span-2 lg:col-span-2">
+          <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+            <span>Đối soát / Xử lý</span>
+          </label>
+          <select
+            value={abnormalFilter}
+            onChange={(e) => setAbnormalFilter?.(e.target.value)}
+            className={`w-full text-xs rounded-xl border px-3 py-2.5 font-medium transition-all cursor-pointer shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+              abnormalFilter !== "all"
+                ? "border-amber-400 bg-amber-50/50 text-amber-900 focus:border-amber-500"
+                : "border-slate-200 bg-white text-slate-800 focus:border-blue-500"
+            }`}
+          >
+            {ABNORMAL_FILTER_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>

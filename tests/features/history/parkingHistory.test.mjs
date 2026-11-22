@@ -196,3 +196,41 @@ test("HISTORY-08: URL search query params (license_plate / plate) filter history
     axiosInstance.request = originalRequest;
   }
 });
+
+test("HISTORY-09: ticket_type filter query param is propagated to backend and mapped properly", async () => {
+  const originalRequest = axiosInstance.request;
+  let capturedConfig = null;
+
+  try {
+    axiosInstance.request = async (config) => {
+      capturedConfig = config;
+      return {
+        data: {
+          count: 1,
+          results: [
+            makeMockRawBackendSession({
+              id: 901,
+              license_plate: "51K-888.88",
+              ticket_type_name: "Vé tháng",
+              has_active_ticket: true,
+            }),
+          ],
+        },
+      };
+    };
+
+    const res = await getParkingSessions({
+      ticket_type: "MONTHLY",
+      page: 1,
+      page_size: 10,
+    });
+
+    assert.equal(res.total, 1);
+    assert.equal(res.items.length, 1);
+    assert.equal(res.items[0].licensePlate, "51K-888.88");
+    assert.equal(res.items[0].ticketType, "Vé tháng");
+    assert.ok(capturedConfig.url.includes("ticket_type=MONTHLY"));
+  } finally {
+    axiosInstance.request = originalRequest;
+  }
+});
