@@ -7,8 +7,11 @@
  * - Chỉ bật mock khi VITE_USE_MOCK="true".
  */
 
-export const IS_MOCK_ENABLED =
-  import.meta.env?.VITE_USE_MOCK?.trim().toLowerCase() === "true";
+import { DEFAULT_MOCK_ALL, isMockEnabled, MODULE_MOCK_CONFIG } from "./mockConfig.js";
+
+export { isMockEnabled, MODULE_MOCK_CONFIG };
+
+export const IS_MOCK_ENABLED = DEFAULT_MOCK_ALL;
 
 export const BACKEND_BASE_URL =
   import.meta.env?.VITE_BACKEND_URL || "http://127.0.0.1:8000";

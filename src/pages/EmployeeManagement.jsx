@@ -1,97 +1,12 @@
-import { useMemo, useState } from "react";
-import { DataTable, TableActions } from "../components/common";
+import { useMemo, useState, useCallback } from "react";
+import {
+  DataTable,
+  TableActions,
+  LoadingSpinner,
+  EmptyState,
+} from "../components/common";
 import EmployeeModal from "../components/EmployeeManagement/EmployeeModal";
-
-const INITIAL_EMPLOYEES = [
-  {
-    id: "NV001",
-    name: "Nguyễn Minh Anh",
-    email: "minhanh@smartpark.vn",
-    phone: "0905 123 456",
-    role: "Quản lý",
-    area: "Hải Châu",
-    city: "Đà Nẵng",
-    status: "active",
-    tone: "indigo",
-  },
-  {
-    id: "NV002",
-    name: "Trần Quốc Bảo",
-    email: "quocbao@smartpark.vn",
-    phone: "0912 345 678",
-    role: "Nhân viên vận hành",
-    area: "Thanh Khê",
-    city: "Đà Nẵng",
-    status: "active",
-    tone: "blue",
-  },
-  {
-    id: "NV003",
-    name: "Lê Thị Thu Hà",
-    email: "thuha@smartpark.vn",
-    phone: "0935 111 222",
-    role: "Nhân viên thu ngân",
-    area: "Quận 1",
-    city: "Hồ Chí Minh",
-    status: "active",
-    tone: "pink",
-  },
-  {
-    id: "NV004",
-    name: "Phạm Hoàng Nam",
-    email: "hoangnam@smartpark.vn",
-    phone: "0901 222 333",
-    role: "Kỹ thuật viên",
-    area: "Cầu Giấy",
-    city: "Hà Nội",
-    status: "inactive",
-    tone: "amber",
-  },
-  {
-    id: "NV005",
-    name: "Võ Ngọc Linh",
-    email: "ngoclinh@smartpark.vn",
-    phone: "0988 333 444",
-    role: "Nhân viên vận hành",
-    area: "Sơn Trà",
-    city: "Đà Nẵng",
-    status: "active",
-    tone: "emerald",
-  },
-  {
-    id: "NV006",
-    name: "Đặng Gia Huy",
-    email: "giahuy@smartpark.vn",
-    phone: "0977 444 555",
-    role: "Nhân viên thu ngân",
-    area: "Liên Chiểu",
-    city: "Đà Nẵng",
-    status: "active",
-    tone: "cyan",
-  },
-  {
-    id: "NV007",
-    name: "Bùi Thanh Tùng",
-    email: "thanhtung@smartpark.vn",
-    phone: "0966 555 666",
-    role: "Kỹ thuật viên",
-    area: "Thủ Đức",
-    city: "Hồ Chí Minh",
-    status: "active",
-    tone: "violet",
-  },
-  {
-    id: "NV008",
-    name: "Phan Mỹ Duyên",
-    email: "myduyen@smartpark.vn",
-    phone: "0944 666 777",
-    role: "Nhân viên vận hành",
-    area: "Ngũ Hành Sơn",
-    city: "Đà Nẵng",
-    status: "active",
-    tone: "rose",
-  },
-];
+import useEmployees from "../hooks/useEmployees";
 
 const AVATAR_CLASSES = {
   indigo: "bg-indigo-100 text-indigo-600",
@@ -105,50 +20,73 @@ const AVATAR_CLASSES = {
 };
 
 export default function EmployeeManagement() {
-  const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
+  const {
+    employees,
+    summary,
+    positions,
+    loading,
+    error,
+    fetchEmployees,
+    saveEmployee,
+    toggleStatus,
+  } = useEmployees();
+
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("all");
   const [status, setStatus] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   const handleOpenAddModal = () => {
     setSelectedEmployee(null);
     setIsModalOpen(true);
   };
 
-  const handleOpenEditModal = (employee) => {
+  const handleOpenEditModal = useCallback((employee) => {
     setSelectedEmployee(employee);
     setIsModalOpen(true);
-  };
+  }, []);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
     setSelectedEmployee(null);
-  };
+  }, []);
 
-  const handleSaveEmployee = (employeeData) => {
-    if (employeeData.id) {
-      // Cập nhật nhân viên hiện có
-      setEmployees((prev) =>
-        prev.map((item) => (item.id === employeeData.id ? employeeData : item))
-      );
-    } else {
-      // Thêm nhân viên mới: Tạo mã NV tiếp theo
-      const maxIdNum = employees.reduce((max, emp) => {
-        const num = parseInt(emp.id.replace(/\D/g, ""), 10);
-        return !isNaN(num) && num > max ? num : max;
-      }, 0);
-      const newId = `NV${String(maxIdNum + 1).padStart(3, "0")}`;
-
-      const newEmployee = {
-        ...employeeData,
-        id: newId,
-      };
-
-      setEmployees((prev) => [newEmployee, ...prev]);
+  const handleSaveEmployee = async (employeeData) => {
+    setActionError(null);
+    try {
+      await saveEmployee(employeeData);
+      handleCloseModal();
+    } catch (err) {
+      setActionError(err?.message || "Không thể lưu thông tin nhân viên");
     }
   };
+
+  const handleToggleStatus = useCallback(
+    async (id) => {
+      setActionError(null);
+      try {
+        await toggleStatus(id);
+      } catch (err) {
+        setActionError(
+          err?.message || "Không thể cập nhật trạng thái hoạt động của nhân viên"
+        );
+      }
+    },
+    [toggleStatus]
+  );
+
+  const roleOptions = useMemo(() => {
+    const list = new Set();
+    positions.forEach((p) => {
+      if (p.name) list.add(p.name);
+    });
+    employees.forEach((e) => {
+      if (e.role) list.add(e.role);
+    });
+    return Array.from(list);
+  }, [positions, employees]);
 
   const filteredEmployees = useMemo(
     () =>
@@ -156,27 +94,15 @@ export default function EmployeeManagement() {
         const query = search.trim().toLowerCase();
         return (
           (!query ||
-            `${employee.name} ${employee.id} ${employee.email}`
+            `${employee.name} ${employee.code || employee.id} ${employee.email}`
               .toLowerCase()
               .includes(query)) &&
           (role === "all" || employee.role === role) &&
           (status === "all" || employee.status === status)
         );
       }),
-    [employees, role, search, status],
+    [employees, role, search, status]
   );
-
-  const toggleStatus = (id) =>
-    setEmployees((items) =>
-      items.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status: item.status === "active" ? "inactive" : "active",
-            }
-          : item,
-      ),
-    );
 
   const columns = useMemo(
     () => [
@@ -185,10 +111,13 @@ export default function EmployeeManagement() {
         accessor: (employee) => (
           <div className="flex items-center gap-2.5">
             <span
-              className={`flex h-7 w-7 items-center justify-center rounded-full text-[9px] font-bold ${AVATAR_CLASSES[employee.tone] || "bg-slate-100 text-slate-600"}`}
+              className={`flex h-7 w-7 items-center justify-center rounded-full text-[9px] font-bold ${
+                AVATAR_CLASSES[employee.tone] || "bg-slate-100 text-slate-600"
+              }`}
             >
-              {employee.name
+              {(employee.name || "")
                 .split(" ")
+                .filter(Boolean)
                 .map((part) => part[0])
                 .slice(-2)
                 .join("")}
@@ -208,7 +137,7 @@ export default function EmployeeManagement() {
         header: "Mã NV",
         accessor: (employee) => (
           <span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">
-            {employee.id}
+            {employee.code || employee.id}
           </span>
         ),
       },
@@ -231,8 +160,12 @@ export default function EmployeeManagement() {
         header: "Khu vực",
         accessor: (employee) => (
           <div>
-            <span className="block text-slate-600">{employee.area}</span>
-            <span className="text-[10px] text-slate-400">{employee.city}</span>
+            <span className="block text-slate-600">
+              {employee.area || "—"}
+            </span>
+            <span className="text-[10px] text-slate-400">
+              {employee.city || "—"}
+            </span>
           </div>
         ),
       },
@@ -240,16 +173,17 @@ export default function EmployeeManagement() {
         header: "Trạng thái",
         accessor: (employee) => (
           <span
-            className={`inline-flex items-center justify-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold min-w-[110px] ${
+            className={`inline-flex min-w-[110px] items-center justify-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${
               employee.status === "active"
                 ? "bg-emerald-50 text-emerald-600"
                 : "bg-slate-100 text-slate-500"
             }`}
           >
             <span className="h-1.5 w-1.5 rounded-full bg-current" />
-            {employee.status === "active"
-              ? "Đang hoạt động"
-              : "Không hoạt động"}
+            {employee.statusDisplay ||
+              (employee.status === "active"
+                ? "Đang hoạt động"
+                : "Không hoạt động")}
           </span>
         ),
       },
@@ -277,14 +211,14 @@ export default function EmployeeManagement() {
                     ? "text-amber-600 hover:text-amber-800"
                     : "text-emerald-600 hover:text-emerald-800"
                 }`,
-                onClick: () => toggleStatus(employee.id),
+                onClick: () => handleToggleStatus(employee.id),
               },
             ]}
           />
         ),
       },
     ],
-    [],
+    [handleOpenEditModal, handleToggleStatus]
   );
 
   return (
@@ -307,22 +241,83 @@ export default function EmployeeManagement() {
             + Thêm nhân viên
           </button>
         </div>
+
+        {actionError && (
+          <div
+            role="alert"
+            className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700"
+          >
+            <span>{actionError}</span>
+            <button
+              type="button"
+              onClick={() => setActionError(null)}
+              className="font-bold hover:underline"
+            >
+              Đóng
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <div
+            role="alert"
+            className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700"
+          >
+            <div className="flex items-center gap-2.5">
+              <svg
+                className="h-5 w-5 shrink-0 text-rose-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <div>
+                <p className="font-semibold text-rose-800">
+                  Không thể tải dữ liệu nhân viên
+                </p>
+                <p className="mt-0.5 text-rose-600">{error}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={fetchEmployees}
+              className="ml-4 shrink-0 rounded-lg bg-rose-600 px-3 py-1.5 font-semibold text-white transition hover:bg-rose-700"
+            >
+              Thử lại
+            </button>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ["Tổng nhân viên", employees.length, "Tất cả hồ sơ"],
+            [
+              "Tổng nhân viên",
+              summary?.total_employees ?? employees.length,
+              "Tất cả hồ sơ",
+            ],
             [
               "Đang hoạt động",
-              employees.filter((item) => item.status === "active").length,
+              summary?.active_employees ??
+                employees.filter((item) => item.status === "active").length,
               "Đang làm việc",
             ],
             [
               "Không hoạt động",
-              employees.filter((item) => item.status === "inactive").length,
+              summary?.inactive_employees ??
+                employees.filter((item) => item.status === "inactive").length,
               "Hồ sơ tạm ngưng",
             ],
             [
               "Chức vụ",
-              new Set(employees.map((item) => item.role)).size,
+              summary?.total_positions ??
+                new Set(employees.map((item) => item.role)).size,
               "Nhóm chức vụ mẫu",
             ],
           ].map(([label, value, caption]) => (
@@ -336,6 +331,7 @@ export default function EmployeeManagement() {
             </div>
           ))}
         </div>
+
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
           <div className="flex flex-col justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center">
             <div>
@@ -359,11 +355,11 @@ export default function EmployeeManagement() {
                 className="rounded-lg border border-slate-200 px-3 py-2 text-[11px] outline-none"
               >
                 <option value="all">Tất cả chức vụ</option>
-                {[...new Set(employees.map((item) => item.role))].map(
-                  (item) => (
-                    <option key={item}>{item}</option>
-                  ),
-                )}
+                {roleOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
               </select>
               <select
                 value={status}
@@ -376,12 +372,63 @@ export default function EmployeeManagement() {
               </select>
             </div>
           </div>
-          <DataTable
-            columns={columns}
-            rows={filteredEmployees}
-            rowKey="id"
-            emptyMessage="Không tìm thấy nhân viên phù hợp."
-          />
+
+          {loading ? (
+            <div className="flex min-h-[300px] flex-col items-center justify-center py-16">
+              <LoadingSpinner size="lg" label="Đang tải danh sách nhân viên..." />
+            </div>
+          ) : error ? (
+            <EmptyState
+              title="Không thể tải dữ liệu nhân viên"
+              description={error}
+              icon={
+                <svg
+                  className="h-10 w-10 text-rose-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+              }
+              action={
+                <button
+                  type="button"
+                  onClick={fetchEmployees}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+                >
+                  Thử lại
+                </button>
+              }
+            />
+          ) : employees.length === 0 ? (
+            <EmptyState
+              title="Chưa có nhân viên nào trong hệ thống"
+              description="Hiện tại chưa có hồ sơ nhân viên nào được lưu trữ."
+              action={
+                <button
+                  type="button"
+                  onClick={handleOpenAddModal}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+                >
+                  + Thêm nhân viên
+                </button>
+              }
+            />
+          ) : (
+            <DataTable
+              columns={columns}
+              rows={filteredEmployees}
+              rowKey="id"
+              emptyMessage="Không tìm thấy nhân viên phù hợp."
+            />
+          )}
         </section>
       </div>
 

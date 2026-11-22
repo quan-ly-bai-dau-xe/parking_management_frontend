@@ -1,4 +1,7 @@
 import { apiClient } from "./apiClient.js";
+import { fullParkingLotData } from "../mocks/parkingLotData.js";
+import { getMockParkingSlots } from "../mocks/parkingSlotFallback.js";
+import { isMockEnabled } from "../config/appConfig.js";
 
 /**
  * Trả về văn bản mô tả trạng thái ô đỗ bằng tiếng Việt
@@ -123,6 +126,15 @@ export async function getSlots(params = {}) {
     }
   }
 
+  // Nếu mock mode được kích hoạt rõ ràng cho module parkingLot
+  if (isMockEnabled("parkingLot")) {
+    return getMockParkingSlots({
+      floor: queryParams.floor || "B1",
+      zone: queryParams.zone || "A",
+    });
+  }
+
+  // Khi mock tắt: gọi API backend thật, nếu lỗi thì throw error thật, KHÔNG fallback ngầm
   const response = await apiClient("/api/v1/parking/slots/", {
     method: "GET",
     params: Object.keys(queryParams).length > 0 ? queryParams : undefined,
@@ -156,6 +168,17 @@ export async function updateSlotStatus(slotId, data) {
   }
 
   const payload = typeof data === "string" ? { status: data } : (data || {});
+
+  // Nếu mock mode được kích hoạt cho parkingLot, trả về slot mô phỏng
+  if (isMockEnabled("parkingLot")) {
+    return normalizeSlot({
+      id: slotId,
+      code: slotId,
+      ...payload,
+    });
+  }
+
+  // Khi mock tắt: gọi API PATCH thật, nếu lỗi thì throw error thật, KHÔNG fallback ngầm
   const response = await apiClient(`/api/v1/parking/slots/${slotId}/`, {
     method: "PATCH",
     data: payload,
@@ -163,6 +186,64 @@ export async function updateSlotStatus(slotId, data) {
 
   return normalizeSlot(response);
 }
+
+/**
+ * Lấy sơ đồ cấu trúc bãi đỗ xe phân cấp (Tầng -> Khu vực -> Ô đỗ)
+ * Endpoint: GET /api/v1/parking/structure/
+ *
+ * @returns {Promise<Array<Object>>} Cấu trúc phân cấp các tầng, khu và ô đỗ
+ */
+export async function getParkingStructure() {
+  // Nếu mock mode được kích hoạt cho parkingLot, trả về cấu trúc mock đầy đủ
+  if (isMockEnabled("parkingLot")) {
+    return fullParkingLotData.map((floor) => ({
+      id: floor.floorId,
+      code: floor.floorId,
+      name: floor.floorName,
+      total_slots: floor.zones?.reduce((acc, z) => acc + (z.totalSlots || 0), 0) || 0,
+      zones: (floor.zones || []).map((zone) => ({
+        id: zone.zoneId,
+        code: zone.zoneId.includes("-") ? zone.zoneId.split("-")[1] : zone.zoneId,
+        name: zone.zoneName,
+        total_slots: zone.totalSlots || 0,
+        slots: (zone.slots || []).map((slot) => ({
+          id: slot.slotId,
+          code: slot.slotId,
+          slot_number: parseInt(slot.slotId.replace(/\D/g, ""), 10) || 1,
+          status: slot.status,
+          status_display: getStatusText(slot.status),
+          is_occupied: slot.status === "OCCUPIED",
+          row: slot.row || (slot.slotId.includes("-") ? slot.slotId.split("-")[0] : "A"),
+          label: slot.label || slot.slotId,
+        })),
+      })),
+    }));
+  }
+
+  // Khi mock tắt: gọi API backend thật, nếu lỗi thì throw error thật, KHÔNG fallback ngầm
+  const response = await apiClient("/api/v1/parking/structure/", {
+    method: "GET",
+  });
+
+  if (Array.isArray(response) && response.length > 0) {
+    return response;
+  }
+  if (Array.isArray(response?.results) && response.results.length > 0) {
+    return response.results;
+  }
+  return [];
+}
+
+/**
+ * Alias cho getParkingStructure theo contract
+ */
+export const fetchParkingStructure = getParkingStructure;
+
+/**
+ * Alias cho getParkingStructure theo yêu cầu cấu hình bãi đỗ (getParkingLotConfig)
+ */
+export const getParkingLotConfig = getParkingStructure;
+export const fetchParkingLotConfig = getParkingStructure;
 
 /**
  * Lấy danh sách các phiên đỗ xe đang mở (operational sessions)
@@ -196,6 +277,10 @@ export const parkingLotService = {
   getSlots,
   fetchParkingSlots,
   updateSlotStatus,
+  getParkingStructure,
+  fetchParkingStructure,
+  getParkingLotConfig,
+  fetchParkingLotConfig,
   getActiveSessions,
   fetchActiveSessions,
   normalizeSlot,

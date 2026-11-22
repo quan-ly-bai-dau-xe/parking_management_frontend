@@ -11,9 +11,9 @@ import {
   parseEntryTimeToDate,
   normalizePlate,
 } from "../utils/parking/plateScanMapper.js";
-import { IS_MOCK_ENABLED } from "../config/appConfig.js";
+import { isMockEnabled } from "../config/appConfig.js";
 
-const USE_MOCK = IS_MOCK_ENABLED;
+const USE_MOCK = isMockEnabled("plateScans");
 
 export {
   mapParkingSession,

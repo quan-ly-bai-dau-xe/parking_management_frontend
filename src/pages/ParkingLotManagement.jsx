@@ -11,7 +11,7 @@ import { PageHeader, Button, EmptyState, LoadingSpinner } from "../components/co
 import { ConfirmModal } from "../components/common/modal";
 import { useToast } from "../context/ToastContext";
 import { useParkingLot } from "../hooks/useParkingLot";
-import { getStatusText } from "../services/parkingLotService";
+import { getStatusText, getParkingStructure } from "../services/parkingLotService";
 import {
   ParkingLotStatsCards,
   ParkingLotFilters,
@@ -61,6 +61,55 @@ export default function ParkingLotManagement() {
 
   // 3. Quản lý cấu trúc bãi ở chân trang (Single Source of Truth cho tầng & phân khu)
   const [structureList, setStructureList] = useState(INITIAL_STRUCTURE_LIST);
+
+  // Tải cấu trúc phân cấp từ API /api/v1/parking/structure/ với fallback
+  useEffect(() => {
+    let isCancelled = false;
+    const fetchStructure = async () => {
+      try {
+        const data = await getParkingStructure();
+        if (!isCancelled && Array.isArray(data) && data.length > 0) {
+          const list = [];
+          const seenZones = new Set();
+
+          data.forEach((floor) => {
+            list.push({
+              id: `floor-${floor.code || floor.id}`,
+              type: "Tầng",
+              code: floor.code || floor.id,
+              name: floor.name || `Tầng ${floor.code}`,
+            });
+
+            if (Array.isArray(floor.zones)) {
+              floor.zones.forEach((z) => {
+                const zoneCode = z.code || z.name?.replace(/^Khu\s*/i, "") || z.id;
+                if (!seenZones.has(zoneCode)) {
+                  seenZones.add(zoneCode);
+                  list.push({
+                    id: `zone-${zoneCode}`,
+                    type: "Khu",
+                    code: zoneCode,
+                    name: z.name || `Khu ${zoneCode}`,
+                  });
+                }
+              });
+            }
+          });
+
+          if (list.length > 0) {
+            setStructureList(list);
+          }
+        }
+      } catch (err) {
+        console.warn("Lỗi khi tải cấu trúc bãi xe từ backend:", err);
+      }
+    };
+
+    fetchStructure();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   // 3b. Derive floorOptions và zoneOptions từ structureList
   const floorOptions = useMemo(() => {

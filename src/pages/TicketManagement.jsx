@@ -15,11 +15,13 @@ export default function TicketManagement() {
     filteredTickets,
     paginatedTickets,
     filters,
+    loading,
+    error,
+    refreshTickets,
     currentPage,
     totalPages,
     itemsPerPage,
     setCurrentPage,
-    setItemsPerPage,
     handleFilterChange,
     handleResetFilters,
     handleItemsPerPageChange,
@@ -125,6 +127,21 @@ export default function TicketManagement() {
         }
       />
 
+      {/* Banner cảnh báo lỗi backend nếu có */}
+      {error && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs px-4 py-3 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">Lỗi tải dữ liệu vé:</span>
+            <span>{error}</span>
+          </div>
+          {refreshTickets && (
+            <Button variant="ghost" size="xs" onClick={refreshTickets}>
+              Thử lại
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* 2. Bộ lọc tìm kiếm vé */}
       <TicketFilters
         filters={filters}
@@ -155,6 +172,9 @@ export default function TicketManagement() {
           tickets={paginatedTickets}
           currentPage={currentPage}
           itemsPerPage={itemsPerPage}
+          isLoading={loading}
+          error={error}
+          onRetry={refreshTickets}
           onOpenDetail={handleOpenDetail}
           onOpenRenew={handleOpenRenew}
           onOpenDelete={handleOpenDelete}
@@ -167,10 +187,7 @@ export default function TicketManagement() {
             onPageChange={setCurrentPage}
             totalItems={filteredTickets.length}
             itemsPerPage={itemsPerPage}
-            onItemsPerPageChange={(num) => {
-              setItemsPerPage(num);
-              setCurrentPage(1);
-            }}
+            onItemsPerPageChange={handleItemsPerPageChange}
             itemsPerPageOptions={[5, 10, 20]}
           />
         </div>

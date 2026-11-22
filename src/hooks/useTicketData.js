@@ -1,13 +1,44 @@
-import { useState, useMemo } from "react";
-import { initialTickets } from "../mocks/ticketsData";
-import { mockCustomers } from "../mocks/customerData";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { INITIAL_TICKET_FILTERS } from "../constants/ticketConstants";
+import { ticketService } from "../services/ticketService";
+import { mockCustomers } from "../mocks/customerData";
 
 export default function useTicketData() {
-  const [tickets, setTickets] = useState(initialTickets);
+  const [tickets, setTickets] = useState([]);
+  const [ticketTypes, setTicketTypes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filters, setFilters] = useState(INITIAL_TICKET_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+
+  const fetchTickets = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await ticketService.getTickets();
+      setTickets(data);
+    } catch (err) {
+      console.error("[useTicketData] Lỗi tải danh sách vé:", err);
+      setError(err?.message || "Không thể tải danh sách vé");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchTicketTypes = useCallback(async () => {
+    try {
+      const types = await ticketService.getTicketTypes();
+      setTicketTypes(types);
+    } catch (err) {
+      console.warn("[useTicketData] Lỗi tải loại vé:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTickets();
+    fetchTicketTypes();
+  }, [fetchTickets, fetchTicketTypes]);
 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
@@ -73,59 +104,70 @@ export default function useTicketData() {
     setCurrentPage(1);
   };
 
-  const handleCreateTicket = (newTicketData) => {
-    const cust = mockCustomers.find(
-      (c) => c.customerCode === newTicketData.customer,
-    );
-    const created = {
-      stt: tickets.length + 1,
-      ticketCode: `VT000${tickets.length + 1}`,
-      customerCode: newTicketData.customer || "KH0001",
-      customerName: cust?.name || newTicketData.customerName || "Khách hàng mới",
-      licensePlate: newTicketData.vehicle || "51K-000-00",
-      ticketType: newTicketData.ticketType || "Vé tháng",
-      startDate: newTicketData.startDate || new Date().toLocaleDateString("vi-VN"),
-      endDate: newTicketData.endDate || new Date().toLocaleDateString("vi-VN"),
-      price: `${Number(newTicketData.price || 0).toLocaleString("vi-VN")}đ`,
-      slotLocation: newTicketData.parkingSlot || "Tầng B1 - Auto",
-      status: "active",
-      statusText: "Đang hoạt động",
-    };
-    setTickets((prev) => [created, ...prev]);
+  const handleCreateTicket = async (newTicketData) => {
+    try {
+      const cust = mockCustomers.find(
+        (c) => c.customerCode === newTicketData.customer,
+      );
+      const payload = {
+        ...newTicketData,
+        customerName: cust?.name || newTicketData.customerName,
+      };
+
+      const created = await ticketService.createTicket(payload);
+      if (created) {
+        setTickets((prev) => [created, ...prev]);
+      }
+      return created;
+    } catch (err) {
+      console.error("[useTicketData] Lỗi tạo vé:", err);
+      throw err;
+    }
   };
 
-  const handleRenewTicket = (renewData) => {
-    setTickets((prev) =>
-      prev.map((t) => {
-        if (t.ticketCode === renewData.ticketId) {
-          return {
-            ...t,
-            ticketType: renewData.newTicketType || t.ticketType,
-            endDate: renewData.newEndDate || t.endDate,
-            price: renewData.renewPrice
-              ? `${Number(renewData.renewPrice).toLocaleString("vi-VN")}đ`
-              : t.price,
-            slotLocation: renewData.newSlot || t.slotLocation,
-            status: "active",
-            statusText: "Đang hoạt động",
-          };
-        }
-        return t;
-      }),
-    );
+  const handleRenewTicket = async (renewData) => {
+    try {
+      const targetId = renewData.ticketId || renewData.id;
+      const renewed = await ticketService.renewTicket(targetId, renewData);
+      if (renewed) {
+        setTickets((prev) =>
+          prev.map((t) =>
+            t.ticketCode === targetId || String(t.id) === String(targetId)
+              ? { ...t, ...renewed }
+              : t,
+          ),
+        );
+      }
+      return renewed;
+    } catch (err) {
+      console.error("[useTicketData] Lỗi gia hạn vé:", err);
+      throw err;
+    }
   };
 
-  const handleDeleteTicket = (ticketToDelete) => {
-    setTickets((prev) =>
-      prev.filter(
-        (t) =>
-          t.ticketCode !== (ticketToDelete?.ticketCode || ticketToDelete?.id),
-      ),
-    );
+  const handleDeleteTicket = async (ticketToDelete) => {
+    const targetId = ticketToDelete?.id || ticketToDelete?.ticketCode;
+    try {
+      await ticketService.deleteTicket(targetId);
+      setTickets((prev) =>
+        prev.filter(
+          (t) =>
+            t.ticketCode !== (ticketToDelete?.ticketCode || ticketToDelete?.id) &&
+            String(t.id) !== String(targetId),
+        ),
+      );
+    } catch (err) {
+      console.error("[useTicketData] Lỗi xóa vé:", err);
+      throw err;
+    }
   };
 
   return {
     tickets,
+    ticketTypes,
+    loading,
+    error,
+    refreshTickets: fetchTickets,
     filteredTickets,
     paginatedTickets,
     filters,

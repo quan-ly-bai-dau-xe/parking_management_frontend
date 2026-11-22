@@ -7,6 +7,10 @@ import {
   getSlots,
   fetchParkingSlots,
   updateSlotStatus,
+  getParkingStructure,
+  fetchParkingStructure,
+  getParkingLotConfig,
+  fetchParkingLotConfig,
   getActiveSessions,
   fetchActiveSessions,
   parkingLotService,
@@ -21,6 +25,10 @@ test('1. Service exports and aliases conform to PROJECT.md interface contract', 
   assert.equal(typeof getSlots, 'function', 'getSlots must be a function');
   assert.equal(fetchParkingSlots, getSlots, 'fetchParkingSlots must be an exact alias of getSlots');
   assert.equal(typeof updateSlotStatus, 'function', 'updateSlotStatus must be a function');
+  assert.equal(typeof getParkingStructure, 'function', 'getParkingStructure must be a function');
+  assert.equal(fetchParkingStructure, getParkingStructure, 'fetchParkingStructure must be an exact alias of getParkingStructure');
+  assert.equal(getParkingLotConfig, getParkingStructure, 'getParkingLotConfig must be an exact alias of getParkingStructure');
+  assert.equal(fetchParkingLotConfig, getParkingStructure, 'fetchParkingLotConfig must be an exact alias of getParkingStructure');
   assert.equal(typeof getActiveSessions, 'function', 'getActiveSessions must be a function');
   assert.equal(fetchActiveSessions, getActiveSessions, 'fetchActiveSessions must be an exact alias of getActiveSessions');
   assert.equal(typeof normalizeSlot, 'function', 'normalizeSlot must be a function');
@@ -29,6 +37,10 @@ test('1. Service exports and aliases conform to PROJECT.md interface contract', 
   assert.equal(parkingLotService.getSlots, getSlots);
   assert.equal(parkingLotService.fetchParkingSlots, fetchParkingSlots);
   assert.equal(parkingLotService.updateSlotStatus, updateSlotStatus);
+  assert.equal(parkingLotService.getParkingStructure, getParkingStructure);
+  assert.equal(parkingLotService.fetchParkingStructure, fetchParkingStructure);
+  assert.equal(parkingLotService.getParkingLotConfig, getParkingLotConfig);
+  assert.equal(parkingLotService.fetchParkingLotConfig, fetchParkingLotConfig);
   assert.equal(parkingLotService.getActiveSessions, getActiveSessions);
   assert.equal(parkingLotService.fetchActiveSessions, fetchActiveSessions);
   assert.equal(parkingLotService.normalizeSlot, normalizeSlot);
@@ -355,6 +367,24 @@ test('12. Error status propagation: getSlots propagates HTTP 404, 500, and netwo
 
     await assert.rejects(
       async () => await getSlots({ floor: 'B1' }),
+      (err) => {
+        assert.equal(err.code, 'API_UNAVAILABLE');
+        return true;
+      }
+    );
+
+    // Verify updateSlotStatus also propagates errors without silent simulation
+    await assert.rejects(
+      async () => await updateSlotStatus('A-01', 'MAINTENANCE'),
+      (err) => {
+        assert.equal(err.code, 'API_UNAVAILABLE');
+        return true;
+      }
+    );
+
+    // Verify getParkingStructure also propagates errors without silent fallback
+    await assert.rejects(
+      async () => await getParkingStructure(),
       (err) => {
         assert.equal(err.code, 'API_UNAVAILABLE');
         return true;

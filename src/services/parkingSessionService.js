@@ -4,9 +4,9 @@ import { mockParkingHistory } from "../mocks/parkingHistoryData.js";
 import { mockVehicles } from "../mocks/vehicleData.js";
 import { calculateParkingFee } from "../utils/parking/parkingFeeCalculator.js";
 import { parseEntryTimeToDate } from "../utils/parking/plateScanMapper.js";
-import { IS_MOCK_ENABLED } from "../config/appConfig.js";
+import { isMockEnabled } from "../config/appConfig.js";
 
-const USE_MOCK = IS_MOCK_ENABLED;
+const USE_MOCK = isMockEnabled("parkingSessions");
 
 export { calculateParkingFee, validateVehicleEntry } from "../utils/parking/parkingFeeCalculator.js";
 

@@ -1,0 +1,15 @@
+# Hard guardrail to block AI agent file reading tools for sensitive credentials
+.env
+.env.*
+.env*
+**/.env
+**/.env.*
+**/.env*
+*.env
+*.env.*
+
+# Strictly preserve and allow example template files only
+!.env.example
+!.env.example.*
+!**/.env.example
+!**/.env.example.*

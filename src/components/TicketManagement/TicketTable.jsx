@@ -1,12 +1,18 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import DataTable from "../common/table/DataTable";
 import TableActions from "../common/table/TableActions";
+import EmptyState from "../common/EmptyState";
+import LoadingSpinner from "../common/LoadingSpinner";
+import Button from "../common/button";
 import VehicleTicketTypeBadge from "../VehicleManagement/VehicleTicketTypeBadge";
 
 export default function TicketTable({
   tickets,
   currentPage,
   itemsPerPage,
+  isLoading,
+  error,
+  onRetry,
   onOpenDetail,
   onOpenRenew,
   onOpenDelete,
@@ -159,12 +165,50 @@ export default function TicketTable({
     [currentPage, itemsPerPage, onOpenDetail, onOpenRenew, onOpenDelete],
   );
 
+  const emptyContent = isLoading ? (
+    <div className="py-12 flex flex-col items-center justify-center">
+      <LoadingSpinner />
+      <span className="mt-2 text-xs text-slate-500">Đang tải dữ liệu vé...</span>
+    </div>
+  ) : error ? (
+    <EmptyState
+      title="Không thể tải dữ liệu vé"
+      description={error}
+      icon={
+        <svg
+          className="w-10 h-10 text-rose-500 stroke-[1.5]"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          />
+        </svg>
+      }
+      action={
+        onRetry ? (
+          <Button variant="secondary" size="sm" onClick={onRetry}>
+            Thử lại
+          </Button>
+        ) : null
+      }
+    />
+  ) : (
+    <EmptyState
+      title="Không tìm thấy vé nào"
+      description="Không tìm thấy vé nào phù hợp với điều kiện tìm kiếm hoặc chưa có vé trong hệ thống."
+    />
+  );
+
   return (
     <DataTable
       columns={columns}
       rows={tickets || []}
       rowKey="ticketCode"
-      emptyMessage="Không tìm thấy vé nào phù hợp với điều kiện tìm kiếm."
+      emptyMessage={emptyContent}
     />
   );
 }
