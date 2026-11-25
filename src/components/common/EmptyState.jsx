@@ -40,11 +40,11 @@ export default function EmptyState({
       </div>
 
       {/* Title */}
-      <p className="text-xs font-normal text-slate-400">{title}</p>
+      <p className="text-xs font-semibold text-slate-700">{title}</p>
 
       {/* Optional Description */}
       {description && (
-        <p className="text-xs text-slate-400 mt-1 max-w-sm">{description}</p>
+        <p className="text-xs text-slate-500 mt-1 max-w-sm">{description}</p>
       )}
 
       {/* Optional Action Button */}

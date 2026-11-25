@@ -59,4 +59,7 @@ export const ParkingSessionSchema = z.object({
   has_active_ticket: z.boolean().nullable().optional(),
   hasActiveTicket: z.boolean().nullable().optional(),
   ticket: z.unknown().optional(),
+
+  // Ghi chú & Dấu vết kiểm toán (Notes / Audit Trail)
+  notes: z.string().nullable().optional(),
 });

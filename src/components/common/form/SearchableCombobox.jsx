@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from "react";
+import React, { useRef, useState, useEffect, useMemo, useId } from "react";
 
 /**
  * SearchableCombobox
@@ -26,6 +26,7 @@ export default function SearchableCombobox({
   disabled = false,
   error = "",
 }) {
+  const inputId = useId();
   const [searchTerm, setSearchTerm] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
@@ -76,7 +77,7 @@ export default function SearchableCombobox({
     <div className="relative w-full" ref={containerRef}>
       {label && (
         <div className="flex items-center justify-between mb-1">
-          <label className="block text-2xs font-semibold text-slate-500">
+          <label htmlFor={inputId} className="block text-2xs font-semibold text-slate-500">
             {label} {required && <span className="text-rose-500">*</span>}
           </label>
           {options.length > 0 && (
@@ -125,10 +126,12 @@ export default function SearchableCombobox({
         <div className="relative">
           <div className="relative flex items-center">
             <input
+              id={inputId}
               type="text"
               disabled={disabled}
               placeholder={disabled ? "Không khả dụng" : placeholder}
               value={searchTerm}
+              aria-label={label || placeholder}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setIsOpen(true);

@@ -3,6 +3,7 @@ import BaseModal from "../common/modal/BaseModal";
 import Button from "../common/button/Button";
 import ParkingSlotPicker from "../common/parking/ParkingSlotPicker";
 import { getAvailableSlotsForCheckIn } from "../../services/parkingSessionService";
+import { isMockEnabled } from "../../config/appConfig";
 
 export default function AssignSlotModal({ isOpen, onClose, vehicle, onAssignSlot }) {
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -41,7 +42,11 @@ export default function AssignSlotModal({ isOpen, onClose, vehicle, onAssignSlot
       .catch((err) => {
         if (!isMounted) return;
         console.warn("Could not load available slots:", err);
-        setErrorMessage("Không thể tải danh sách ô đỗ trống. Vui lòng thử lại.");
+        setErrorMessage(
+          err?.response?.status === 404 || err?.message?.includes("404")
+            ? "Backend chưa hỗ trợ API ô đỗ xe (/api/v1/parking/slots/). Không thể tải danh sách ô đỗ thực tế."
+            : err?.message || "Không thể tải danh sách ô đỗ trống. Vui lòng thử lại."
+        );
       })
       .finally(() => {
         if (isMounted) setIsLoadingSlots(false);
@@ -128,6 +133,18 @@ export default function AssignSlotModal({ isOpen, onClose, vehicle, onAssignSlot
             </span>
           </div>
         )}
+
+        {/* Badge đánh dấu chế độ dữ liệu ô đỗ */}
+        {isMockEnabled("parkingLot") ? (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-3xs px-3 py-1.5 rounded-lg flex items-center justify-between">
+            <span className="font-medium">
+              ℹ️ Đang hiển thị danh sách ô đỗ mô phỏng (Sandbox). Backend chưa mở route <code>/api/v1/parking/slots/</code>.
+            </span>
+            <span className="font-semibold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded text-4xs uppercase tracking-wider">
+              Mô phỏng
+            </span>
+          </div>
+        ) : null}
 
         {errorMessage && (
           <div className="text-xs bg-rose-50 text-rose-700 border border-rose-200 px-3 py-2 rounded-lg">

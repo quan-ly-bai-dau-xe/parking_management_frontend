@@ -43,6 +43,7 @@ Mandatory standards when writing and modifying Frontend code (React 19 + Tailwin
 - **`docs/00-overview.md`** — Read when you need the product context, goals, scope, or high-level project overview.
 - **`docs/01-architecture.md`** — Read when you need to understand the system structure, module boundaries, or intended technical architecture.
 - **`docs/02-srs.md`** — Read when implementing or reviewing functional requirements, user flows, or acceptance criteria.
+- **`docs/03-business-flows.md`** — Read when you need sequence diagrams, core business workflows (check-in, check-out, slot & ticket states), and business error maps.
 - **`docs/04-coding-convention.md`** — Read when creating or modifying code and you need the project's detailed coding conventions.
 - **`docs/05-testing.md`** — Read when writing, reviewing, or executing test cases, smoke tests, and test specifications.
 - **`docs/design-system/design-tokens.md`** — Read when styling UI and you need verified color, typography, spacing, radius, elevation, or status tokens.

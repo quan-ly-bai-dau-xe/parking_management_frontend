@@ -4,7 +4,7 @@ import { CustomerListItemSchema, CustomerDetailSchema } from "../schemas/custome
 import { STATUS_MAP_CODE_TO_DISPLAY } from "../constants/customerConstants";
 import { formatIsoDateToDisplay } from "../utils/formatDateTime";
 import { mapCustomerFormToBackendPayload } from "../utils/customer/customerFormMapper";
-import { IS_MOCK_ENABLED } from "../config/appConfig";
+import { isMockEnabled } from "../config/appConfig.js";
 
 /**
  * Mapper functions: Chuyển đổi dữ liệu vehicle
@@ -80,7 +80,7 @@ function validateAndMapCustomers(rawData) {
 }
 
 // Biến điều khiển mock data tập trung từ appConfig:
-const USE_MOCK = IS_MOCK_ENABLED;
+const USE_MOCK = isMockEnabled("customers");
 
 export const customerService = {
   /**

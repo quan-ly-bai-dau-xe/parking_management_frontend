@@ -9,6 +9,9 @@ import { formatLicensePlateForDisplay } from "../../../utils/plateFormatter";
 import { formatCurrencyVND, PAYMENT_METHODS } from "../../../constants/paymentConstants";
 import { getCustomerWalletBalance } from "../../../services/walletService";
 import { calculateParkingDuration } from "../../../utils/parking/parkingFeeCalculator";
+import { useCurrentUser } from "../../../hooks/useCurrentUser";
+import AbnormalReasonSelector from "../../ParkingHistory/AbnormalReasonSelector";
+import { formatAuditNotes } from "../../../constants/abnormalSessionConstants";
 
 const ACTION_TYPES = {
   MANUAL_CHECKOUT: "manual_checkout",
@@ -28,18 +31,25 @@ export default function CloseSessionSafetyModal({
   onConfirmClose,
   isLoading = false,
 }) {
+  const { isManager, displayName } = useCurrentUser();
   const [actionType, setActionType] = useState(ACTION_TYPES.MANUAL_CHECKOUT);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [reason, setReason] = useState("");
+  const [reasonCode, setReasonCode] = useState("");
+  const [reasonDetail, setReasonDetail] = useState("");
+  const [approverName, setApproverName] = useState("");
   const [feePreview, setFeePreview] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
     if (isOpen && (licensePlate || openSession)) {
       setActionType(ACTION_TYPES.MANUAL_CHECKOUT);
       setPaymentMethod("CASH");
-      setReason("");
+      setReasonCode("");
+      setReasonDetail("");
+      setApproverName("");
       setFeePreview(null);
+      setValidationError("");
 
       const fetchFee = async () => {
         setIsPreviewLoading(true);
@@ -91,16 +101,37 @@ export default function CloseSessionSafetyModal({
   const isZeroFeeAnomaly = calculatedFeeAmount === 0 && (!entryTime || !localDurationData);
   const isWalletSufficient = walletBalance >= calculatedFeeAmount;
 
-  const isFormValid =
-    actionType === ACTION_TYPES.MANUAL_CHECKOUT ||
-    (actionType === ACTION_TYPES.CANCEL_GLITCH && reason.trim().length >= 5);
+  // Validation Gate
+  const validationResult = validateAbnormalAction({
+    actionType,
+    reasonCode,
+    detail: reasonDetail,
+    isManager,
+    approverName,
+  });
 
   const handleConfirm = () => {
-    if (!isFormValid) return;
+    if (!validationResult.isValid) {
+      setValidationError(validationResult.error || "Vui lòng hoàn thiện đầy đủ các trường bắt buộc");
+      return;
+    }
+    setValidationError("");
+
+    const auditNotes = formatAuditNotes({
+      groupCode: actionType,
+      reasonCode,
+      detail: reasonDetail,
+      actorName: displayName || "Bảo vệ cổng vào",
+      approverName: isManager ? (displayName || "Quản lý") : approverName.trim(),
+    });
+
     onConfirmClose({
       actionType,
       paymentMethod: actionType === ACTION_TYPES.CANCEL_GLITCH ? "EXEMPT" : paymentMethod,
-      reason: reason.trim(),
+      reason: auditNotes,
+      reasonCode,
+      reasonDetail: reasonDetail.trim(),
+      approverName: isManager ? (displayName || "Quản lý") : approverName.trim(),
       feeAmount: actionType === ACTION_TYPES.CANCEL_GLITCH ? 0 : calculatedFeeAmount,
       sessionCode,
       licensePlate: targetPlate,
@@ -282,18 +313,34 @@ export default function CloseSessionSafetyModal({
           </div>
         )}
 
-        {actionType === ACTION_TYPES.CANCEL_GLITCH && (
-          <div>
-            <label className="block text-2xs font-semibold text-rose-800 mb-1">
-              Lý do hủy phiên (bắt buộc, tối thiểu 5 ký tự):
-            </label>
-            <input
-              type="text"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Ví dụ: Camera OCR nhầm biển 51A thành 51B, xe thật vẫn đang đỗ..."
-              className="w-full text-2xs border border-rose-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-rose-500 text-slate-800 bg-white"
-            />
+        {/* Bộ chọn lý do chuẩn hóa thích ứng (AbnormalReasonSelector) */}
+        <AbnormalReasonSelector
+          groupCode={actionType}
+          selectedCode={reasonCode}
+          onSelectCode={(code) => {
+            setReasonCode(code);
+            setValidationError("");
+          }}
+          detail={reasonDetail}
+          onChangeDetail={(val) => {
+            setReasonDetail(val);
+            setValidationError("");
+          }}
+          isManager={isManager}
+          approverName={approverName}
+          onChangeApproverName={(val) => {
+            setApproverName(val);
+            setValidationError("");
+          }}
+        />
+
+        {/* Thông báo lỗi validation trực quan khi người dùng bấm xác nhận mà chưa đủ thông tin */}
+        {validationError && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2 animate-shake">
+            <svg className="w-4 h-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="font-medium">{validationError}</span>
           </div>
         )}
       </div>

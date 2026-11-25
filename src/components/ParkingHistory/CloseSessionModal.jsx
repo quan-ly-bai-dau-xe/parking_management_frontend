@@ -4,6 +4,12 @@ import LoadingSpinner from "../common/LoadingSpinner";
 import { previewParkingFee } from "../../services/parkingSessionService";
 import { formatLicensePlateForDisplay } from "../../utils/plateFormatter";
 import { formatCurrencyVND } from "../../constants/paymentConstants";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
+import AbnormalReasonSelector from "./AbnormalReasonSelector";
+import {
+  formatAuditNotes,
+  validateAbnormalAction,
+} from "../../constants/abnormalSessionConstants";
 
 /**
  * CloseSessionModal
@@ -20,26 +26,37 @@ export default function CloseSessionModal({
   onSubmitAction,
   isLoading = false,
 }) {
+  const { isManager, displayName } = useCurrentUser();
   const [actionType, setActionType] = useState("manual_checkout");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [reason, setReason] = useState("");
+  const [reasonCode, setReasonCode] = useState("");
+  const [reasonDetail, setReasonDetail] = useState("");
+  const [approverName, setApproverName] = useState("");
   const [feePreview, setFeePreview] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
     if (isOpen && session) {
       setActionType("manual_checkout");
       setPaymentMethod("CASH");
-      setReason("");
+      setReasonCode("");
+      setReasonDetail("");
+      setApproverName("");
       setFeePreview(null);
+      setValidationError("");
 
       // Tải dự tính cước phí nếu là xe ra bãi
       const fetchFee = async () => {
         setIsPreviewLoading(true);
         try {
+          const entryTime = session.entryTime || session.entry_time || session.entryTimeRaw;
           const res = await previewParkingFee({
             licensePlate: session.licensePlate || session.license_plate,
             sessionCode: session.sessionCode || session.session_code,
+            entryTime,
+            vehicleType: session.vehicleType || session.vehicle_type || "CAR",
+            hasActiveTicket: Boolean(session.hasActiveTicket),
           });
           setFeePreview(res);
         } catch (err) {
@@ -60,18 +77,40 @@ export default function CloseSessionModal({
   const sessionCode = session.sessionCode || session.session_code;
   const currentSlot = session.slotCode || session.slot_display || session.slot_code || "Chưa có vị trí";
 
-  const isFormValid =
-    actionType === "manual_checkout" ||
-    (actionType === "cancel_glitch" && reason.trim().length > 0) ||
-    (actionType === "release_slot" && reason.trim().length > 0);
+  // Kiểm tra tính hợp lệ của biểu mẫu (Validation Gate thống nhất)
+  const validationResult = validateAbnormalAction({
+    actionType,
+    reasonCode,
+    detail: reasonDetail,
+    isManager,
+    approverName,
+  });
+  const isFormValid = validationResult.isValid;
 
   const handleConfirm = () => {
-    if (!isFormValid) return;
+    if (!validationResult.isValid) {
+      setValidationError(validationResult.error || "Vui lòng hoàn thiện đầy đủ các trường bắt buộc");
+      return;
+    }
+    setValidationError("");
+
+    // Đóng gói vết kiểm toán dạng có cấu trúc
+    const auditNotes = formatAuditNotes({
+      groupCode: actionType,
+      reasonCode,
+      detail: reasonDetail,
+      actorName: displayName || "Bảo vệ trực ca",
+      approverName: isManager ? (displayName || "Quản lý") : approverName.trim(),
+    });
+
     onSubmitAction({
       actionType,
       session,
       paymentMethod,
-      reason: reason.trim(),
+      reasonCode,
+      reason: auditNotes,
+      reasonDetail: reasonDetail.trim(),
+      approverName: isManager ? (displayName || "Quản lý") : approverName.trim(),
       feePreview,
     });
   };
@@ -230,67 +269,59 @@ export default function CloseSessionModal({
                 </label>
               </div>
             </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Ghi chú xuất bãi (tùy chọn):
-              </label>
-              <input
-                type="text"
-                placeholder="VD: Cổng 2 mất điện, đã thu tiền mặt tại bốt..."
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
-              />
-            </div>
           </div>
         )}
 
         {actionType === "cancel_glitch" && (
-          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl space-y-3 text-rose-900">
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2 text-rose-900">
             <div className="flex gap-2.5">
               <span className="text-rose-600 text-base">⚠️</span>
               <div className="text-[11px] leading-relaxed">
                 Hệ thống sẽ <strong>hủy bỏ hoàn toàn</strong> phiên này với cước phí <strong>0đ</strong>, không tạo bất kỳ giao dịch trừ tiền nào và lập tức <strong>giải phóng ô đỗ {currentSlot}</strong>.
               </div>
             </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-rose-950 mb-1">
-                Lý do hủy phiên <span className="text-rose-600">*</span>:
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="VD: Camera nhận diện nhầm biển số, xe không có trong bãi..."
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-white border border-rose-300 rounded-lg focus:outline-none focus:border-rose-500 text-slate-800"
-              />
-            </div>
           </div>
         )}
 
         {actionType === "release_slot" && (
-          <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl space-y-3 text-blue-900">
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-2 text-blue-900">
             <div className="flex gap-2.5">
               <span className="text-blue-600 text-base">ℹ️</span>
               <div className="text-[11px] leading-relaxed">
                 Hành động này chỉ trả ô đỗ <strong>{currentSlot}</strong> về trạng thái Trống để xe khác vào đỗ. <strong>Phiên gửi xe vẫn được giữ nguyên</strong> trong hệ thống và <strong>không thu bất kỳ đồng nào</strong> của khách.
               </div>
             </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-blue-950 mb-1">
-                Lý do giải phóng ô đỗ <span className="text-blue-600">*</span>:
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="VD: Bảo vệ kiểm tra ô thực tế trống, xe đã chuyển sang vị trí khác..."
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-white border border-blue-300 rounded-lg focus:outline-none focus:border-blue-500 text-slate-800"
-              />
-            </div>
+          </div>
+        )}
+
+        {/* Bộ chọn lý do chuẩn hóa thích ứng (AbnormalReasonSelector) */}
+        <AbnormalReasonSelector
+          groupCode={actionType}
+          selectedCode={reasonCode}
+          onSelectCode={(code) => {
+            setReasonCode(code);
+            setValidationError("");
+          }}
+          detail={reasonDetail}
+          onChangeDetail={(val) => {
+            setReasonDetail(val);
+            setValidationError("");
+          }}
+          isManager={isManager}
+          approverName={approverName}
+          onChangeApproverName={(val) => {
+            setApproverName(val);
+            setValidationError("");
+          }}
+        />
+
+        {/* Thông báo lỗi validation trực quan khi người dùng bấm xác nhận mà chưa đủ thông tin */}
+        {validationError && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2 animate-shake">
+            <svg className="w-4 h-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="font-medium">{validationError}</span>
           </div>
         )}
       </div>

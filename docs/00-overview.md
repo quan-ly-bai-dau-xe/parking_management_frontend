@@ -75,3 +75,9 @@ Phần mềm **Hệ thống Quản lý Bãi đậu xe Ô tô (Parking Management
 - **Package Manager**: npm
 - **Version Control**: Git
 
+---
+
+## 7. Tài Liệu Dự Án (Documentation Index)
+
+Chi tiết danh mục và mục đích sử dụng của các tài liệu kỹ thuật, đặc tả nghiệp vụ, kiến trúc và design system được duy trì tập trung tại [AGENTS.md (Documentation Index)](file:///e:/code/parking_management/parking_management_frontend/AGENTS.md#L41-L54).
+

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import AppTopHeader from "../components/layout/AppTopHeader";
 import BuyTicketModal from "../components/customerManagement/CustomerBuyTicketModal";
-import { mockCustomers } from "../mocks/customerData";
+import { MOCK_CUSTOMERS } from "../mocks/customerSideData";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { apiClient } from "../services/apiClient";
 
@@ -9,18 +9,19 @@ export default function CustomerTicketsPage() {
   const { user } = useCurrentUser();
 
   // Lấy danh sách phương tiện và vé từ hồ sơ khách hàng hiện tại
-  const initialVehicles = useMemo(() => {
-    if (!user) return mockCustomers[0].vehicles;
-    const found = mockCustomers.find(
-      (c) =>
-        c.customer.email === user.email ||
-        c.customer.phone === user.phone ||
-        c.customer.identity_card_number === user.identity_card_number
+  const currentCustomerData = useMemo(() => {
+    if (!user) return MOCK_CUSTOMERS[0];
+    return (
+      MOCK_CUSTOMERS.find(
+        (c) =>
+          c.customer.email === user.email ||
+          c.customer.phone === user.phone ||
+          c.customer.identity_card_number === user.identity_card_number
+      ) || MOCK_CUSTOMERS[0]
     );
-    return found ? found.vehicles : mockCustomers[0].vehicles;
   }, [user]);
 
-  const [vehicles, setVehicles] = useState(initialVehicles);
+  const [vehicles, setVehicles] = useState(() => currentCustomerData.vehicles);
   const [statusFilter, setStatusFilter] = useState("ALL"); // 'ALL' | 'ACTIVE' | 'CANCELLED'
   const [isBuyModalOpen, setIsBuyModalOpen] = useState(false);
   const [preselectedVehicleCode, setPreselectedVehicleCode] = useState("");
@@ -41,7 +42,7 @@ export default function CustomerTicketsPage() {
       .filter((v) => v.ticket && v.ticket.ticket_type !== "NONE" && v.ticket.status !== "INACTIVE")
       .map((v) => ({
         vehicleCode: v.code,
-        licensePlate: v.licensePlate,
+        licensePlate: v.license_plate || v.licensePlate,
         vehicleInfo: `${v.brand} ${v.model_name} · ${v.vehicle_type_name}`,
         ...v.ticket,
       }));

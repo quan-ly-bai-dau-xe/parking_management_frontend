@@ -32,7 +32,13 @@ storybook-static
 .opencode
 opencode.jsonc
 
+# Environment and sensitive secret files
 .env
+.env.*
+.env*.local
+!.env.example
+!.env.example.*
+
 
 my-files
 start-opencode.bat

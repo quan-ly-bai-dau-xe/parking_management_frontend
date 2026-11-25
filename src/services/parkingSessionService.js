@@ -4,9 +4,9 @@ import { mockParkingHistory } from "../mocks/parkingHistoryData.js";
 import { mockVehicles } from "../mocks/vehicleData.js";
 import { calculateParkingFee } from "../utils/parking/parkingFeeCalculator.js";
 import { parseEntryTimeToDate } from "../utils/parking/plateScanMapper.js";
-import { IS_MOCK_ENABLED } from "../config/appConfig.js";
+import { isMockEnabled } from "../config/appConfig.js";
 
-const USE_MOCK = IS_MOCK_ENABLED;
+const USE_MOCK = isMockEnabled("parkingSessions");
 
 export { calculateParkingFee, validateVehicleEntry } from "../utils/parking/parkingFeeCalculator.js";
 
@@ -444,10 +444,25 @@ export function calculateLocalFeePreview({
   if (entryTime) {
     parsedEntryDate = entryTime instanceof Date ? entryTime : parseEntryTimeToDate(entryTime);
   }
-  const entryDate = parsedEntryDate && !Number.isNaN(parsedEntryDate.getTime())
-    ? parsedEntryDate
-    : new Date(now.getTime() - 65 * 60 * 1000);
 
+  // Nếu không có thông tin giờ vào hợp lệ -> Trả về trạng thái chưa rõ giờ vào, không tự gán số phút giả định
+  if (!parsedEntryDate || Number.isNaN(parsedEntryDate.getTime())) {
+    return {
+      session_id: null,
+      session_code: sessionCode || "SS-PREVIEW",
+      license_plate: licensePlate || "—",
+      entry_time: null,
+      duration_minutes: 0,
+      duration_text: "—",
+      fee_amount: 0,
+      has_active_ticket: hasActiveTicket,
+      is_exempt: false,
+      hourly_rate: 10000.0,
+      unknown_entry_time: true,
+    };
+  }
+
+  const entryDate = parsedEntryDate;
   const durationMinutes = Math.max(1, Math.round((now - entryDate) / (1000 * 60)));
 
   const feeData = calculateParkingFee({
@@ -472,6 +487,7 @@ export function calculateLocalFeePreview({
     has_active_ticket: hasActiveTicket,
     is_exempt: false,
     hourly_rate: 10000.0,
+    unknown_entry_time: false,
   };
 }
 

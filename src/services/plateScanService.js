@@ -11,9 +11,9 @@ import {
   parseEntryTimeToDate,
   normalizePlate,
 } from "../utils/parking/plateScanMapper.js";
-import { IS_MOCK_ENABLED } from "../config/appConfig.js";
+import { isMockEnabled } from "../config/appConfig.js";
 
-const USE_MOCK = IS_MOCK_ENABLED;
+const USE_MOCK = isMockEnabled("plateScans");
 
 export {
   mapParkingSession,
@@ -126,6 +126,26 @@ export async function getParkingSessions(filters = {}) {
     }
     if (filters.max_fee !== undefined && filters.max_fee !== "") {
       list = list.filter((s) => (s.feeNumber ?? 0) <= Number(filters.max_fee));
+    }
+    // Lọc theo xử lý bất thường & kiểm toán
+    if (filters.abnormal_type && filters.abnormal_type !== "all") {
+      const abType = String(filters.abnormal_type).toLowerCase().trim();
+      list = list.filter((s) => {
+        const noteStr = String(s.notes || s.feeBreakdown || "").toLowerCase();
+        const isWaived = Boolean(s.isWaived || s.waiveFee || s.isFeeExempt || noteStr.includes("miễn cước") || noteStr.includes("waived"));
+        const isGlitch = noteStr.includes("cancel_glitch") || noteStr.includes("hủy phiên") || noteStr.includes("nhận diện sai");
+        const isSlotRelease = noteStr.includes("release_slot") || noteStr.includes("giải phóng ô");
+        const isManual = noteStr.includes("manual_checkout") || noteStr.includes("mất điện") || noteStr.includes("thu tiền mặt");
+        const isAnyAbnormal = isWaived || isGlitch || isSlotRelease || isManual || noteStr.includes("[group:");
+
+        if (abType === "normal") return !isAnyAbnormal;
+        if (abType === "abnormal_all") return isAnyAbnormal;
+        if (abType === "ghost_exit") return isWaived;
+        if (abType === "cancel_glitch") return isGlitch;
+        if (abType === "release_slot") return isSlotRelease;
+        if (abType === "manual_checkout") return isManual;
+        return true;
+      });
     }
     const page = Number(filters.page) || 1;
     const pageSize = Number(filters.page_size) || 10;

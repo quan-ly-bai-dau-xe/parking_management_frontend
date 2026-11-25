@@ -6,7 +6,9 @@ import { BaseModal } from "../components/common/modal";
 
 export default function Home({ onNavigateTab }) {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeFloor, setActiveFloor] = useState("B1");
+  const [floorError, setFloorError] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null); // Modal phóng to ảnh camera
 
   const [dashboardData, setDashboardData] = useState({
@@ -18,27 +20,63 @@ export default function Home({ onNavigateTab }) {
 
   // Nạp toàn bộ dữ liệu khi khởi động trang
   useEffect(() => {
+    let isCancelled = false;
     dashboardService
       .loadInitialDashboard("B1")
       .then((data) => {
-        setDashboardData(data);
+        if (!isCancelled) {
+          setDashboardData(data);
+        }
       })
-      .catch((err) => console.error("Lỗi tải trang chủ:", err))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (!isCancelled) {
+          console.error("Lỗi tải trang chủ:", err);
+          setError(err?.message || "Không thể kết nối đến máy chủ Backend.");
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
-  // Xử lý đổi tầng bãi xe
-  const handleFloorChange = (floorId) => {
-    setActiveFloor(floorId);
+  const handleRetry = () => {
+    setLoading(true);
+    setError(null);
+    setFloorError(null);
     dashboardService
-      .getFloorDetails(floorId)
-      .then((res) => {
-        setDashboardData((prev) => ({
-          ...prev,
-          currentFloor: res.data,
-        }));
+      .loadInitialDashboard(activeFloor)
+      .then((data) => {
+        setDashboardData(data);
       })
-      .catch((err) => console.error(err));
+      .catch((err) => {
+        console.error("Lỗi tải trang chủ:", err);
+        setError(err?.message || "Không thể kết nối đến máy chủ Backend.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  // Xử lý đổi tầng bãi xe
+  const handleFloorChange = async (floorId) => {
+    setActiveFloor(floorId);
+    setFloorError(null);
+    try {
+      const res = await dashboardService.getFloorDetails(floorId);
+      setDashboardData((prev) => ({
+        ...prev,
+        currentFloor: res.data,
+      }));
+    } catch (err) {
+      console.error(`Lỗi tải dữ liệu tầng ${floorId}:`, err);
+      setFloorError(err?.message || `Không thể tải dữ liệu tầng ${floorId}`);
+    }
   };
 
   if (loading) {
@@ -105,6 +143,48 @@ export default function Home({ onNavigateTab }) {
         </section>
 
         {/* ========================================================= */}
+        {/* BANNER CẢNH BÁO LỖI BACKEND / MẤT KẾT NỐI                */}
+        {/* ========================================================= */}
+        {error && (
+          <div
+            role="alert"
+            className="bg-rose-50/90 border border-rose-200/90 rounded-2xl p-4 sm:p-5 text-rose-800 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0 mt-0.5">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-rose-900">Không thể kết nối máy chủ Backend</h3>
+                  <span className="px-2 py-0.5 rounded text-[0.65rem] font-semibold bg-rose-200/80 text-rose-800 uppercase tracking-wide">
+                    Live Data Only
+                  </span>
+                </div>
+                <p className="text-xs text-rose-700 leading-relaxed font-normal">
+                  {error}
+                </p>
+                <p className="text-[0.75rem] text-rose-600/90">
+                  Cơ chế tự động nạp dữ liệu ảo (fallback) đã bị tắt để bảo đảm tính toàn vẹn dữ liệu. Vui lòng kiểm tra lại dịch vụ Backend Django hoặc thử lại.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-semibold shadow-sm transition whitespace-nowrap self-end sm:self-auto cursor-pointer"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Thử lại
+            </button>
+          </div>
+        )}
+
+        {/* ========================================================= */}
         {/* 1. THỐNG KÊ TỔNG QUAN                                     */}
         {/* ========================================================= */}
         <section className="space-y-4">
@@ -120,7 +200,7 @@ export default function Home({ onNavigateTab }) {
             </span>
           </div>
 
-          {stats && (
+          {stats ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {/* Thẻ 1: Tổng vị trí bãi */}
               <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between min-h-[175px]">
@@ -235,6 +315,15 @@ export default function Home({ onNavigateTab }) {
                 </div>
               </div>
             </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-8 text-center space-y-2">
+              <p className="text-sm font-semibold text-slate-700">Chưa có dữ liệu thống kê tổng quan</p>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                {error
+                  ? "Máy chủ Backend chưa phản hồi hoặc chưa khởi động. Số liệu thống kê không được hiển thị để tránh dữ liệu ảo."
+                  : "Không có dữ liệu chỉ số từ máy chủ."}
+              </p>
+            </div>
           )}
         </section>
 
@@ -248,16 +337,26 @@ export default function Home({ onNavigateTab }) {
               2. Cảnh báo bất thường
             </h2>
           </div>
-          <div className="space-y-3 pl-4 sm:pl-5">
-            {alerts.map((alert) => (
-              <div key={alert.id} className="flex items-start gap-4 text-xs sm:text-sm">
-                <span className="font-mono text-amber-500 font-semibold shrink-0 select-none">
-                  {alert.time}
-                </span>
-                <p className="text-slate-700 font-normal leading-relaxed">{alert.content}</p>
-              </div>
-            ))}
-          </div>
+          {alerts && alerts.length > 0 ? (
+            <div className="space-y-3 pl-4 sm:pl-5">
+              {alerts.map((alert) => (
+                <div key={alert.id} className="flex items-start gap-4 text-xs sm:text-sm">
+                  <span className="font-mono text-amber-500 font-semibold shrink-0 select-none">
+                    {alert.time}
+                  </span>
+                  <p className="text-slate-700 font-normal leading-relaxed">{alert.content}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-6 text-center">
+              <p className="text-xs text-slate-500 font-medium">
+                {error
+                  ? "Không thể tải danh sách cảnh báo bất thường do sự cố kết nối máy chủ."
+                  : "Hiện không có cảnh báo bất thường nào được ghi nhận từ hệ thống."}
+              </p>
+            </div>
+          )}
         </section>
 
         {/* ========================================================= */}
@@ -286,52 +385,67 @@ export default function Home({ onNavigateTab }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
-                  {history.map((row) => (
-                    <tr key={row.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-4 px-6 font-mono text-slate-600">
-                        <span>{row.sessionCode}</span>
-                        <span className="block text-[0.7rem] text-slate-400 font-sans mt-0.5">{row.vehicleType}</span>
-                      </td>
-                      <td className="py-4 px-6 font-mono font-bold text-slate-800">
-                        {row.licensePlate}
-                      </td>
-                      <td className="py-4 px-6 text-center">
-                        {row.plateImageUrl ? (
-                          <img
-                            src={row.plateImageUrl}
-                            alt={row.licensePlate}
-                            onClick={() => setSelectedImage(row.plateImageUrl)}
-                            className="w-12 h-8 object-cover rounded-md border border-slate-200 mx-auto cursor-pointer hover:opacity-80 transition"
-                          />
-                        ) : (
-                          <span className="text-slate-400 text-xs">Không có</span>
-                        )}
-                      </td>
-                      <td className="py-4 px-6 text-slate-500 font-mono text-xs">
-                        <div>Vào: {row.entryTime}</div>
-                        <div>Ra: {row.exitTime || "Chưa ra"}</div>
-                      </td>
-                      <td className="py-4 px-6 text-slate-700 font-medium">
-                        {row.duration}
-                      </td>
-                      <td className="py-4 px-6 font-mono font-semibold text-slate-900">
-                        {row.fee}
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        {row.status === "completed" ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200/60 text-xs font-medium">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                            Đã ra
+                  {history && history.length > 0 ? (
+                    history.map((row) => (
+                      <tr key={row.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-4 px-6 font-mono text-slate-600">
+                          <span>{row.sessionCode}</span>
+                          <span className="block text-[0.7rem] text-slate-400 font-sans mt-0.5">{row.vehicleType}</span>
+                        </td>
+                        <td className="py-4 px-6 font-mono font-bold text-slate-800">
+                          {row.licensePlate}
+                        </td>
+                        <td className="py-4 px-6 text-center">
+                          {row.plateImageUrl ? (
+                            <img
+                              src={row.plateImageUrl}
+                              alt={row.licensePlate}
+                              onClick={() => setSelectedImage(row.plateImageUrl)}
+                              className="w-12 h-8 object-cover rounded-md border border-slate-200 mx-auto cursor-pointer hover:opacity-80 transition"
+                            />
+                          ) : (
+                            <span className="text-slate-400 text-xs">Không có</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-6 text-slate-500 font-mono text-xs">
+                          <div>Vào: {row.entryTime}</div>
+                          <div>Ra: {row.exitTime || "Chưa ra"}</div>
+                        </td>
+                        <td className="py-4 px-6 text-slate-700 font-medium">
+                          {row.duration}
+                        </td>
+                        <td className="py-4 px-6 font-mono font-semibold text-slate-900">
+                          {row.fee}
+                        </td>
+                        <td className="py-4 px-6 text-right">
+                          {row.status === "completed" ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200/60 text-xs font-medium">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                              Đã ra
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200/60 text-xs font-medium">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                              Trong bãi
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="7" className="py-12 text-center text-slate-500 text-xs">
+                        <div className="flex flex-col items-center justify-center gap-1.5">
+                          <span className="font-semibold text-slate-600">
+                            {error ? "Không thể tải lịch sử ra vào gần đây" : "Chưa có lượt xe ra vào nào"}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200/60 text-xs font-medium">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                            Trong bãi
+                          <span className="text-slate-400 text-[0.75rem]">
+                            {error ? "Vui lòng kiểm tra kết nối Backend và bấm Thử lại." : "Dữ liệu phiên đỗ sẽ xuất hiện tại đây khi xe check-in qua cổng."}
                           </span>
-                        )}
+                        </div>
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -368,6 +482,19 @@ export default function Home({ onNavigateTab }) {
             </div>
           </div>
 
+          {floorError && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 flex items-center justify-between gap-3">
+              <span>{floorError}</span>
+              <button
+                type="button"
+                onClick={() => handleFloorChange(activeFloor)}
+                className="text-amber-900 font-semibold underline hover:text-amber-700 cursor-pointer shrink-0"
+              >
+                Thử lại tầng {activeFloor}
+              </button>
+            </div>
+          )}
+
           <div className="bg-white rounded-2xl border border-slate-200/80 p-6 sm:p-7 shadow-sm relative">
             <div className="flex items-center justify-between mb-6">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -381,33 +508,65 @@ export default function Home({ onNavigateTab }) {
             </div>
 
             {/* Danh sách các khu trong tầng */}
-            <div className="divide-y divide-slate-100">
-              {currentFloor?.zones?.map((zone, idx) => {
-                const zonePercent = zone.stats?.percent || 0;
-                return (
-                  <div key={zone.zoneId || idx} className={`${idx !== 0 ? "pt-7" : ""} ${idx !== currentFloor.zones.length - 1 ? "pb-7" : ""}`}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="w-1.5 h-4 bg-rose-500 rounded-full" />
-                      <h3 className="font-bold text-slate-800 text-base sm:text-lg">{zone.zoneName}</h3>
+            {currentFloor?.zones && currentFloor.zones.length > 0 ? (
+              <div className="divide-y divide-slate-100">
+                {currentFloor.zones.map((zone, idx) => {
+                  const zonePercent = zone.stats?.percent || 0;
+                  return (
+                    <div key={zone.zoneId || idx} className={`${idx !== 0 ? "pt-7" : ""} ${idx !== currentFloor.zones.length - 1 ? "pb-7" : ""}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="w-1.5 h-4 bg-rose-500 rounded-full" />
+                        <h3 className="font-bold text-slate-800 text-base sm:text-lg">{zone.zoneName}</h3>
+                      </div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{zonePercent}%</span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-200/60">
+                          {zone.stats?.statusText || "Còn chỗ"}
+                        </span>
+                      </div>
+                      <div className="w-full h-2 rounded-full overflow-hidden flex bg-slate-100">
+                        <div className="h-full bg-rose-500 transition-all duration-300" style={{ width: `${zonePercent}%` }} />
+                        <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${100 - zonePercent}%` }} />
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-400 mt-2 font-mono">
+                        <span>Đã đỗ: <strong className="text-slate-600 font-sans">{zone.stats?.occupied ?? 0}</strong></span>
+                        <span>Trống: <strong className="text-slate-600 font-sans">{zone.stats?.empty ?? 0}</strong></span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{zonePercent}%</span>
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-200/60">
-                        {zone.stats?.statusText || "Còn chỗ"}
-                      </span>
-                    </div>
-                    <div className="w-full h-2 rounded-full overflow-hidden flex bg-slate-100">
-                      <div className="h-full bg-rose-500 transition-all duration-300" style={{ width: `${zonePercent}%` }} />
-                      <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${100 - zonePercent}%` }} />
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-slate-400 mt-2 font-mono">
-                      <span>Đã đỗ: <strong className="text-slate-600 font-sans">{zone.stats?.occupied ?? 0}</strong></span>
-                      <span>Trống: <strong className="text-slate-600 font-sans">{zone.stats?.empty ?? 0}</strong></span>
-                    </div>
+                  );
+                })}
+              </div>
+            ) : currentFloor ? (
+              <div className="py-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-rose-500 rounded-full" />
+                    <h3 className="font-bold text-slate-800 text-base">{currentFloor.floorName}</h3>
                   </div>
-                );
-              })}
-            </div>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-200/60">
+                    {currentFloor.statusBadge || "Đang hoạt động"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{currentFloor.occupancyPercentage ?? 0}%</span>
+                  <span className="text-xs text-slate-400 font-medium">công suất sử dụng</span>
+                </div>
+                <div className="w-full h-2 rounded-full overflow-hidden flex bg-slate-100">
+                  <div className="h-full bg-rose-500 transition-all duration-300" style={{ width: `${currentFloor.occupancyPercentage ?? 0}%` }} />
+                  <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${100 - (currentFloor.occupancyPercentage ?? 0)}%` }} />
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-400 font-mono pt-1">
+                  <span>Đã đỗ: <strong className="text-slate-600 font-sans">{currentFloor.usedSlots ?? 0}</strong></span>
+                  <span>Trống: <strong className="text-slate-600 font-sans">{currentFloor.availableSlots ?? 0}</strong></span>
+                </div>
+              </div>
+            ) : (
+              <div className="py-10 text-center text-slate-500 text-xs">
+                {error || floorError
+                  ? "Không thể tải dữ liệu sơ đồ tầng từ máy chủ Backend."
+                  : "Chưa có dữ liệu phân khu cho tầng này."}
+              </div>
+            )}
           </div>
         </section>
 

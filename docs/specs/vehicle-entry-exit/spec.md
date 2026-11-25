@@ -149,15 +149,50 @@ Nhân viên vận hành và giao diện Frontend **bắt buộc** xử lý chín
 - [ ] **B1. Xe vào nhưng đã có phiên đang mở chưa đóng (HTTP 409 - `PROP-4.5.1-P07`)**:
   - **Hiện tượng**: Xe chạy vào cổng nhưng trong DB biển số này vẫn đang có phiên mở (`exit_time IS NULL`) do lần trước vượt barrier hoặc nhân viên chưa check-out.
   - **Xử lý UI**:
-    - Hiển thị modal cảnh báo an toàn: *"Biển số này đã có phiên đỗ xe chưa kết thúc từ ngày DD/MM lúc HH:mm"*.
-    - Cung cấp hành động cho Quản lý/Nhân viên: *"Đóng phiên cũ bất thường & Mở phiên mới"* hoặc *"Kiểm tra lại biển số"*.
-- [ ] **B2. Xe ra nhưng không tìm thấy phiên vào (HTTP 404 - Không có open session)**:
-  - **Hiện tượng**: Xe ra cổng nhưng quét không thấy phiên vào (do vào lúc mất điện, lỗi camera, hoặc xe đi lậu).
+    - Hiển thị modal cảnh báo an toàn (`CloseSessionSafetyModal`): *"Biển số này đã có phiên đỗ xe chưa kết thúc từ ngày DD/MM lúc HH:mm"*.
+    - Ngăn chặn tuyệt đối việc tự ý đóng phiên tự động gây thất thoát doanh thu.
+    - Cung cấp 2 kịch bản xử lý bắt buộc chọn lý do chuẩn hóa:
+      1. `manual_checkout`: Xuất bãi có thu tiền (tính cước thực tế từ thời điểm vào đến nay).
+      2. `cancel_glitch`: Hủy phiên do lỗi nhận diện/phiên ảo (0đ & giải phóng ô đỗ).
+- [ ] **B2. Xe ra nhưng không tìm thấy phiên vào (HTTP 404 / Ghost Exit - `ST-CORE-07`)**:
+  - **Hiện tượng**: Xe ra cổng nhưng quét camera không tìm thấy phiên mở trong hệ thống (do camera vào lỗi, mất điện lúc vào, hoặc xe lạ vượt trạm).
   - **Xử lý UI**:
-    - Cung cấp chức năng *"Tạo phiên xuất bổ sung / Thu phí thủ công"*.
-    - Nhân viên nhập thời gian vào ước tính và thu tiền theo quy định quản lý bãi.
+    - Chặn hoàn toàn nút Mở Barrier mặc định (`⛔ Khóa: Ghost Exit (ST-CORE-07)`).
+    - Chỉ tài khoản quyền Quản lý (`MANAGER`) mới có thẩm quyền mở barrier đặc cách khi chọn **"Miễn cước đặc cách"** và **bắt buộc nhập lý do sự cố**.
 - [ ] **B3. Xe ra nhưng phiên đã bị đóng trước đó (HTTP 409 - `PROP-4.5.1-P10`)**:
   - Ngăn chặn tình trạng nhân viên bấm đúp (double-click) hoặc 2 nhân viên cùng thao tác check-out một phiên.
+
+---
+
+### Nhóm B.1: Quy Chuẩn Xử Lý Phiên Bất Thường & Vết Kiểm Toán (Audit Trail)
+
+Áp dụng cho cả 2 modal can thiệp: `CloseSessionModal` (trên Lịch sử ra/vào) và `CloseSessionSafetyModal` (tại Làn Vào).
+
+#### 1. Bốn Kịch Bản Nghiệp Vụ Chuẩn (Action Types)
+1. **Xuất bãi có thu tiền (`manual_checkout`)**:
+   - Dành cho xe ra bãi thực tế khi sự cố barrier hoặc cổng mất điện.
+   - Tính đúng cước thực tế theo thời gian đỗ, xác nhận phương thức thu tiền (`CASH` hoặc `VIETQR`).
+2. **Miễn cước đặc cách xuất bãi (`waive_fee` / `is_fee_exempt`)**:
+   - Dành cho sự cố khách quan (mất thẻ đã xác minh CCCD, camera vào hỏng, xe ưu tiên/ngoại giao, khách VIP có công văn).
+   - Cước phí: `0đ`. Bắt buộc quyền Quản lý (`MANAGER`).
+3. **Hủy phiên lỗi nhận diện (`cancel_glitch`)**:
+   - Camera quét nhầm biển số, quét lặp khi xe quay đầu ở cổng vào, hoặc phiên test kỹ thuật.
+   - Cước phí: `0đ`. Giải phóng ô đỗ ngay lập tức.
+4. **Chỉ giải phóng ô đỗ treo (`release_slot`)**:
+   - Bảo vệ kiểm tra ô thực tế trống nhưng hệ thống bị khóa vị trí.
+   - Giữ nguyên phiên xe, không trừ tiền khách, chỉ trả ô về trạng thái Trống.
+
+#### 2. Danh Mục Lý Do Chuẩn Hóa (Preset Reasons) & Ràng Buộc Kiểm Toán
+Để ngăn chặn nhân viên ghi chép sơ sài (như gõ "loi", "xe ra roi") gây thất thoát hoặc tranh chấp khiếu nại:
+- **Bộ lý do chuẩn (Preset Chips)**: Giao diện hiển thị danh sách các thẻ lý do chuẩn để click chọn nhanh:
+  - *Sự cố kỹ thuật*: "Camera làn vào không nhận diện / mất điện lúc xe vào", "Lỗi thẻ từ: Khách làm mất thẻ, đã đối soát CCCD & đăng ký xe".
+  - *Quyết định miễn phí*: "Xe công vụ / cứu hỏa / cấp cứu làm nhiệm vụ", "Ban quản lý phê duyệt miễn cước đặc cách theo công văn".
+  - *Lỗi dữ liệu / AI OCR*: "Camera nhận diện sai biển số (biển thực tế khác OCR)", "Quét lặp tạo phiên ảo: Xe quay đầu không vào bãi", "Phiên chạy thử nghiệm cân chỉnh camera".
+  - *Sự cố bãi / Ô đỗ*: "Bảo vệ xác nhận ô thực tế trống, xe đã đổi vị trí khác".
+- **Ràng buộc kiểm toán (Audit Trail Guard)**:
+  - Bắt buộc lý do không được để trống và có độ dài tối thiểu 6 ký tự.
+  - Ghi nhận `actor_id` (Tài khoản Quản lý duyệt), thời gian duyệt, ảnh đối soát camera vào/ra.
+  - Mọi giao dịch miễn cước hoặc hủy phiên đều ghi nhận tiền tố `[MIỄN CƯỚC ĐẶC CÁCH]: <Lý do>` hoặc `[HỦY PHIÊN]: <Lý do>` vào trường `notes` trong `vehicle_entry_exit_log` và bảng tài chính `payment` để phục vụ thanh tra/kiểm toán đối soát khiếu nại.
 
 ---
 

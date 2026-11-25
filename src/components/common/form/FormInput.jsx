@@ -43,7 +43,11 @@ export default function FormInput({
   containerClassName = "",
   ...rest
 }) {
-  const inputId = id || (name ? `input-${name}` : undefined);
+  const generatedId = React.useId();
+  const inputId = id || (name ? `input-${name}` : generatedId);
+  const errorId = error ? `${inputId}-error` : undefined;
+  const helperId = helperText ? `${inputId}-helper` : undefined;
+  const describedBy = errorId || helperId || undefined;
 
   const sizeClasses = {
     sm: "h-8 text-2xs px-2.5 rounded-lg",
@@ -87,6 +91,8 @@ export default function FormInput({
           required={required}
           disabled={disabled}
           readOnly={readOnly}
+          aria-invalid={Boolean(error)}
+          aria-describedby={describedBy}
           className={`w-full border outline-none transition-all duration-150 focus:ring-2 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed ${sizeClasses} ${paddingLeftClass} ${paddingRightClass} ${stateClasses} ${className}`}
           {...rest}
         />
@@ -99,9 +105,9 @@ export default function FormInput({
       </div>
 
       {error ? (
-        <p className="text-[11px] text-rose-500 font-medium leading-none">{error}</p>
+        <p id={errorId} className="text-[11px] text-rose-500 font-medium leading-none">{error}</p>
       ) : helperText ? (
-        <p className="text-[11px] text-slate-500 leading-none">{helperText}</p>
+        <p id={helperId} className="text-[11px] text-slate-500 leading-none">{helperText}</p>
       ) : null}
     </div>
   );

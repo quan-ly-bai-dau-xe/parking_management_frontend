@@ -35,7 +35,11 @@ export default function FormTextarea({
   containerClassName = "",
   ...rest
 }) {
-  const textareaId = id || (name ? `textarea-${name}` : undefined);
+  const generatedId = React.useId();
+  const textareaId = id || (name ? `textarea-${name}` : generatedId);
+  const errorId = error ? `${textareaId}-error` : undefined;
+  const helperId = helperText ? `${textareaId}-helper` : undefined;
+  const describedBy = errorId || helperId || undefined;
 
   const stateClasses = error
     ? "border-rose-400 bg-rose-50/20 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-rose-500/20"
@@ -62,14 +66,16 @@ export default function FormTextarea({
         placeholder={placeholder}
         required={required}
         disabled={disabled}
+        aria-invalid={Boolean(error)}
+        aria-describedby={describedBy}
         className={`w-full text-xs px-3 py-2 rounded-xl border outline-none transition-all duration-150 focus:ring-2 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed resize-none ${stateClasses} ${className}`}
         {...rest}
       />
 
       {error ? (
-        <p className="text-[11px] text-rose-500 font-medium leading-none">{error}</p>
+        <p id={errorId} className="text-[11px] text-rose-500 font-medium leading-none">{error}</p>
       ) : helperText ? (
-        <p className="text-[11px] text-slate-500 leading-none">{helperText}</p>
+        <p id={helperId} className="text-[11px] text-slate-500 leading-none">{helperText}</p>
       ) : null}
     </div>
   );

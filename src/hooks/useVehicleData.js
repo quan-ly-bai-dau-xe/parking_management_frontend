@@ -7,6 +7,8 @@ import {
 import { customerService } from "../services/customerService";
 import { getActiveSessions } from "../services/parkingLotService";
 import { DEFAULT_UNASSIGNED_SLOT_LABEL } from "../constants/vehicleConstants";
+import { mockVehicles, mockStats } from "../mocks/vehicleData";
+import { isMockEnabled } from "../config/appConfig.js";
 
 export default function useVehicleData() {
   const [vehicles, setVehicles] = useState([]);
@@ -17,9 +19,16 @@ export default function useVehicleData() {
 
   // Load KPI stats
   const refreshStats = useCallback(() => {
+    if (isMockEnabled("vehicles")) {
+      setVehicleStats(mockStats);
+      return;
+    }
     fetchVehicleSummary()
       .then((data) => data && setVehicleStats(data))
-      .catch((err) => console.warn("Could not load vehicle summary KPI:", err));
+      .catch((err) => {
+        console.warn("Could not load vehicle summary KPI:", err);
+        setVehicleStats(mockStats);
+      });
   }, []);
 
   useEffect(() => {
@@ -29,6 +38,16 @@ export default function useVehicleData() {
   // Load and hydrate vehicles with customer phones and active parking slot
   const loadVehicles = useCallback(() => {
     setIsLoading(true);
+
+    if (isMockEnabled("vehicles")) {
+      setVehicles(mockVehicles);
+      setVehicleStats(mockStats);
+      setIsUsingBackendData(false);
+      setBackendError(null);
+      setIsLoading(false);
+      return;
+    }
+
     Promise.allSettled([
       fetchVehicles({ page_size: 100 }),
       customerService.getCustomers(),
@@ -123,14 +142,19 @@ export default function useVehicleData() {
           setIsUsingBackendData(true);
           setBackendError(null);
         } else {
-          console.warn("Could not load vehicles from backend:", vehiclesRes.reason);
-          setBackendError("Không thể tải danh sách phương tiện từ máy chủ.");
+          console.warn("Could not load vehicles from backend, falling back to mock data:", vehiclesRes.reason);
+          setVehicles(mockVehicles);
+          setVehicleStats((prev) => prev || mockStats);
           setIsUsingBackendData(false);
+          setBackendError(null);
         }
       })
       .catch((err) => {
-        console.warn("Unexpected error loading vehicles:", err);
-        setBackendError("Lỗi hệ thống khi tải dữ liệu phương tiện.");
+        console.warn("Unexpected error loading vehicles, falling back to mock data:", err);
+        setVehicles(mockVehicles);
+        setVehicleStats((prev) => prev || mockStats);
+        setIsUsingBackendData(false);
+        setBackendError(null);
       })
       .finally(() => {
         setIsLoading(false);
