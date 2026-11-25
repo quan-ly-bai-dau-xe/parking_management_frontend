@@ -405,12 +405,15 @@ export default function GateCameraControlModal({
         entryImageUrl = scanDetails.imageUrl;
       } else if (detectedData?.image_url && detectedData.image_url.startsWith("http")) {
         entryImageUrl = detectedData.image_url;
-      } else if (applyAuthoritativeScan) {
+      } else if (detectionSource === "camera" && applyAuthoritativeScan) {
         try {
           const authResult = await applyAuthoritativeScan();
           if (authResult?.success && authResult?.data?.image_url) {
             entryImageUrl = authResult.data.image_url;
-          } else if (authResult?.error) {
+          } else if (
+            authResult?.error &&
+            authResult.error !== "Không tìm thấy khung hình biển số để áp dụng."
+          ) {
             console.warn("Authoritative scan upload failed (502/Cloudinary):", authResult.error);
             setImageWarningMessage(
               "⚠️ Không thể tải ảnh lên máy chủ (Cloudinary). Phiên gửi vẫn được tạo thành công không kèm ảnh."
