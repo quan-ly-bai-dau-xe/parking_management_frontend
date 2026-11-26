@@ -4,39 +4,55 @@ import {
   TicketFilters,
   TicketTable,
   CreateTicketModal,
+  EditTicketModal,
   RenewTicketModal,
   TicketDetailModal,
   DeleteTicketModal,
 } from "../components/TicketManagement";
 import useTicketData from "../hooks/useTicketData";
+import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useToast } from "../context/ToastContext";
 
 export default function TicketManagement() {
   const {
+    tickets,
     filteredTickets,
-    paginatedTickets,
+    totalCount,
     filters,
     currentPage,
     totalPages,
     itemsPerPage,
+    isLoading,
+    ticketTypes,
     setCurrentPage,
     setItemsPerPage,
     handleFilterChange,
     handleResetFilters,
-    handleItemsPerPageChange,
     handleCreateTicket,
+    handleUpdateTicket,
     handleRenewTicket,
     handleDeleteTicket,
   } = useTicketData();
 
+  const { isManager } = useCurrentUser();
+  const toast = useToast();
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isRenewOpen, setIsRenewOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const handleOpenDetail = (ticket) => {
     setSelectedTicket(ticket);
     setIsDetailOpen(true);
+  };
+
+  const handleOpenEdit = (ticket) => {
+    setSelectedTicket(ticket);
+    setIsEditOpen(true);
   };
 
   const handleOpenRenew = (ticket) => {
@@ -49,10 +65,26 @@ export default function TicketManagement() {
     setIsDeleteOpen(true);
   };
 
-  const handleConfirmDelete = (ticket) => {
-    handleDeleteTicket(ticket);
-    setIsDeleteOpen(false);
-    setSelectedTicket(null);
+  const handleConfirmDelete = async (ticket) => {
+    if (!isManager) {
+      toast.error("Chỉ Quản lý (Manager) mới có quyền xóa vé đỗ xe.");
+      setIsDeleteOpen(false);
+      return;
+    }
+
+    setDeleteLoading(true);
+    try {
+      const target = ticket.code || ticket.ticketCode || ticket.id;
+      const res = await handleDeleteTicket(target);
+      toast.success(res?.message || "Xóa thành công");
+      setIsDeleteOpen(false);
+      setSelectedTicket(null);
+    } catch (err) {
+      console.error("Delete ticket error:", err);
+      toast.error(err?.data?.message || err?.message || "Xóa vé thất bại.");
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const handleExportCsv = () => {
@@ -72,7 +104,7 @@ export default function TicketManagement() {
 
     const rows = filteredTickets.map((t, idx) => [
       idx + 1,
-      `"${t.ticketCode || ""}"`,
+      `"${t.ticketCode || t.code || ""}"`,
       `"${t.customerName || ""}"`,
       `"${t.customerCode || ""}"`,
       `"${t.licensePlate || ""}"`,
@@ -106,7 +138,7 @@ export default function TicketManagement() {
       {/* 1. Header trang chuẩn hóa qua Common PageHeader */}
       <PageHeader
         title="Quản lý vé"
-        description="Quản lý thông tin vé, tra cứu, thêm mới, gia hạn và hủy/xóa vé đỗ xe."
+        description="Quản lý thông tin vé, tra cứu, thêm mới, chỉnh sửa, gia hạn và hủy/xóa vé đỗ xe."
         breadcrumb={
           <span>
             Smart Mobility /{" "}
@@ -138,7 +170,7 @@ export default function TicketManagement() {
           <div>
             <h2 className="text-sm font-bold text-slate-900">Danh sách vé</h2>
             <p className="text-2xs text-slate-500 mt-0.5">
-              Hiển thị {filteredTickets.length} vé trong hệ thống
+              Hiển thị {filteredTickets.length} / {totalCount} vé trong hệ thống
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -146,26 +178,34 @@ export default function TicketManagement() {
               Xuất CSV
             </Button>
             <span className="text-xs text-slate-400 font-medium">
-              {filteredTickets.length} vé
+              {totalCount} vé
             </span>
           </div>
         </div>
 
-        <TicketTable
-          tickets={paginatedTickets}
-          currentPage={currentPage}
-          itemsPerPage={itemsPerPage}
-          onOpenDetail={handleOpenDetail}
-          onOpenRenew={handleOpenRenew}
-          onOpenDelete={handleOpenDelete}
-        />
+        {isLoading ? (
+          <div className="p-12 text-center text-slate-400 text-sm">
+            Đang tải dữ liệu danh sách vé...
+          </div>
+        ) : (
+          <TicketTable
+            tickets={tickets}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            onOpenDetail={handleOpenDetail}
+            onOpenEdit={handleOpenEdit}
+            onOpenRenew={handleOpenRenew}
+            onOpenDelete={handleOpenDelete}
+            isManager={isManager}
+          />
+        )}
 
         <div className="p-4 border-t border-slate-100">
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={setCurrentPage}
-            totalItems={filteredTickets.length}
+            totalItems={totalCount}
             itemsPerPage={itemsPerPage}
             onItemsPerPageChange={(num) => {
               setItemsPerPage(num);
@@ -183,22 +223,43 @@ export default function TicketManagement() {
         onSave={handleCreateTicket}
       />
 
+      <EditTicketModal
+        isOpen={isEditOpen}
+        ticket={selectedTicket}
+        ticketTypes={ticketTypes}
+        onClose={() => {
+          setIsEditOpen(false);
+          setSelectedTicket(null);
+        }}
+        onConfirmUpdate={handleUpdateTicket}
+      />
+
       <RenewTicketModal
         isOpen={isRenewOpen}
         ticket={selectedTicket}
-        onClose={() => setIsRenewOpen(false)}
-        onConfirm={handleRenewTicket}
+        onClose={() => {
+          setIsRenewOpen(false);
+          setSelectedTicket(null);
+        }}
+        onConfirm={(renewData) => {
+          const target = selectedTicket?.code || selectedTicket?.id;
+          handleRenewTicket(target, renewData);
+        }}
       />
 
       <TicketDetailModal
         isOpen={isDetailOpen}
         ticket={selectedTicket}
-        onClose={() => setIsDetailOpen(false)}
+        onClose={() => {
+          setIsDetailOpen(false);
+          setSelectedTicket(null);
+        }}
       />
 
       <DeleteTicketModal
         isOpen={isDeleteOpen}
         ticket={selectedTicket}
+        loading={deleteLoading}
         onClose={() => {
           setIsDeleteOpen(false);
           setSelectedTicket(null);

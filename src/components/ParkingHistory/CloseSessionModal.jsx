@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import ConfirmModal from "../common/Modal/ConfirmModal";
+import ConfirmModal from "../common/modal/ConfirmModal";
 import LoadingSpinner from "../common/LoadingSpinner";
 import { previewParkingFee } from "../../services/parkingSessionService";
 import { formatLicensePlateForDisplay } from "../../utils/plateFormatter";
@@ -27,29 +27,41 @@ export default function CloseSessionModal({
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
   useEffect(() => {
-    if (isOpen && session) {
+    if (!isOpen || !session) return undefined;
+    let isCancelled = false;
+
+    queueMicrotask(() => {
+      if (isCancelled) return;
       setActionType("manual_checkout");
       setPaymentMethod("CASH");
       setReason("");
       setFeePreview(null);
+    });
 
-      // Tải dự tính cước phí nếu là xe ra bãi
-      const fetchFee = async () => {
-        setIsPreviewLoading(true);
-        try {
-          const res = await previewParkingFee({
-            licensePlate: session.licensePlate || session.license_plate,
-            sessionCode: session.sessionCode || session.session_code,
-          });
+    // Tải dự tính cước phí nếu là xe ra bãi
+    const fetchFee = async () => {
+      setIsPreviewLoading(true);
+      try {
+        const res = await previewParkingFee({
+          licensePlate: session.licensePlate || session.license_plate,
+          sessionCode: session.sessionCode || session.session_code,
+        });
+        if (!isCancelled) {
           setFeePreview(res);
-        } catch (err) {
-          console.warn("Could not preview fee:", err);
-        } finally {
+        }
+      } catch (err) {
+        console.warn("Could not preview fee:", err);
+      } finally {
+        if (!isCancelled) {
           setIsPreviewLoading(false);
         }
-      };
-      fetchFee();
-    }
+      }
+    };
+    fetchFee();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen, session]);
 
   if (!session) return null;

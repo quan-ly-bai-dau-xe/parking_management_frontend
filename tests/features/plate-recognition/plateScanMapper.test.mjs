@@ -115,6 +115,9 @@ test("mapPlateScanToVehicle maps OCR scan result without key/data duplication bu
     name: "Nguyễn Văn A",
     phone: "0912345678",
     code: "KH0005",
+    hasWallet: false,
+    walletBalance: 0,
+    walletStatus: "ACTIVE",
   });
 
   // Ticket checks (flat and nested must match)
@@ -146,6 +149,9 @@ test("mapVehicleLookupToVehicle produces compatible vehicle model", () => {
       name: "Trần Thị B",
       phone: "0987654321",
       code: "KH0008",
+      has_wallet: true,
+      wallet_balance: "150000.00",
+      wallet_status: "ACTIVE",
     },
     active_ticket: {
       status: "EXPIRED",
@@ -161,6 +167,9 @@ test("mapVehicleLookupToVehicle produces compatible vehicle model", () => {
   assert.equal(mapped.licensePlate, "51K-999.99");
   assert.equal(mapped.customerName, "Trần Thị B");
   assert.equal(mapped.customer.name, "Trần Thị B");
+  assert.equal(mapped.customer.hasWallet, true);
+  assert.equal(mapped.customer.walletBalance, 150000);
+  assert.equal(mapped.customer.walletStatus, "ACTIVE");
   assert.equal(mapped.ticketStatus, "expired");
   assert.equal(mapped.parkingSlot.display, "Tầng F1 - Khu B - Ô 05");
 });

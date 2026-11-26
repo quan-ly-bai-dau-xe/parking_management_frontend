@@ -1,15 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { axiosInstance } from "../src/services/apiClient.js";
 import {
   getAllParkingSlotsInventory,
   getAvailableSlotsForCheckIn,
 } from "../src/services/parkingSessionService.js";
 import {
+  getSlots,
   getStatusText,
   normalizeSlot,
 } from "../src/services/parkingLotService.js";
+import {
+  SLOT_STATUS,
+  SLOT_STATUS_OPTIONS,
+} from "../src/constants/parkingLotConstants.js";
 import { makeMockSlot, makeMockFullInventory } from "./factories/slotFactory.mjs";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 test("SLOT-01: getAllParkingSlotsInventory returns exactly 96 slots conforming to PostgreSQL schema", () => {
   const slots = getAllParkingSlotsInventory();
@@ -60,7 +71,7 @@ test("SLOT-02: getAvailableSlotsForCheckIn excludes slots occupied by open sessi
       },
     });
 
-    const availableSlots = await getAvailableSlotsForCheckIn();
+    const availableSlots = await getAvailableSlotsForCheckIn({ useMock: true });
     assert.equal(availableSlots.length, 96 - 3, "Phải còn lại 93 slots");
 
     // Đảm bảo A-01, A-02, A-03 không xuất hiện trong danh sách khả dụng
@@ -166,6 +177,7 @@ test("SLOT-06: getAvailableSlotsForCheckIn with filterReserved excludes ticket-r
     const visitorSlots = await getAvailableSlotsForCheckIn({
       filterReserved: true,
       licensePlate: "29A-999.99",
+      useMock: true,
     });
     const visitorIds = new Set(visitorSlots.map((s) => s.id));
 
@@ -180,10 +192,122 @@ test("SLOT-06: getAvailableSlotsForCheckIn with filterReserved excludes ticket-r
     const ticketOwnerSlots = await getAvailableSlotsForCheckIn({
       filterReserved: true,
       licensePlate: "43K-860.50",
+      useMock: true,
     });
     const ticketOwnerIds = new Set(ticketOwnerSlots.map((s) => s.id));
     assert.equal(ticketOwnerIds.has(1), true, "Chủ vé tháng 43K-860.50 phải được chọn ô A-01");
   } finally {
     axiosInstance.request = originalRequest;
   }
+});
+
+test("SLOT-07 (WP0-Iter2): getSlots forwards slot_kind param and ParkingLotManagement uses slotKind, numericId, row_version, and res?.success checks", async () => {
+  const originalRequest = axiosInstance.request;
+  let capturedConfig = null;
+
+  try {
+    axiosInstance.request = async (config) => {
+      capturedConfig = config;
+      return { data: { results: [] } };
+    };
+
+    await getSlots({ floor: "B2", zone: "C", slotKind: "EV_CHARGING" });
+    assert.equal(capturedConfig?.params?.slot_kind, "EV_CHARGING");
+    assert.equal(capturedConfig?.params?.vehicle_type, undefined);
+  } finally {
+    axiosInstance.request = originalRequest;
+  }
+
+  const pageContent = fs.readFileSync(
+    path.resolve(__dirname, "../src/pages/ParkingLotManagement.jsx"),
+    "utf-8"
+  );
+  assert.ok(
+    pageContent.includes("slotKind: vehicleTypeFilter"),
+    "ParkingLotManagement must pass vehicleTypeFilter via slotKind to match Backend SlotFilterSerializer"
+  );
+  assert.ok(
+    pageContent.includes("row_version: slot?.row_version ?? 1") &&
+      pageContent.includes("slot?.numericId"),
+    "handleUpdateSlotStatus must pass numericId and row_version to PATCH /api/v1/parking/slots/<id>/"
+  );
+  assert.ok(
+    pageContent.includes('s.status === "OCCUPIED" || s.status === "CHARGING"'),
+    "Occupancy stats must count CHARGING alongside OCCUPIED"
+  );
+});
+
+test("SLOT-08 (WP0-Iter2): EditSlotModal excludes OVERSTAY from PATCH status options while keeping it in SLOT_STATUS_OPTIONS for filters", () => {
+  assert.ok(
+    SLOT_STATUS_OPTIONS.some((opt) => opt.value === SLOT_STATUS.OVERSTAY),
+    "SLOT_STATUS_OPTIONS must retain OVERSTAY for ParkingLotFilters"
+  );
+
+  const editModalContent = fs.readFileSync(
+    path.resolve(__dirname, "../src/components/ParkingLotManagement/EditSlotModal.jsx"),
+    "utf-8"
+  );
+  assert.ok(
+    editModalContent.includes("opt.value !== SLOT_STATUS.OVERSTAY"),
+    "EditSlotModal must filter out OVERSTAY from PATCH status dropdown"
+  );
+});
+
+test("SLOT-09 (WP0-Iter2): useCurrentUser safely guards missing localStorage/sessionStorage in SSR", async () => {
+  const hookContent = fs.readFileSync(
+    path.resolve(__dirname, "../src/hooks/useCurrentUser.js"),
+    "utf-8"
+  );
+  assert.ok(
+    hookContent.includes('typeof localStorage !== "undefined"') &&
+      hookContent.includes('typeof localStorage?.getItem === "function"'),
+    "useCurrentUser must guard localStorage access in SSR environments without storage shim"
+  );
+});
+
+test("SLOT-10 (WP0-Iter3 Finding C): ParkingLotManagement resolves integer PK id when numericId is undefined and uses getSlotTypeDisplayLabel in handleSelectSlot", () => {
+  const resolveSlotApiId = (target) =>
+    target.numericId ?? (typeof target.id === "number" ? target.id : target.slotId);
+
+  // Case 1: ListView item from normalizeSlot({ id: 1, code: "A-01", slot_kind: "EV_CHARGING" })
+  const listViewSlot = normalizeSlot({
+    id: 1,
+    code: "A-01",
+    status: "AVAILABLE",
+    slot_kind: "EV_CHARGING",
+  });
+  assert.equal(listViewSlot.numericId, undefined);
+  assert.equal(listViewSlot.slotId, "A-01");
+  assert.equal(listViewSlot.id, 1);
+  assert.equal(
+    resolveSlotApiId(listViewSlot),
+    1,
+    "Must resolve integer PK (1) instead of code ('A-01') when numericId is undefined"
+  );
+
+  // Case 2: Matrix / selectedSlot item where id was coerced to string label "A-01" and numericId is 1
+  const selectedSlotObj = { id: "A-01", numericId: 1, slotId: "A-01" };
+  assert.equal(resolveSlotApiId(selectedSlotObj), 1);
+
+  // Case 3: Verify ParkingLotManagement.jsx uses the exact numeric PK resolution and getSlotTypeDisplayLabel
+  const pageContent = fs.readFileSync(
+    path.resolve(__dirname, "../src/pages/ParkingLotManagement.jsx"),
+    "utf-8"
+  );
+  assert.ok(
+    !pageContent.includes("slotToDelete.numericId || slotToDelete.slotId || slotToDelete.id") &&
+      !pageContent.includes("updatedSlot.numericId || updatedSlot.slotId || updatedSlot.id"),
+    "ParkingLotManagement must not prioritize string slotId before numeric id"
+  );
+  assert.ok(
+    pageContent.includes("slotToDelete.numericId ??") &&
+      pageContent.includes('typeof slotToDelete.id === "number" ? slotToDelete.id : slotToDelete.slotId') &&
+      pageContent.includes("updatedSlot.numericId ??") &&
+      pageContent.includes('typeof updatedSlot.id === "number" ? updatedSlot.id : updatedSlot.slotId'),
+    "handleConfirmDeleteSlot and handleSaveEditSlot must resolve integer id before string slotId"
+  );
+  assert.ok(
+    pageContent.includes("vehicleType: getSlotTypeDisplayLabel(slot.type || slot.slot_kind)"),
+    "handleSelectSlot must use getSlotTypeDisplayLabel(slot.type || slot.slot_kind)"
+  );
 });

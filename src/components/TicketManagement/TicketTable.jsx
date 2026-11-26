@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import DataTable from "../common/table/DataTable";
 import TableActions from "../common/table/TableActions";
 import VehicleTicketTypeBadge from "../VehicleManagement/VehicleTicketTypeBadge";
@@ -8,6 +8,7 @@ export default function TicketTable({
   currentPage,
   itemsPerPage,
   onOpenDetail,
+  onOpenEdit,
   onOpenRenew,
   onOpenDelete,
 }) {
@@ -138,6 +139,13 @@ export default function TicketTable({
                 title: "Xem chi tiết vé",
               },
               {
+                label: "Sửa",
+                icon: "edit",
+                onClick: () => onOpenEdit && onOpenEdit(row),
+                className: "min-w-[44px] min-h-[44px] px-2 text-amber-600 hover:text-amber-800 cursor-pointer",
+                title: "Chỉnh sửa vé",
+              },
+              {
                 label: "Gia hạn",
                 icon: "renew",
                 onClick: () => onOpenRenew(row),
@@ -156,7 +164,7 @@ export default function TicketTable({
         ),
       },
     ],
-    [currentPage, itemsPerPage, onOpenDetail, onOpenRenew, onOpenDelete],
+    [currentPage, itemsPerPage, onOpenDetail, onOpenEdit, onOpenRenew, onOpenDelete],
   );
 
   return (

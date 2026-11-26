@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   SCAN_STATES,
   extractScanConfidence,
@@ -7,6 +8,7 @@ import {
 } from "../utils/plateAutoDetect";
 import { usePlateAutoDetect } from "../hooks/usePlateAutoDetect";
 import { ROUTES } from "../config/navigation";
+import useModalA11y from "../hooks/useModalA11y";
 
 export default function PlateScannerModal({
   isOpen,
@@ -14,6 +16,7 @@ export default function PlateScannerModal({
   onDetected,
   gateId = 1,
 }) {
+  const navigate = useNavigate();
   const videoRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -107,10 +110,20 @@ export default function PlateScannerModal({
     });
   }, [rawBoundingBox, layoutMetrics, sourceDimensions]);
 
+  const isApplying = scanState === SCAN_STATES.APPLYING;
+
   const handleClose = () => {
+    if (isApplying) return;
     setApplyError("");
     onClose();
   };
+
+  const { titleId, dialogProps } = useModalA11y({
+    isOpen,
+    onClose: handleClose,
+    isBusy: isApplying,
+    titleId: "plate-scanner-modal-title",
+  });
 
   const handleReset = () => {
     setApplyError("");
@@ -161,7 +174,6 @@ export default function PlateScannerModal({
       scanState === SCAN_STATES.DETECTED ||
       scanState === SCAN_STATES.APPLYING) &&
     Boolean(detectedData);
-  const isApplying = scanState === SCAN_STATES.APPLYING;
   const isReviewMode = detectedData?.review_status === "NEEDS_REVIEW";
   const reviewReasons = formatReviewReasons(detectedData?.review_reasons);
   const confidencePercent = extractScanConfidence(detectedData);
@@ -182,9 +194,7 @@ export default function PlateScannerModal({
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="plate-scanner-modal-title"
+      {...dialogProps}
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-fadeIn font-sans"
     >
       <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]">
@@ -201,7 +211,7 @@ export default function PlateScannerModal({
               }`}
             />
             <h3
-              id="plate-scanner-modal-title"
+              id={titleId}
               className="font-bold text-slate-900 text-sm sm:text-base truncate"
             >
               Quét biển số qua Camera Laptop
@@ -474,11 +484,16 @@ export default function PlateScannerModal({
                       Biển số này chưa được đăng ký trong hệ thống (Khách vãng lai).
                     </p>
                     <a
-                      href={ROUTES.REGISTER}
+                      href={`${ROUTES.REGISTER}?plate=${encodeURIComponent(String(effectivePlate || "").trim())}`}
                       onClick={(e) => {
                         e.preventDefault();
+                        const plateParam = String(effectivePlate || "").trim();
                         handleClose();
-                        navigate(ROUTES.REGISTER);
+                        if (plateParam) {
+                          navigate(`${ROUTES.REGISTER}?plate=${encodeURIComponent(plateParam)}`);
+                        } else {
+                          navigate(ROUTES.REGISTER);
+                        }
                       }}
                       className="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition shadow-2xs shrink-0 self-start sm:self-auto"
                     >

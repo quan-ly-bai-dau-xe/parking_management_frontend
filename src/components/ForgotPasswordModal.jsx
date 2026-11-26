@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import useModalA11y from "../hooks/useModalA11y";
 
 export default function ForgotPasswordModal({
   isOpen,
@@ -9,14 +10,22 @@ export default function ForgotPasswordModal({
   const [account, setAccount] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [prevSync, setPrevSync] = useState({ isOpen: false, initialAccount: "" });
 
-  useEffect(() => {
+  if (isOpen !== prevSync.isOpen || (isOpen && initialAccount !== prevSync.initialAccount)) {
+    setPrevSync({ isOpen, initialAccount });
     if (isOpen) {
       setAccount(initialAccount || "");
       setError("");
       setLoading(false);
     }
-  }, [isOpen, initialAccount]);
+  }
+
+  const { titleId, dialogProps } = useModalA11y({
+    isOpen,
+    onClose,
+    isBusy: loading,
+  });
 
   if (!isOpen) return null;
 
@@ -43,8 +52,7 @@ export default function ForgotPasswordModal({
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
+      {...dialogProps}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn font-sans"
     >
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-150">
@@ -58,7 +66,7 @@ export default function ForgotPasswordModal({
               </svg>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900 leading-tight">
+              <h3 id={titleId} className="text-lg font-bold text-slate-900 leading-tight">
                 Quên mật khẩu
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -69,7 +77,10 @@ export default function ForgotPasswordModal({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              if (!loading) onClose?.();
+            }}
+            aria-label="Đóng"
             className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center text-sm transition-colors cursor-pointer"
           >
             ✕

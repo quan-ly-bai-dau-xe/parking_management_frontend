@@ -27,6 +27,7 @@ export default function ParkingLotFilters({
   viewMode = "matrix",
   setViewMode,
   onToggleViewMode,
+  canEditStructure = true,
 }) {
   const currentViewMode = viewMode || "matrix";
   const handleToggleMode = (mode) => {
@@ -112,7 +113,7 @@ export default function ParkingLotFilters({
           )}
         </div>
 
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex flex-wrap items-center justify-end gap-2 ml-auto max-w-full">
           {/* View mode toggle buttons (Matrix / List) */}
           <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
             <Button
@@ -137,14 +138,16 @@ export default function ParkingLotFilters({
             </Button>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            icon={<Pencil className="w-3.5 h-3.5" />}
-            className="cursor-pointer"
-          >
-            Chế độ chỉnh sửa sơ đồ
-          </Button>
+          {canEditStructure && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Pencil className="w-3.5 h-3.5" />}
+              className="cursor-pointer"
+            >
+              Chế độ chỉnh sửa sơ đồ
+            </Button>
+          )}
         </div>
       </div>
     </div>

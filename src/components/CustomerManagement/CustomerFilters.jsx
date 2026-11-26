@@ -1,4 +1,3 @@
-import React from "react";
 import { Icon } from "../common";
 import { TICKET_PACKAGE_OPTIONS } from "../../constants/customerConstants";
 import CustomerAdvancedFilterPopover from "./CustomerAdvancedFilterPopover";

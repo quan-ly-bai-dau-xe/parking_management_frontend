@@ -1,13 +1,88 @@
-import { useState, useMemo } from "react";
-import { initialTickets } from "../mocks/ticketsData";
-import { mockCustomers } from "../mocks/customerData";
+import { useState, useEffect, useCallback } from "react";
+import ticketService from "../services/ticketService";
 import { INITIAL_TICKET_FILTERS } from "../constants/ticketConstants";
 
 export default function useTicketData() {
-  const [tickets, setTickets] = useState(initialTickets);
+  const [tickets, setTickets] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState(INITIAL_TICKET_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [ticketTypes, setTicketTypes] = useState([]);
+
+  // Tải danh mục loại vé một lần khi khởi tạo
+  useEffect(() => {
+    let isMounted = true;
+    async function loadTypes() {
+      try {
+        const types = await ticketService.getTicketTypes();
+        if (isMounted) {
+          setTicketTypes(types);
+        }
+      } catch (err) {
+        console.warn("Failed to load ticket types:", err);
+      }
+    }
+    loadTypes();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Tải danh sách vé từ backend theo bộ lọc & phân trang server-side
+  const fetchTickets = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Tổng hợp từ khóa tìm kiếm từ các ô nhập
+      const searchQuery =
+        filters.ticketCode ||
+        filters.customerCode ||
+        filters.licensePlate ||
+        filters.q ||
+        filters.search ||
+        "";
+
+      const res = await ticketService.getTickets({
+        page: currentPage,
+        page_size: itemsPerPage,
+        q: searchQuery,
+        status: filters.status,
+        ticketType: filters.ticketType,
+      });
+
+      setTickets(res.results || []);
+      setTotalCount(res.count || 0);
+    } catch (err) {
+      console.error("Fetch tickets error:", err);
+      setError(err?.data?.message || err?.message || "Không thể tải danh sách vé.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPage, itemsPerPage, filters]);
+
+  useEffect(() => {
+    let isMounted = true;
+    Promise.resolve()
+      .then(() => {
+        if (isMounted) {
+          return fetchTickets();
+        }
+        return undefined;
+      })
+      .catch((err) => {
+        if (isMounted) {
+          console.error("Fetch tickets effect error:", err);
+          setError(err?.data?.message || err?.message || "Không thể tải danh sách vé.");
+          setIsLoading(false);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchTickets]);
 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
@@ -19,126 +94,57 @@ export default function useTicketData() {
     setCurrentPage(1);
   };
 
-  const filteredTickets = useMemo(() => {
-    return tickets.filter((t) => {
-      if (
-        filters.ticketCode &&
-        !t.ticketCode.toLowerCase().includes(filters.ticketCode.toLowerCase())
-      ) {
-        return false;
-      }
-      if (
-        filters.customerCode &&
-        !t.customerCode.toLowerCase().includes(filters.customerCode.toLowerCase())
-      ) {
-        return false;
-      }
-      if (
-        filters.licensePlate &&
-        !t.licensePlate.toLowerCase().includes(filters.licensePlate.toLowerCase())
-      ) {
-        return false;
-      }
-      if (filters.ticketType && t.ticketType !== filters.ticketType) {
-        return false;
-      }
-      if (filters.status && t.status !== filters.status) {
-        return false;
-      }
-      if (
-        filters.slotLocation &&
-        !t.slotLocation.toLowerCase().includes(filters.slotLocation.toLowerCase())
-      ) {
-        return false;
-      }
-      if (
-        filters.floor &&
-        !t.slotLocation.toLowerCase().includes(filters.floor.toLowerCase())
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [tickets, filters]);
-
-  const totalPages = Math.ceil(filteredTickets.length / itemsPerPage) || 1;
-
-  const paginatedTickets = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredTickets.slice(start, start + itemsPerPage);
-  }, [filteredTickets, currentPage, itemsPerPage]);
-
   const handleItemsPerPageChange = (newSize) => {
     setItemsPerPage(newSize);
     setCurrentPage(1);
   };
 
-  const handleCreateTicket = (newTicketData) => {
-    const cust = mockCustomers.find(
-      (c) => c.customerCode === newTicketData.customer,
-    );
-    const created = {
-      stt: tickets.length + 1,
-      ticketCode: `VT000${tickets.length + 1}`,
-      customerCode: newTicketData.customer || "KH0001",
-      customerName: cust?.name || newTicketData.customerName || "Khách hàng mới",
-      licensePlate: newTicketData.vehicle || "51K-000-00",
-      ticketType: newTicketData.ticketType || "Vé tháng",
-      startDate: newTicketData.startDate || new Date().toLocaleDateString("vi-VN"),
-      endDate: newTicketData.endDate || new Date().toLocaleDateString("vi-VN"),
-      price: `${Number(newTicketData.price || 0).toLocaleString("vi-VN")}đ`,
-      slotLocation: newTicketData.parkingSlot || "Tầng B1 - Auto",
-      status: "active",
-      statusText: "Đang hoạt động",
-    };
-    setTickets((prev) => [created, ...prev]);
+  const totalPages = Math.ceil(totalCount / itemsPerPage) || 1;
+
+  const handleCreateTicket = async (newTicketData) => {
+    await ticketService.createTicket(newTicketData);
+    await fetchTickets();
   };
 
-  const handleRenewTicket = (renewData) => {
-    setTickets((prev) =>
-      prev.map((t) => {
-        if (t.ticketCode === renewData.ticketId) {
-          return {
-            ...t,
-            ticketType: renewData.newTicketType || t.ticketType,
-            endDate: renewData.newEndDate || t.endDate,
-            price: renewData.renewPrice
-              ? `${Number(renewData.renewPrice).toLocaleString("vi-VN")}đ`
-              : t.price,
-            slotLocation: renewData.newSlot || t.slotLocation,
-            status: "active",
-            statusText: "Đang hoạt động",
-          };
-        }
-        return t;
-      }),
-    );
+  const handleUpdateTicket = async (lookup, updateData) => {
+    const updated = await ticketService.updateTicket(lookup, updateData);
+    await fetchTickets();
+    return updated;
   };
 
-  const handleDeleteTicket = (ticketToDelete) => {
-    setTickets((prev) =>
-      prev.filter(
-        (t) =>
-          t.ticketCode !== (ticketToDelete?.ticketCode || ticketToDelete?.id),
-      ),
-    );
+  const handleRenewTicket = async (lookup, renewData) => {
+    const renewed = await ticketService.renewTicket(lookup, renewData);
+    await fetchTickets();
+    return renewed;
+  };
+
+  const handleDeleteTicket = async (lookup) => {
+    const result = await ticketService.deleteTicket(lookup);
+    await fetchTickets();
+    return result;
   };
 
   return {
     tickets,
-    filteredTickets,
-    paginatedTickets,
+    filteredTickets: tickets,
+    paginatedTickets: tickets,
+    totalCount,
     filters,
     currentPage,
     totalPages,
     itemsPerPage,
+    isLoading,
+    error,
+    ticketTypes,
     setCurrentPage,
     setItemsPerPage,
     handleFilterChange,
     handleResetFilters,
     handleItemsPerPageChange,
     handleCreateTicket,
+    handleUpdateTicket,
     handleRenewTicket,
     handleDeleteTicket,
+    refetchTickets: fetchTickets,
   };
 }

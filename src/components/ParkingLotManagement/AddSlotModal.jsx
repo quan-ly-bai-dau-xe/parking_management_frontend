@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { BaseModal } from "../common/modal";
 import { FormInput, FormSelect } from "../common/form";
 import Button from "../common/button/Button";
@@ -29,7 +29,9 @@ export default function AddSlotModal({
   });
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setFormData((prev) => ({
         ...prev,
@@ -40,7 +42,7 @@ export default function AddSlotModal({
       }));
       setError("");
     }
-  }, [isOpen, selectedFloor, selectedZone, floorOptions, zoneOptions]);
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault();
