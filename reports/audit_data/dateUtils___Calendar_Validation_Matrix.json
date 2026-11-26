@@ -1,0 +1,1083 @@
+{
+  "suiteTitle": "dateUtils & Calendar Validation Matrix",
+  "records": [
+    {
+      "description": "isLeapYear: 2024 (Chia hết cho 4)",
+      "input": "2024",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": 2024,
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isLeapYear: 2028 (Chia hết cho 4)",
+      "input": "2028",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": 2028,
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isLeapYear: '2024' (String)",
+      "input": "\"2024\"",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": "2024",
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isLeapYear: 2000 (Thế kỷ chia hết cho 400)",
+      "input": "2000",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": 2000,
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isLeapYear: 2400 (Thế kỷ chia hết cho 400)",
+      "input": "2400",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": 2400,
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isLeapYear: 2023 (Năm thường)",
+      "input": "2023",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": 2023,
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isLeapYear: 2025 (Năm thường)",
+      "input": "2025",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": 2025,
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isLeapYear: 1900 (Thế kỷ chia hết cho 100 ko 400)",
+      "input": "1900",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": 1900,
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isLeapYear: 2100 (Thế kỷ chia hết cho 100 ko 400)",
+      "input": "2100",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": 2100,
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isLeapYear: null",
+      "input": "null",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": null,
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isLeapYear: 'abc' (Chuỗi rác)",
+      "input": "\"abc\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "abc",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isLeapYear: undefined",
+      "input": "undefined",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "getDaysInMonth: Tháng 2 năm nhuận 2024",
+      "input": "{\"year\":2024,\"month\":2}",
+      "actual": "29",
+      "expected": "29",
+      "match": "PASS",
+      "rawInput": {
+        "year": 2024,
+        "month": 2
+      },
+      "rawActual": 29,
+      "rawExpected": 29
+    },
+    {
+      "description": "getDaysInMonth: Tháng 2 năm thường 2023",
+      "input": "{\"year\":2023,\"month\":2}",
+      "actual": "28",
+      "expected": "28",
+      "match": "PASS",
+      "rawInput": {
+        "year": 2023,
+        "month": 2
+      },
+      "rawActual": 28,
+      "rawExpected": 28
+    },
+    {
+      "description": "getDaysInMonth: Tháng 2 thế kỷ nhuận 2000",
+      "input": "{\"year\":2000,\"month\":2}",
+      "actual": "29",
+      "expected": "29",
+      "match": "PASS",
+      "rawInput": {
+        "year": 2000,
+        "month": 2
+      },
+      "rawActual": 29,
+      "rawExpected": 29
+    },
+    {
+      "description": "getDaysInMonth: Tháng 2 thế kỷ thường 1900",
+      "input": "{\"year\":1900,\"month\":2}",
+      "actual": "28",
+      "expected": "28",
+      "match": "PASS",
+      "rawInput": {
+        "year": 1900,
+        "month": 2
+      },
+      "rawActual": 28,
+      "rawExpected": 28
+    },
+    {
+      "description": "getDaysInMonth: Tháng 1 (31 ngày chuẩn)",
+      "input": "{\"year\":2026,\"month\":1}",
+      "actual": "31",
+      "expected": "31",
+      "match": "PASS",
+      "rawInput": {
+        "year": 2026,
+        "month": 1
+      },
+      "rawActual": 31,
+      "rawExpected": 31
+    },
+    {
+      "description": "getDaysInMonth: Tháng 12 (31 ngày chuẩn)",
+      "input": "{\"year\":2026,\"month\":12}",
+      "actual": "31",
+      "expected": "31",
+      "match": "PASS",
+      "rawInput": {
+        "year": 2026,
+        "month": 12
+      },
+      "rawActual": 31,
+      "rawExpected": 31
+    },
+    {
+      "description": "getDaysInMonth: Tháng 4 (30 ngày chuẩn)",
+      "input": "{\"year\":2026,\"month\":4}",
+      "actual": "30",
+      "expected": "30",
+      "match": "PASS",
+      "rawInput": {
+        "year": 2026,
+        "month": 4
+      },
+      "rawActual": 30,
+      "rawExpected": 30
+    },
+    {
+      "description": "getDaysInMonth: Tháng 0 không hợp lệ",
+      "input": "{\"year\":2026,\"month\":0}",
+      "actual": "0",
+      "expected": "0",
+      "match": "PASS",
+      "rawInput": {
+        "year": 2026,
+        "month": 0
+      },
+      "rawActual": 0,
+      "rawExpected": 0
+    },
+    {
+      "description": "getDaysInMonth: Tháng 13 không hợp lệ",
+      "input": "{\"year\":2026,\"month\":13}",
+      "actual": "0",
+      "expected": "0",
+      "match": "PASS",
+      "rawInput": {
+        "year": 2026,
+        "month": 13
+      },
+      "rawActual": 0,
+      "rawExpected": 0
+    },
+    {
+      "description": "getDaysInMonth: Tháng 'invalid'",
+      "input": "{\"year\":2026,\"month\":\"invalid\"}",
+      "actual": "0",
+      "expected": "0",
+      "match": "PASS",
+      "rawInput": {
+        "year": 2026,
+        "month": "invalid"
+      },
+      "rawActual": 0,
+      "rawExpected": 0
+    },
+    {
+      "description": "isValidDate: Ngày chuẩn '23/11/2026'",
+      "input": "\"23/11/2026\"",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": "23/11/2026",
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isValidDate: Ngày đầu năm '01/01/2000'",
+      "input": "\"01/01/2000\"",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": "01/01/2000",
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isValidDate: Ngày cuối năm '31/12/1999'",
+      "input": "\"31/12/1999\"",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": "31/12/1999",
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isValidDate: Rút gọn '5/8/1995'",
+      "input": "\"5/8/1995\"",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": "5/8/1995",
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isValidDate: Dấu gạch ngang '23-11-2026'",
+      "input": "\"23-11-2026\"",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": "23-11-2026",
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isValidDate: Dấu gạch ngang '01-01-2000'",
+      "input": "\"01-01-2000\"",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": "01-01-2000",
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isValidDate: Nhuận '29/02/2024'",
+      "input": "\"29/02/2024\"",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": "29/02/2024",
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isValidDate: Nhuận thế kỷ '29/02/2000'",
+      "input": "\"29/02/2000\"",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": "29/02/2000",
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isValidDate: Vô lý '29/02/2023' (năm thường)",
+      "input": "\"29/02/2023\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "29/02/2023",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Vô lý '29/02/1900' (thế kỷ thường)",
+      "input": "\"29/02/1900\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "29/02/1900",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Vô lý '29/02/2026'",
+      "input": "\"29/02/2026\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "29/02/2026",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Vô lý '31/04/2026' (tháng 4 có 30 ngày)",
+      "input": "\"31/04/2026\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "31/04/2026",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Vô lý '31/06/2026' (tháng 6 có 30 ngày)",
+      "input": "\"31/06/2026\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "31/06/2026",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Vô lý '32/01/2026' (vượt ngày)",
+      "input": "\"32/01/2026\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "32/01/2026",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Vô lý '00/01/2026' (ngày 0)",
+      "input": "\"00/01/2026\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "00/01/2026",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Vô lý '15/13/2026' (tháng 13)",
+      "input": "\"15/13/2026\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "15/13/2026",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Vô lý '15/00/2026' (tháng 0)",
+      "input": "\"15/00/2026\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "15/00/2026",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: ISO chuẩn '2026-11-23'",
+      "input": "\"2026-11-23\"",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": "2026-11-23",
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isValidDate: ISO nhuận '2024-02-29'",
+      "input": "\"2024-02-29\"",
+      "actual": "true",
+      "expected": "true",
+      "match": "PASS",
+      "rawInput": "2024-02-29",
+      "rawActual": true,
+      "rawExpected": true
+    },
+    {
+      "description": "isValidDate: ISO không nhuận '2023-02-29'",
+      "input": "\"2023-02-29\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "2023-02-29",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Năm < MIN '1899'",
+      "input": "\"15/08/1899\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "15/08/1899",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Năm > MAX '2101'",
+      "input": "\"15/08/2101\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "15/08/2101",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Chuỗi rỗng ''",
+      "input": "\"\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: null",
+      "input": "null",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": null,
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: undefined",
+      "input": "undefined",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Chuỗi rác 'abc'",
+      "input": "\"abc\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "abc",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "isValidDate: Format '2026/11/23' (gạch chéo ngược)",
+      "input": "\"2026/11/23\"",
+      "actual": "false",
+      "expected": "false",
+      "match": "PASS",
+      "rawInput": "2026/11/23",
+      "rawActual": false,
+      "rawExpected": false
+    },
+    {
+      "description": "formatDateToDisplay: ISO '2026-11-23'",
+      "input": "\"2026-11-23\"",
+      "actual": "\"23/11/2026\"",
+      "expected": "\"23/11/2026\"",
+      "match": "PASS",
+      "rawInput": "2026-11-23",
+      "rawActual": "23/11/2026",
+      "rawExpected": "23/11/2026"
+    },
+    {
+      "description": "formatDateToDisplay: ISO '1995-08-05'",
+      "input": "\"1995-08-05\"",
+      "actual": "\"05/08/1995\"",
+      "expected": "\"05/08/1995\"",
+      "match": "PASS",
+      "rawInput": "1995-08-05",
+      "rawActual": "05/08/1995",
+      "rawExpected": "05/08/1995"
+    },
+    {
+      "description": "formatDateToDisplay: Giữ nguyên '23/11/2026'",
+      "input": "\"23/11/2026\"",
+      "actual": "\"23/11/2026\"",
+      "expected": "\"23/11/2026\"",
+      "match": "PASS",
+      "rawInput": "23/11/2026",
+      "rawActual": "23/11/2026",
+      "rawExpected": "23/11/2026"
+    },
+    {
+      "description": "formatDateToDisplay: Chuẩn hóa '5/8/1995'",
+      "input": "\"5/8/1995\"",
+      "actual": "\"05/08/1995\"",
+      "expected": "\"05/08/1995\"",
+      "match": "PASS",
+      "rawInput": "5/8/1995",
+      "rawActual": "05/08/1995",
+      "rawExpected": "05/08/1995"
+    },
+    {
+      "description": "formatDateToDisplay: Chuẩn hóa '5-8-1995'",
+      "input": "\"5-8-1995\"",
+      "actual": "\"05/08/1995\"",
+      "expected": "\"05/08/1995\"",
+      "match": "PASS",
+      "rawInput": "5-8-1995",
+      "rawActual": "05/08/1995",
+      "rawExpected": "05/08/1995"
+    },
+    {
+      "description": "formatDateToDisplay: Date instance (23/11/2026)",
+      "input": "Date(2026-11-22)",
+      "actual": "\"23/11/2026\"",
+      "expected": "\"23/11/2026\"",
+      "match": "PASS",
+      "rawInput": "2026-11-22T17:00:00.000Z",
+      "rawActual": "23/11/2026",
+      "rawExpected": "23/11/2026"
+    },
+    {
+      "description": "formatDateToDisplay: Invalid Date",
+      "input": "Date(Invalid)",
+      "actual": "\"\"",
+      "expected": "\"\"",
+      "match": "PASS",
+      "rawInput": null,
+      "rawActual": "",
+      "rawExpected": ""
+    },
+    {
+      "description": "formatDateToDisplay: Invalid Date với fallback '—'",
+      "input": "Date(Invalid)",
+      "actual": "\"—\"",
+      "expected": "\"—\"",
+      "match": "PASS",
+      "rawInput": null,
+      "rawActual": "—",
+      "rawExpected": "—"
+    },
+    {
+      "description": "formatDateToDisplay: Chuỗi rỗng",
+      "input": "\"\"",
+      "actual": "\"\"",
+      "expected": "\"\"",
+      "match": "PASS",
+      "rawInput": "",
+      "rawActual": "",
+      "rawExpected": ""
+    },
+    {
+      "description": "formatDateToDisplay: null",
+      "input": "null",
+      "actual": "\"\"",
+      "expected": "\"\"",
+      "match": "PASS",
+      "rawInput": null,
+      "rawActual": "",
+      "rawExpected": ""
+    },
+    {
+      "description": "formatDateToDisplay: undefined",
+      "input": "undefined",
+      "actual": "\"\"",
+      "expected": "\"\"",
+      "match": "PASS",
+      "rawActual": "",
+      "rawExpected": ""
+    },
+    {
+      "description": "formatDateToDisplay: null với fallback '—'",
+      "input": "null",
+      "actual": "\"—\"",
+      "expected": "\"—\"",
+      "match": "PASS",
+      "rawInput": null,
+      "rawActual": "—",
+      "rawExpected": "—"
+    },
+    {
+      "description": "formatDateToDisplay: Chuỗi rỗng với fallback '—'",
+      "input": "\"\"",
+      "actual": "\"—\"",
+      "expected": "\"—\"",
+      "match": "PASS",
+      "rawInput": "",
+      "rawActual": "—",
+      "rawExpected": "—"
+    },
+    {
+      "description": "parseDisplayToApiDate: Chuẩn '23/11/2026'",
+      "input": "\"23/11/2026\"",
+      "actual": "\"2026-11-23\"",
+      "expected": "\"2026-11-23\"",
+      "match": "PASS",
+      "rawInput": "23/11/2026",
+      "rawActual": "2026-11-23",
+      "rawExpected": "2026-11-23"
+    },
+    {
+      "description": "parseDisplayToApiDate: Chuẩn '15/08/1995'",
+      "input": "\"15/08/1995\"",
+      "actual": "\"1995-08-15\"",
+      "expected": "\"1995-08-15\"",
+      "match": "PASS",
+      "rawInput": "15/08/1995",
+      "rawActual": "1995-08-15",
+      "rawExpected": "1995-08-15"
+    },
+    {
+      "description": "parseDisplayToApiDate: Chuẩn '01/01/2000'",
+      "input": "\"01/01/2000\"",
+      "actual": "\"2000-01-01\"",
+      "expected": "\"2000-01-01\"",
+      "match": "PASS",
+      "rawInput": "01/01/2000",
+      "rawActual": "2000-01-01",
+      "rawExpected": "2000-01-01"
+    },
+    {
+      "description": "parseDisplayToApiDate: Rút gọn '5/8/1995'",
+      "input": "\"5/8/1995\"",
+      "actual": "\"1995-08-05\"",
+      "expected": "\"1995-08-05\"",
+      "match": "PASS",
+      "rawInput": "5/8/1995",
+      "rawActual": "1995-08-05",
+      "rawExpected": "1995-08-05"
+    },
+    {
+      "description": "parseDisplayToApiDate: Rút gọn '1/1/2000'",
+      "input": "\"1/1/2000\"",
+      "actual": "\"2000-01-01\"",
+      "expected": "\"2000-01-01\"",
+      "match": "PASS",
+      "rawInput": "1/1/2000",
+      "rawActual": "2000-01-01",
+      "rawExpected": "2000-01-01"
+    },
+    {
+      "description": "parseDisplayToApiDate: Gạch ngang '23-11-2026'",
+      "input": "\"23-11-2026\"",
+      "actual": "\"2026-11-23\"",
+      "expected": "\"2026-11-23\"",
+      "match": "PASS",
+      "rawInput": "23-11-2026",
+      "rawActual": "2026-11-23",
+      "rawExpected": "2026-11-23"
+    },
+    {
+      "description": "parseDisplayToApiDate: ISO '2026-11-23'",
+      "input": "\"2026-11-23\"",
+      "actual": "\"2026-11-23\"",
+      "expected": "\"2026-11-23\"",
+      "match": "PASS",
+      "rawInput": "2026-11-23",
+      "rawActual": "2026-11-23",
+      "rawExpected": "2026-11-23"
+    },
+    {
+      "description": "parseDisplayToApiDate: Nhuận '29/02/2024'",
+      "input": "\"29/02/2024\"",
+      "actual": "\"2024-02-29\"",
+      "expected": "\"2024-02-29\"",
+      "match": "PASS",
+      "rawInput": "29/02/2024",
+      "rawActual": "2024-02-29",
+      "rawExpected": "2024-02-29"
+    },
+    {
+      "description": "parseDisplayToApiDate: Vô lý '29/02/2023' (null)",
+      "input": "\"29/02/2023\"",
+      "actual": "null",
+      "expected": "null",
+      "match": "PASS",
+      "rawInput": "29/02/2023",
+      "rawActual": null,
+      "rawExpected": null
+    },
+    {
+      "description": "parseDisplayToApiDate: Vô lý '31/04/2026' (null)",
+      "input": "\"31/04/2026\"",
+      "actual": "null",
+      "expected": "null",
+      "match": "PASS",
+      "rawInput": "31/04/2026",
+      "rawActual": null,
+      "rawExpected": null
+    },
+    {
+      "description": "parseDisplayToApiDate: Rác '99/99/9999' (null)",
+      "input": "\"99/99/9999\"",
+      "actual": "null",
+      "expected": "null",
+      "match": "PASS",
+      "rawInput": "99/99/9999",
+      "rawActual": null,
+      "rawExpected": null
+    },
+    {
+      "description": "parseDisplayToApiDate: Rác 'abc' (null)",
+      "input": "\"abc\"",
+      "actual": "null",
+      "expected": "null",
+      "match": "PASS",
+      "rawInput": "abc",
+      "rawActual": null,
+      "rawExpected": null
+    },
+    {
+      "description": "parseDisplayToApiDate: Rỗng '' (null)",
+      "input": "\"\"",
+      "actual": "null",
+      "expected": "null",
+      "match": "PASS",
+      "rawInput": "",
+      "rawActual": null,
+      "rawExpected": null
+    },
+    {
+      "description": "parseDisplayToApiDate: null",
+      "input": "null",
+      "actual": "null",
+      "expected": "null",
+      "match": "PASS",
+      "rawInput": null,
+      "rawActual": null,
+      "rawExpected": null
+    },
+    {
+      "description": "parseDisplayToApiDate: undefined",
+      "input": "undefined",
+      "actual": "null",
+      "expected": "null",
+      "match": "PASS",
+      "rawActual": null,
+      "rawExpected": null
+    },
+    {
+      "description": "maskDateInput: Gõ 1 số '1'",
+      "input": "\"1\"",
+      "actual": "\"1\"",
+      "expected": "\"1\"",
+      "match": "PASS",
+      "rawInput": "1",
+      "rawActual": "1",
+      "rawExpected": "1"
+    },
+    {
+      "description": "maskDateInput: Gõ 2 số '15'",
+      "input": "\"15\"",
+      "actual": "\"15\"",
+      "expected": "\"15\"",
+      "match": "PASS",
+      "rawInput": "15",
+      "rawActual": "15",
+      "rawExpected": "15"
+    },
+    {
+      "description": "maskDateInput: Gõ '15/'",
+      "input": "\"15/\"",
+      "actual": "\"15/\"",
+      "expected": "\"15/\"",
+      "match": "PASS",
+      "rawInput": "15/",
+      "rawActual": "15/",
+      "rawExpected": "15/"
+    },
+    {
+      "description": "maskDateInput: Gõ 3 số '150'",
+      "input": "\"150\"",
+      "actual": "\"15/0\"",
+      "expected": "\"15/0\"",
+      "match": "PASS",
+      "rawInput": "150",
+      "rawActual": "15/0",
+      "rawExpected": "15/0"
+    },
+    {
+      "description": "maskDateInput: Gõ 4 số '1508'",
+      "input": "\"1508\"",
+      "actual": "\"15/08\"",
+      "expected": "\"15/08\"",
+      "match": "PASS",
+      "rawInput": "1508",
+      "rawActual": "15/08",
+      "rawExpected": "15/08"
+    },
+    {
+      "description": "maskDateInput: Gõ '15/08/'",
+      "input": "\"15/08/\"",
+      "actual": "\"15/08/\"",
+      "expected": "\"15/08/\"",
+      "match": "PASS",
+      "rawInput": "15/08/",
+      "rawActual": "15/08/",
+      "rawExpected": "15/08/"
+    },
+    {
+      "description": "maskDateInput: Gõ 5 số '15081'",
+      "input": "\"15081\"",
+      "actual": "\"15/08/1\"",
+      "expected": "\"15/08/1\"",
+      "match": "PASS",
+      "rawInput": "15081",
+      "rawActual": "15/08/1",
+      "rawExpected": "15/08/1"
+    },
+    {
+      "description": "maskDateInput: Đủ 8 số '15081995'",
+      "input": "\"15081995\"",
+      "actual": "\"15/08/1995\"",
+      "expected": "\"15/08/1995\"",
+      "match": "PASS",
+      "rawInput": "15081995",
+      "rawActual": "15/08/1995",
+      "rawExpected": "15/08/1995"
+    },
+    {
+      "description": "maskDateInput: Chặn vượt 8 số '15081995999'",
+      "input": "\"15081995999\"",
+      "actual": "\"15/08/1995\"",
+      "expected": "\"15/08/1995\"",
+      "match": "PASS",
+      "rawInput": "15081995999",
+      "rawActual": "15/08/1995",
+      "rawExpected": "15/08/1995"
+    },
+    {
+      "description": "maskDateInput: Paste ISO '1995-08-15'",
+      "input": "\"1995-08-15\"",
+      "actual": "\"15/08/1995\"",
+      "expected": "\"15/08/1995\"",
+      "match": "PASS",
+      "rawInput": "1995-08-15",
+      "rawActual": "15/08/1995",
+      "rawExpected": "15/08/1995"
+    },
+    {
+      "description": "maskDateInput: Rỗng ''",
+      "input": "\"\"",
+      "actual": "\"\"",
+      "expected": "\"\"",
+      "match": "PASS",
+      "rawInput": "",
+      "rawActual": "",
+      "rawExpected": ""
+    },
+    {
+      "description": "maskDateInput: null",
+      "input": "null",
+      "actual": "\"\"",
+      "expected": "\"\"",
+      "match": "PASS",
+      "rawInput": null,
+      "rawActual": "",
+      "rawExpected": ""
+    },
+    {
+      "description": "maskDateInput: undefined",
+      "input": "undefined",
+      "actual": "\"\"",
+      "expected": "\"\"",
+      "match": "PASS",
+      "rawActual": "",
+      "rawExpected": ""
+    },
+    {
+      "description": "formatDateTimeDisplay: Rỗng ''",
+      "input": "\"\"",
+      "actual": "\"\"",
+      "expected": "\"\"",
+      "match": "PASS",
+      "rawInput": "",
+      "rawActual": "",
+      "rawExpected": ""
+    },
+    {
+      "description": "formatDateTimeDisplay: null với '—'",
+      "input": "null",
+      "actual": "\"—\"",
+      "expected": "\"—\"",
+      "match": "PASS",
+      "rawInput": null,
+      "rawActual": "—",
+      "rawExpected": "—"
+    },
+    {
+      "description": "formatDateTimeDisplay: 'invalid-date' với '—'",
+      "input": "\"invalid-date\"",
+      "actual": "\"—\"",
+      "expected": "\"—\"",
+      "match": "PASS",
+      "rawInput": "invalid-date",
+      "rawActual": "—",
+      "rawExpected": "—"
+    },
+    {
+      "description": "formatDateTimeDisplay: Date(2026-11-23 14:30)",
+      "input": "Date(2026-11-23)",
+      "actual": "\"23/11/2026 14:30\"",
+      "expected": "\"23/11/2026 14:30\"",
+      "match": "PASS",
+      "rawInput": "2026-11-23T07:30:00.000Z",
+      "rawActual": "23/11/2026 14:30",
+      "rawExpected": "23/11/2026 14:30"
+    },
+    {
+      "description": "formatDisplayDateToIso: '23/11/2026'",
+      "input": "\"23/11/2026\"",
+      "actual": "\"2026-11-23\"",
+      "expected": "\"2026-11-23\"",
+      "match": "PASS",
+      "rawInput": "23/11/2026",
+      "rawActual": "2026-11-23",
+      "rawExpected": "2026-11-23"
+    },
+    {
+      "description": "formatIsoDateToDisplay: '2026-11-23'",
+      "input": "\"2026-11-23\"",
+      "actual": "\"23/11/2026\"",
+      "expected": "\"23/11/2026\"",
+      "match": "PASS",
+      "rawInput": "2026-11-23",
+      "rawActual": "23/11/2026",
+      "rawExpected": "23/11/2026"
+    },
+    {
+      "description": "mapCustomerPayload: full_name",
+      "input": "\"Trần Thị B\"",
+      "actual": "\"Trần Thị B\"",
+      "expected": "\"Trần Thị B\"",
+      "match": "PASS",
+      "rawInput": "Trần Thị B",
+      "rawActual": "Trần Thị B",
+      "rawExpected": "Trần Thị B"
+    },
+    {
+      "description": "mapCustomerPayload: date_of_birth DD/MM/YYYY -> ISO",
+      "input": "\"15/08/1995\"",
+      "actual": "\"1995-08-15\"",
+      "expected": "\"1995-08-15\"",
+      "match": "PASS",
+      "rawInput": "15/08/1995",
+      "rawActual": "1995-08-15",
+      "rawExpected": "1995-08-15"
+    },
+    {
+      "description": "mapCustomerPayload: status",
+      "input": "\"Đang hoạt động\"",
+      "actual": "\"ACTIVE\"",
+      "expected": "\"ACTIVE\"",
+      "match": "PASS",
+      "rawInput": "Đang hoạt động",
+      "rawActual": "ACTIVE",
+      "rawExpected": "ACTIVE"
+    },
+    {
+      "description": "mapCustomerPayload: date_of_birth rỗng -> undefined",
+      "input": "\"\"",
+      "actual": "undefined",
+      "expected": "undefined",
+      "match": "PASS",
+      "rawInput": ""
+    },
+    {
+      "description": "mapCustomerPayload: 31/02/1995 không gửi lên backend",
+      "input": "\"31/02/1995\"",
+      "actual": "undefined",
+      "expected": "undefined",
+      "match": "PASS",
+      "rawInput": "31/02/1995"
+    },
+    {
+      "description": "CustomerBirthdaySchema: Hợp lệ '15/08/1995'",
+      "input": "\"15/08/1995\"",
+      "actual": "\"15/08/1995\"",
+      "expected": "\"15/08/1995\"",
+      "match": "PASS",
+      "rawInput": "15/08/1995",
+      "rawActual": "15/08/1995",
+      "rawExpected": "15/08/1995"
+    },
+    {
+      "description": "CustomerBirthdaySchema: Chuỗi rỗng ''",
+      "input": "\"\"",
+      "actual": "\"\"",
+      "expected": "\"\"",
+      "match": "PASS",
+      "rawInput": "",
+      "rawActual": "",
+      "rawExpected": ""
+    },
+    {
+      "description": "CustomerBirthdaySchema: Khoảng trắng '   '",
+      "input": "\"   \"",
+      "actual": "\"\"",
+      "expected": "\"\"",
+      "match": "PASS",
+      "rawInput": "   ",
+      "rawActual": "",
+      "rawExpected": ""
+    },
+    {
+      "description": "CustomerBirthdaySchema: Bắt lỗi '31/02/2024'",
+      "input": "\"31/02/2024\"",
+      "actual": "[THROWS AS EXPECTED]",
+      "expected": "/Ngày sinh không đúng định dạng dd\\/mm\\/yyyy hoặc ngày không hợp lệ trên lịch/",
+      "match": "PASS",
+      "rawInput": "31/02/2024"
+    },
+    {
+      "description": "CustomerBirthdaySchema: Bắt lỗi '99/99/9999'",
+      "input": "\"99/99/9999\"",
+      "actual": "[THROWS AS EXPECTED]",
+      "expected": "/Ngày sinh không đúng định dạng dd\\/mm\\/yyyy hoặc ngày không hợp lệ trên lịch/",
+      "match": "PASS",
+      "rawInput": "99/99/9999"
+    }
+  ],
+  "recordedAt": "2026-11-25T04:00:55.962Z"
+}

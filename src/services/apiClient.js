@@ -37,6 +37,11 @@ export function notifyUnauthorized(message = DEFAULT_UNAUTHORIZED_MESSAGE) {
                 },
             })
         );
+        window.dispatchEvent(
+            new CustomEvent("sp:auth-user-changed", {
+                detail: { user: null },
+            })
+        );
     }
 }
 

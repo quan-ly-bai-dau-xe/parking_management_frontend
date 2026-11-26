@@ -38,6 +38,7 @@ export default function ResetPasswordModal({ isOpen, onClose, account, otp, onSu
         <BaseModal
             isOpen={isOpen}
             onClose={onClose}
+            isBusy={loading}
             title="Đặt lại mật khẩu"
             size="md"
         >

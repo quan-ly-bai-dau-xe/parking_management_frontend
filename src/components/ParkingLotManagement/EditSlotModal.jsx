@@ -3,6 +3,7 @@ import { BaseModal } from "../common/modal";
 import { FormInput, FormSelect } from "../common/form";
 import Button from "../common/button/Button";
 import {
+  SLOT_STATUS,
   SLOT_STATUS_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
 } from "../../constants/parkingLotConstants";
@@ -19,12 +20,16 @@ function EditSlotForm({ slot, onClose, onSave }) {
   });
 
   // Khóa lạm quyền Trạng thái Ô đỗ:
-  // - Quản lý (Manager): Có toàn quyền điều chỉnh mọi trạng thái
+  // - Quản lý (Manager): Có toàn quyền điều chỉnh các trạng thái PATCH hợp lệ của Backend
+  //   (loại trừ OVERSTAY vì OVERSTAY chỉ là filter cảnh báo, không thuộc ParkingSlot.STATUS_CHOICES).
   // - Nhân viên (Employee): Chỉ được phép thao tác trạng thái vận hành kỹ thuật (AVAILABLE, MAINTENANCE).
   //   Tuyệt đối không được tự ý can thiệp các trạng thái hệ thống: OCCUPIED (Đang đỗ), OVERSTAY (Quá giờ), RESERVED (Đặt trước).
+  const patchableStatusOptions = SLOT_STATUS_OPTIONS.filter(
+    (opt) => opt.value !== SLOT_STATUS.OVERSTAY
+  );
   const allowedStatusOptions = isManager
-    ? SLOT_STATUS_OPTIONS
-    : SLOT_STATUS_OPTIONS.filter((opt) =>
+    ? patchableStatusOptions
+    : patchableStatusOptions.filter((opt) =>
         [SLOT_STATUS.AVAILABLE, SLOT_STATUS.MAINTENANCE].includes(opt.value)
       );
 

@@ -11,7 +11,12 @@ import { PageHeader, Button, EmptyState, LoadingSpinner } from "../components/co
 import { ConfirmModal } from "../components/common/modal";
 import { useToast } from "../context/ToastContext";
 import { useParkingLot } from "../hooks/useParkingLot";
-import { getStatusText, getParkingStructure } from "../services/parkingLotService";
+import { useCurrentUser } from "../hooks/useCurrentUser";
+import {
+  getStatusText,
+  getParkingStructure,
+  getCustomerParkingStructure,
+} from "../services/parkingLotService";
 import {
   ParkingLotStatsCards,
   ParkingLotFilters,
@@ -24,9 +29,18 @@ import {
   StructureModal,
 } from "../components/ParkingLotManagement";
 import { INITIAL_STRUCTURE_LIST } from "../constants/parkingLotConstants";
+import { formatReservedTimeDisplay } from "../utils/formatDateTime";
+
+function getSlotTypeDisplayLabel(slotType, standardLabel = "Ô tô") {
+  if (slotType === "PRIORITY") return "Xe ưu tiên";
+  if (slotType === "EV_CHARGING") return "Trạm sạc xe điện (EV)";
+  return standardLabel;
+}
 
 export default function ParkingLotManagement() {
   const toast = useToast();
+  const { role, isManager } = useCurrentUser();
+  const isCustomer = role === "CUSTOMER";
 
   // 1. Quản lý trạng thái bộ lọc
   const [searchParams] = useSearchParams();
@@ -43,8 +57,25 @@ export default function ParkingLotManagement() {
   );
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState("");
 
+  // 1b. Quản lý ô đỗ đang được chọn xem chi tiết
+  const [selectedSlot, setSelectedSlot] = useState(null);
+
   // Tự động đồng bộ URL params khi query string thay đổi
-  useEffect(() => {
+  const [prevParams, setPrevParams] = useState({
+    floor: floorParam,
+    zone: zoneParam,
+    filter: filterParam,
+  });
+  if (
+    prevParams.floor !== floorParam ||
+    prevParams.zone !== zoneParam ||
+    prevParams.filter !== filterParam
+  ) {
+    setPrevParams({
+      floor: floorParam,
+      zone: zoneParam,
+      filter: filterParam,
+    });
     if (floorParam && floorParam !== selectedFloor) {
       setSelectedFloor(floorParam);
     }
@@ -54,7 +85,7 @@ export default function ParkingLotManagement() {
     if (filterParam === "overstay") {
       setStatusFilter("OVERSTAY");
     }
-  }, [floorParam, zoneParam, filterParam]);
+  }
 
   // 2. Quản lý chế độ xem (Matrix View vs List View)
   const [viewMode, setViewMode] = useState("matrix");
@@ -62,54 +93,48 @@ export default function ParkingLotManagement() {
   // 3. Quản lý cấu trúc bãi ở chân trang (Single Source of Truth cho tầng & phân khu)
   const [structureList, setStructureList] = useState(INITIAL_STRUCTURE_LIST);
 
-  // Tải cấu trúc phân cấp từ API /api/v1/parking/structure/ với fallback
+  // Tải cấu trúc thực tế từ backend REST API (phân tách endpoint Customer vs Staff)
   useEffect(() => {
-    let isCancelled = false;
-    const fetchStructure = async () => {
-      try {
-        const data = await getParkingStructure();
-        if (!isCancelled && Array.isArray(data) && data.length > 0) {
-          const list = [];
-          const seenZones = new Set();
-
+    let isMounted = true;
+    const structureLoader = isCustomer
+      ? getCustomerParkingStructure
+      : getParkingStructure;
+    structureLoader()
+      .then((data) => {
+        if (isMounted && Array.isArray(data) && data.length > 0) {
+          const mapped = [];
           data.forEach((floor) => {
-            list.push({
-              id: `floor-${floor.code || floor.id}`,
+            mapped.push({
+              id: floor.id,
               type: "Tầng",
-              code: floor.code || floor.id,
               name: floor.name || `Tầng ${floor.code}`,
+              code: floor.code,
+              totalSlots: floor.total_slots || 0,
             });
-
             if (Array.isArray(floor.zones)) {
-              floor.zones.forEach((z) => {
-                const zoneCode = z.code || z.name?.replace(/^Khu\s*/i, "") || z.id;
-                if (!seenZones.has(zoneCode)) {
-                  seenZones.add(zoneCode);
-                  list.push({
-                    id: `zone-${zoneCode}`,
-                    type: "Khu",
-                    code: zoneCode,
-                    name: z.name || `Khu ${zoneCode}`,
-                  });
-                }
+              floor.zones.forEach((zone) => {
+                mapped.push({
+                  id: zone.id,
+                  type: "Khu",
+                  name: zone.name || `Khu ${zone.code}`,
+                  code: zone.code,
+                  floorCode: floor.code,
+                  totalSlots: zone.total_slots || 0,
+                });
               });
             }
           });
-
-          if (list.length > 0) {
-            setStructureList(list);
-          }
+          setStructureList(mapped);
         }
-      } catch (err) {
-        console.warn("Lỗi khi tải cấu trúc bãi xe từ backend:", err);
-      }
-    };
+      })
+      .catch((err) => {
+        console.warn("Không thể tải cấu trúc bãi xe từ backend:", err);
+      });
 
-    fetchStructure();
     return () => {
-      isCancelled = true;
+      isMounted = false;
     };
-  }, []);
+  }, [isCustomer]);
 
   // 3b. Derive floorOptions và zoneOptions từ structureList
   const floorOptions = useMemo(() => {
@@ -131,27 +156,32 @@ export default function ParkingLotManagement() {
   }, [structureList]);
 
   // 3c. Tự động chuyển floor/zone đang chọn nếu bị xóa khỏi cấu trúc bãi
-  useEffect(() => {
-    if (floorOptions.length > 0 && !floorOptions.some((f) => f.value === selectedFloor)) {
-      setSelectedFloor(floorOptions[0].value);
-    }
-  }, [floorOptions, selectedFloor]);
+  if (floorOptions.length > 0 && !floorOptions.some((f) => f.value === selectedFloor)) {
+    setSelectedFloor(floorOptions[0].value);
+  }
 
-  useEffect(() => {
-    if (zoneOptions.length > 0 && !zoneOptions.some((z) => z.value === selectedZone)) {
-      setSelectedZone(zoneOptions[0].value);
-    }
-  }, [zoneOptions, selectedZone]);
+  if (zoneOptions.length > 0 && !zoneOptions.some((z) => z.value === selectedZone)) {
+    setSelectedZone(zoneOptions[0].value);
+  }
 
   // Đặt lại ô đang chọn khi chuyển tầng hoặc khu vực để panel chi tiết cập nhật chuẩn theo tầng/khu mới
-  useEffect(() => {
+  const [prevFloorZone, setPrevFloorZone] = useState({
+    floor: selectedFloor,
+    zone: selectedZone,
+  });
+  if (
+    prevFloorZone.floor !== selectedFloor ||
+    prevFloorZone.zone !== selectedZone
+  ) {
+    setPrevFloorZone({ floor: selectedFloor, zone: selectedZone });
     setSelectedSlot(null);
-  }, [selectedFloor, selectedZone]);
+  }
 
   // 4. Quản lý modal thao tác ô đỗ xe & cấu trúc
   const [isEditSlotModalOpen, setIsEditSlotModalOpen] = useState(false);
   const [isAddSlotModalOpen, setIsAddSlotModalOpen] = useState(false);
   const [isDeleteSlotModalOpen, setIsDeleteSlotModalOpen] = useState(false);
+  const [isDeletingSlot, setIsDeletingSlot] = useState(false);
   const [slotToDelete, setSlotToDelete] = useState(null);
 
   // 4b. Quản lý nhật ký hoạt động gần đây tại chân trang
@@ -181,9 +211,22 @@ export default function ParkingLotManagement() {
   const [deleteStructureTarget, setDeleteStructureTarget] = useState(null);
 
   // 5. Kết nối hook Backend API thực tế (STRICT API MODE: Không fallback về mock)
-  const { slots, isLoading, error, refetch, updateSlotStatus } = useParkingLot({
+  const {
+    slots,
+    isLoading,
+    error,
+    refetch,
+    updateSlotStatus,
+    createSlot,
+    updateSlot,
+    deleteSlot,
+  } = useParkingLot({
     floor: selectedFloor,
     zone: selectedZone,
+    status: statusFilter,
+    slotKind: vehicleTypeFilter,
+    search: searchQuery,
+    isCustomer,
   });
 
   // 5b. Quản lý danh sách ô đỗ reactive tại client (đồng bộ từ API theo chuẩn React)
@@ -194,9 +237,6 @@ export default function ParkingLotManagement() {
     setPrevSlots(slots);
     setLocalSlots(slots || []);
   }
-
-  // 6. Quản lý ô đỗ đang được chọn xem chi tiết
-  const [selectedSlot, setSelectedSlot] = useState(null);
 
   // Tự động đồng bộ slot được chọn khi danh sách localSlots thay đổi
   const activeSelectedSlot = useMemo(() => {
@@ -214,18 +254,23 @@ export default function ParkingLotManagement() {
       );
       if (matched) {
         return {
+          ...matched,
           id: String(matched.label || matched.code || matched.id),
+          numericId: matched.id,
           slotId: String(matched.slotId || matched.id),
+          row_version: matched.row_version,
           status: matched.status,
           statusText: matched.statusText || getStatusText(matched.status),
           parkingLot: matched.parkingLot || "Bãi xe Smart Mobility",
           floor: matched.floor || selectedFloor,
           zone: matched.zone || selectedZone,
           licensePlate: matched.plate || matched.licensePlate || "—",
-          vehicleType: matched.type === "PRIORITY" ? "Xe ưu tiên" : "Ô tô",
+          vehicleType: getSlotTypeDisplayLabel(matched.type || matched.slot_kind),
           reservedBy:
             matched.reservedBy ||
-            (matched.reservedTime ? `Khách đặt lúc ${matched.reservedTime}` : "—"),
+            (matched.reservedTime
+              ? `Khách đặt lúc ${formatReservedTimeDisplay(matched.reservedTime)}`
+              : "—"),
           note: matched.note || matched.notes || "—",
         };
       }
@@ -234,18 +279,23 @@ export default function ParkingLotManagement() {
     if (localSlots.length > 0) {
       const first = localSlots[0];
       return {
+        ...first,
         id: String(first.label || first.code || first.id),
+        numericId: first.id,
         slotId: String(first.slotId || first.id),
+        row_version: first.row_version,
         status: first.status,
         statusText: first.statusText || getStatusText(first.status),
         parkingLot: first.parkingLot || "Bãi xe Smart Mobility",
         floor: first.floor || selectedFloor,
         zone: first.zone || selectedZone,
         licensePlate: first.plate || first.licensePlate || "—",
-        vehicleType: first.type === "PRIORITY" ? "Xe ưu tiên" : "Ô tô",
+        vehicleType: getSlotTypeDisplayLabel(first.type || first.slot_kind),
         reservedBy:
           first.reservedBy ||
-          (first.reservedTime ? `Khách đặt lúc ${first.reservedTime}` : "—"),
+          (first.reservedTime
+            ? `Khách đặt lúc ${formatReservedTimeDisplay(first.reservedTime)}`
+            : "—"),
         note: first.note || first.notes || "—",
       };
     }
@@ -254,24 +304,26 @@ export default function ParkingLotManagement() {
   }, [selectedSlot, localSlots, selectedFloor, selectedZone]);
 
   // Tự động chọn ô đỗ khi URL truyền slot parameter (ví dụ từ liên kết thông báo)
-  useEffect(() => {
-    if (slotParam && localSlots.length > 0) {
-      const target = localSlots.find(
-        (s) =>
-          String(s.code || s.label || s.id || s.slotId).toUpperCase() ===
-          slotParam.toUpperCase()
-      );
-      if (target) {
-        setSelectedSlot(target);
-      }
+  const [syncedSlotParam, setSyncedSlotParam] = useState(null);
+  if (slotParam && slotParam !== syncedSlotParam && localSlots.length > 0) {
+    const target = localSlots.find(
+      (s) =>
+        String(s.code || s.label || s.id || s.slotId).toUpperCase() ===
+        slotParam.toUpperCase()
+    );
+    if (target) {
+      setSyncedSlotParam(slotParam);
+      setSelectedSlot(target);
     }
-  }, [slotParam, localSlots]);
+  }
 
   // 7. Thống kê nhanh từ dữ liệu thực tế (dựa trên localSlots)
   const stats = useMemo(() => {
     const total = localSlots.length;
     const available = localSlots.filter((s) => s.status === "AVAILABLE").length;
-    const occupied = localSlots.filter((s) => s.status === "OCCUPIED").length;
+    const occupied = localSlots.filter(
+      (s) => s.status === "OCCUPIED" || s.status === "CHARGING"
+    ).length;
     const reservedOrMaint = localSlots.filter(
       (s) => s.status === "RESERVED" || s.status === "MAINTENANCE"
     ).length;
@@ -298,8 +350,7 @@ export default function ParkingLotManagement() {
         return false;
       }
       if (vehicleTypeFilter) {
-        if (vehicleTypeFilter === "PRIORITY" && slot.type !== "PRIORITY") return false;
-        if (vehicleTypeFilter === "STANDARD" && slot.type !== "STANDARD") return false;
+        if (slot.type !== vehicleTypeFilter && slot.slot_kind !== vehicleTypeFilter) return false;
       }
       return true;
     },
@@ -358,229 +409,310 @@ export default function ParkingLotManagement() {
   }, [localSlots, selectedZone]);
 
   // 9. Đặt lại toàn bộ bộ lọc
-  const handleResetFilters = useCallback(() => {
+  const handleResetFilters = () => {
     setSearchQuery("");
     setStatusFilter("");
     setVehicleTypeFilter("");
     if (floorOptions.length > 0) setSelectedFloor(floorOptions[0].value);
     if (zoneOptions.length > 0) setSelectedZone(zoneOptions[0].value);
-  }, [floorOptions, zoneOptions]);
+  };
 
   // 10. Chọn ô đỗ
-  const handleSelectSlot = useCallback(
-    (slot) => {
-      if (!slot) return;
-      const slotIdStr = String(slot.label || slot.code || slot.id || "");
-      setSelectedSlot({
-        id: slotIdStr,
-        slotId: String(slot.slotId || slot.id || slotIdStr),
-        status: slot.status,
-        statusText: slot.statusText || getStatusText(slot.status),
-        parkingLot: slot.parkingLot || "Bãi xe Smart Mobility",
-        floor: slot.floor || selectedFloor,
-        zone: slot.zone || selectedZone,
-        licensePlate: slot.plate || slot.licensePlate || "—",
-        vehicleType: slot.type === "PRIORITY" ? "Xe ưu tiên" : "Ô tô",
-        reservedBy:
-          slot.reservedBy ||
-          (slot.reservedTime ? `Khách đặt lúc ${slot.reservedTime}` : "—"),
-        note: slot.note || slot.notes || "—",
-      });
-    },
-    [selectedFloor, selectedZone]
-  );
+  const handleSelectSlot = (slot) => {
+    if (!slot) return;
+    const slotIdStr = String(slot.label || slot.code || slot.id || "");
+    setSelectedSlot({
+      ...slot,
+      id: slotIdStr,
+      numericId: slot.numericId || slot.id,
+      slotId: String(slot.slotId || slot.id || slotIdStr),
+      row_version: slot.row_version,
+      status: slot.status,
+      statusText: slot.statusText || getStatusText(slot.status),
+      parkingLot: slot.parkingLot || "Bãi xe Smart Mobility",
+      floor: slot.floor || selectedFloor,
+      zone: slot.zone || selectedZone,
+      licensePlate: slot.plate || slot.licensePlate || "—",
+      vehicleType: getSlotTypeDisplayLabel(slot.type || slot.slot_kind),
+      reservedBy:
+        slot.reservedBy ||
+        (slot.reservedTime
+          ? `Khách đặt lúc ${formatReservedTimeDisplay(slot.reservedTime)}`
+          : "—"),
+      note: slot.note || slot.notes || "—",
+    });
+  };
 
   // 11. Cập nhật nhanh trạng thái ô đỗ
-  const handleUpdateSlotStatus = useCallback(
-    async (slot, newStatus) => {
-      const slotId = slot?.id || slot?.slotId || slot?.label || slot?.code;
-      const res = await updateSlotStatus(slotId, newStatus);
-      const statusText = getStatusText(newStatus);
+  const handleUpdateSlotStatus = async (slot, newStatus) => {
+    const apiSlotId =
+      slot?.numericId ?? (typeof slot?.id === "number" ? slot.id : slot?.slotId);
+    const displayLabel = slot?.label || slot?.code || apiSlotId;
+    const res = await updateSlotStatus(apiSlotId, {
+      status: newStatus,
+      row_version: slot?.row_version ?? 1,
+    });
+    const statusText = getStatusText(newStatus);
 
-      if (res?.success) {
-        setLocalSlots((prev) =>
-          prev.map((s) => {
-            const sId = String(s.id || s.slotId || s.label || s.code || "");
-            if (sId === String(slotId)) {
-              return {
-                ...s,
-                status: newStatus,
-                statusText,
-                ...(newStatus === "AVAILABLE"
-                  ? { licensePlate: "—", plate: null, reservedBy: "—" }
-                  : {}),
-              };
-            }
-            return s;
-          })
-        );
-
-        setSelectedSlot((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: newStatus,
-                statusText,
-                ...(newStatus === "AVAILABLE"
-                  ? { licensePlate: "—", reservedBy: "—" }
-                  : {}),
-              }
-            : null
-        );
-
-        toast.success(
-          `Đã cập nhật trạng thái ô ${slot.label || slotId} thành "${statusText}".`
-        );
-      } else {
-        toast.error(
-          res?.error || `Không thể cập nhật trạng thái ô ${slot.label || slotId}.`
-        );
-      }
-    },
-    [updateSlotStatus, toast]
-  );
-
-  // 11b. Xác nhận đã kiểm tra ô đỗ quá giờ
-  const handleAcknowledgeOverstay = useCallback(
-    (slot) => {
-      if (!slot) return;
-      const slotCode = String(slot.label || slot.code || slot.id);
+    if (res?.success) {
+      const nextVersion = res.data?.row_version ?? ((slot?.row_version ?? 1) + 1);
       setLocalSlots((prev) =>
         prev.map((s) => {
-          if (String(s.label || s.code || s.id) === slotCode) {
+          const matchesSlot =
+            (apiSlotId !== undefined &&
+              apiSlotId !== null &&
+              String(s.id) === String(apiSlotId)) ||
+            String(s.label || s.code || "") === String(slot?.label || slot?.code || "");
+          if (matchesSlot) {
             return {
               ...s,
-              isOverstay: false,
-              overstayAcknowledged: true,
-              note: s.note ? `${s.note} | Đã kiểm tra` : "Đã kiểm tra thực tế",
+              ...(res.data && typeof res.data === "object" ? res.data : {}),
+              status: newStatus,
+              statusText,
+              row_version: nextVersion,
+              ...(newStatus === "AVAILABLE"
+                ? { licensePlate: "—", plate: null, reservedBy: "—" }
+                : {}),
             };
           }
           return s;
         })
       );
+
       setSelectedSlot((prev) =>
-        prev && String(prev.label || prev.code || prev.id) === slotCode
+        prev
           ? {
               ...prev,
-              isOverstay: false,
-              overstayAcknowledged: true,
-              note: prev.note ? `${prev.note} | Đã kiểm tra` : "Đã kiểm tra thực tế",
+              status: newStatus,
+              statusText,
+              row_version: nextVersion,
+              ...(newStatus === "AVAILABLE"
+                ? { licensePlate: "—", reservedBy: "—" }
+                : {}),
             }
-          : prev
+          : null
       );
+
       toast.success(
-        `Đã xác nhận kiểm tra thực tế cho ô đỗ ${slotCode}. Cảnh báo quá giờ đã được xử lý.`
+        `Đã cập nhật trạng thái ô ${displayLabel} thành "${statusText}".`
       );
-    },
-    [toast]
-  );
+    } else {
+      toast.error(
+        res?.error || `Không thể cập nhật trạng thái ô ${displayLabel}.`
+      );
+    }
+  };
+
+  // 11b. Xác nhận đã kiểm tra ô đỗ quá giờ
+  const handleAcknowledgeOverstay = (slot) => {
+    if (!slot) return;
+    const slotCode = String(slot.label || slot.code || slot.id);
+    setLocalSlots((prev) =>
+      prev.map((s) => {
+        if (String(s.label || s.code || s.id) === slotCode) {
+          return {
+            ...s,
+            isOverstay: false,
+            overstayAcknowledged: true,
+            note: s.note ? `${s.note} | Đã kiểm tra` : "Đã kiểm tra thực tế",
+          };
+        }
+        return s;
+      })
+    );
+    setSelectedSlot((prev) =>
+      prev && String(prev.label || prev.code || prev.id) === slotCode
+        ? {
+            ...prev,
+            isOverstay: false,
+            overstayAcknowledged: true,
+            note: prev.note ? `${prev.note} | Đã kiểm tra` : "Đã kiểm tra thực tế",
+          }
+        : prev
+    );
+    toast.success(
+      `Đã xác nhận kiểm tra thực tế cho ô đỗ ${slotCode}. Cảnh báo quá giờ đã được xử lý.`
+    );
+  };
 
   // 11c. Báo vi phạm ô đỗ quá giờ
-  const handleReportViolation = useCallback(
-    (slot) => {
-      if (!slot) return;
-      const plate = slot.plate || slot.licensePlate || "Chưa rõ biển số";
-      const slotCode = String(slot.label || slot.code || slot.id);
-      toast.warning(
-        `Đã lập biên bản ghi nhận vi phạm đỗ quá giờ cho xe ${plate} tại vị trí ${slotCode}.`
-      );
-    },
-    [toast]
-  );
+  const handleReportViolation = (slot) => {
+    if (!slot) return;
+    const plate = slot.plate || slot.licensePlate || "Chưa rõ biển số";
+    const slotCode = String(slot.label || slot.code || slot.id);
+    toast.warning(
+      `Đã lập biên bản ghi nhận vi phạm đỗ quá giờ cho xe ${plate} tại vị trí ${slotCode}.`
+    );
+  };
 
   // 12. Chỉnh sửa chi tiết ô đỗ
-  const handleOpenEditSlot = useCallback(
-    (slot) => {
-      handleSelectSlot(slot);
-      setIsEditSlotModalOpen(true);
-    },
-    [handleSelectSlot]
-  );
+  const handleOpenEditSlot = (slot) => {
+    handleSelectSlot(slot);
+    setIsEditSlotModalOpen(true);
+  };
 
-  const handleSaveEditSlot = useCallback(
-    (updatedSlot) => {
-      const targetId = String(
-        updatedSlot.id || updatedSlot.code || updatedSlot.label || updatedSlot.slotId || ""
-      );
-      const statusText = updatedSlot.statusText || getStatusText(updatedSlot.status);
-      const normalizedUpdated = {
-        ...updatedSlot,
-        id: targetId,
-        statusText,
-        licensePlate: updatedSlot.licensePlate || updatedSlot.plate || "—",
-        plate: updatedSlot.plate || (updatedSlot.licensePlate !== "—" ? updatedSlot.licensePlate : null),
+  const handleSaveEditSlot = async (updatedSlot) => {
+    try {
+      const slotId =
+        updatedSlot.numericId ??
+        (typeof updatedSlot.id === "number" ? updatedSlot.id : updatedSlot.slotId);
+      const payload = {
+        row_version: updatedSlot.row_version || 1,
+        code: updatedSlot.code || updatedSlot.label,
+        slot_kind: updatedSlot.type || updatedSlot.slot_kind || "STANDARD",
+        status: updatedSlot.status,
+        notes: updatedSlot.note || updatedSlot.notes || "",
       };
 
-      setLocalSlots((prev) =>
-        prev.map((s) => {
-          const sId = String(s.id || s.code || s.label || s.slotId || "");
-          return sId === targetId ? { ...s, ...normalizedUpdated } : s;
-        })
-      );
-      handleSelectSlot(normalizedUpdated);
+      const res = await updateSlot(slotId, payload);
+      if (!res?.success) {
+        const err = res?.rawError || {};
+        if (err.status === 409 || err.data?.code === "PROP-4.8.3-P03") {
+          toast.error(
+            "Dữ liệu vị trí đỗ xe đã bị thay đổi bởi người dùng khác. Đang tải lại dữ liệu mới nhất..."
+          );
+          await refetch();
+        } else {
+          toast.error(
+            err.data?.detail ||
+              err.data?.message ||
+              res?.error ||
+              "Không thể cập nhật ô đỗ xe."
+          );
+        }
+        return;
+      }
+
       toast.success(
-        `Đã lưu thay đổi cho ô đỗ ${updatedSlot.label || updatedSlot.id}.`
+        `Đã lưu thay đổi cho ô đỗ ${updatedSlot.label || updatedSlot.code || slotId}.`
       );
-    },
-    [handleSelectSlot, toast]
-  );
+      setIsEditSlotModalOpen(false);
+      await refetch();
+    } catch (err) {
+      console.error("Lỗi cập nhật ô đỗ:", err);
+      if (err.status === 409 || err.data?.code === "PROP-4.8.3-P03") {
+        toast.error(
+          "Dữ liệu vị trí đỗ xe đã bị thay đổi bởi người dùng khác. Đang tải lại dữ liệu mới nhất..."
+        );
+        await refetch();
+      } else {
+        const msg =
+          err.data?.detail ||
+          err.data?.message ||
+          err.message ||
+          "Không thể cập nhật ô đỗ xe.";
+        toast.error(msg);
+      }
+    }
+  };
 
   // 13. Xóa ô đỗ xe
-  const handleOpenDeleteSlot = useCallback((slot) => {
+  const handleOpenDeleteSlot = (slot) => {
     setSlotToDelete(slot);
     setIsDeleteSlotModalOpen(true);
-  }, []);
+  };
 
-  const handleConfirmDeleteSlot = useCallback(() => {
+  const handleConfirmDeleteSlot = async () => {
     if (!slotToDelete) return;
-    const targetId = String(
-      slotToDelete.label || slotToDelete.code || slotToDelete.id || slotToDelete.slotId || ""
-    );
+    const targetId =
+      slotToDelete.numericId ??
+      (typeof slotToDelete.id === "number" ? slotToDelete.id : slotToDelete.slotId);
+    const targetLabel =
+      slotToDelete.label || slotToDelete.code || targetId;
 
-    setLocalSlots((prev) =>
-      prev.filter(
-        (s) =>
-          String(s.label || s.code || s.id || s.slotId || "") !== targetId
-      )
-    );
+    setIsDeletingSlot(true);
+    try {
+      const res = await deleteSlot(targetId);
+      if (!res?.success) {
+        const err = res?.rawError || {};
+        const msg =
+          err.data?.detail ||
+          err.data?.message ||
+          res?.error ||
+          "Không thể xóa ô đỗ xe do có ràng buộc phiên hoặc vé.";
+        toast.error(msg);
+        setIsDeleteSlotModalOpen(false);
+        setSlotToDelete(null);
+        return;
+      }
 
-    if (String(activeSelectedSlot?.id) === targetId) {
-      setSelectedSlot(null);
+      toast.success(`Đã xóa thành công ô đỗ ${targetLabel}.`);
+      if (
+        String(activeSelectedSlot?.id) === String(targetLabel) ||
+        activeSelectedSlot?.numericId === targetId
+      ) {
+        setSelectedSlot(null);
+      }
+      setIsDeleteSlotModalOpen(false);
+      setSlotToDelete(null);
+      await refetch();
+    } catch (err) {
+      console.error("Lỗi xóa ô đỗ:", err);
+      const msg =
+        err.data?.detail ||
+        err.data?.message ||
+        err.message ||
+        "Không thể xóa ô đỗ xe do có ràng buộc phiên hoặc vé.";
+      toast.error(msg);
+      setIsDeleteSlotModalOpen(false);
+      setSlotToDelete(null);
+    } finally {
+      setIsDeletingSlot(false);
     }
-
-    setIsDeleteSlotModalOpen(false);
-    setSlotToDelete(null);
-    toast.success(`Đã xóa thành công ô đỗ ${targetId}.`);
-  }, [slotToDelete, activeSelectedSlot, toast]);
+  };
 
   // 14. Thêm ô đỗ xe mới
-  const handleAddSlot = useCallback(
-    (newSlot) => {
-      const codeStr = String(newSlot.code || newSlot.id || "").toUpperCase();
-      const formattedSlot = {
-        ...newSlot,
-        id: codeStr,
-        slotId: codeStr,
-        code: codeStr,
-        label: codeStr,
-        row: newSlot.row || (codeStr.includes("-") ? codeStr.split("-")[0] : "A"),
+  const handleAddSlot = async (newSlot) => {
+    try {
+      let zoneId = newSlot.zone_id;
+      if (!zoneId) {
+        const matchedZone = structureList.find(
+          (it) =>
+            it.type === "Khu" &&
+            (it.code === newSlot.zone || it.name === newSlot.zone)
+        );
+        zoneId = matchedZone?.id;
+      }
+
+      const payload = {
+        zone_id: zoneId || 1,
+        code: String(newSlot.code || newSlot.id || "").toUpperCase().trim(),
+        slot_kind: newSlot.slot_kind || newSlot.type || "STANDARD",
         status: newSlot.status || "AVAILABLE",
-        statusText: newSlot.statusText || getStatusText(newSlot.status || "AVAILABLE"),
-        licensePlate: newSlot.licensePlate || newSlot.plate || "—",
-        plate: newSlot.plate || null,
+        notes: newSlot.note || newSlot.notes || "",
       };
 
-      setLocalSlots((prev) => [formattedSlot, ...prev]);
-      handleSelectSlot(formattedSlot);
+      const res = await createSlot(payload);
+      if (!res?.success) {
+        const err = res?.rawError || {};
+        const msg =
+          err.data?.detail ||
+          err.data?.message ||
+          res?.error ||
+          "Không thể thêm ô đỗ xe.";
+        toast.error(msg);
+        return;
+      }
+
+      const created = res.data;
       toast.success(
-        `Đã thêm ô đỗ ${formattedSlot.code} vào Khu ${formattedSlot.zone} - Tầng ${formattedSlot.floor}.`
+        `Đã thêm ô đỗ ${created?.code || payload.code} vào Khu ${newSlot.zone} - Tầng ${newSlot.floor}.`
       );
-    },
-    [handleSelectSlot, toast]
-  );
+      setIsAddSlotModalOpen(false);
+      await refetch();
+    } catch (err) {
+      console.error("Lỗi thêm ô đỗ:", err);
+      const msg =
+        err.data?.detail ||
+        err.data?.message ||
+        err.message ||
+        "Không thể thêm ô đỗ xe.";
+      toast.error(msg);
+    }
+  };
 
   // 15. Xuất báo cáo sơ đồ bãi xe (Genuine CSV Export)
-  const handleExportReport = useCallback(() => {
+  const handleExportReport = () => {
     if (localSlots.length === 0) {
       toast.warning("Không có dữ liệu ô đỗ để xuất báo cáo.");
       return;
@@ -602,10 +734,10 @@ export default function ParkingLotManagement() {
       s.floor || selectedFloor,
       s.zone || selectedZone,
       s.row || "—",
-      s.type === "PRIORITY" ? "Xe ưu tiên" : "Ô tô tiêu chuẩn",
+      getSlotTypeDisplayLabel(s.type || s.slot_kind, "Ô tô tiêu chuẩn"),
       s.statusText || getStatusText(s.status),
       s.plate || s.licensePlate || "",
-      s.duration || s.reservedTime || s.note || "",
+      s.duration || formatReservedTimeDisplay(s.reservedTime, "") || s.note || "",
     ]);
 
     const csvContent =
@@ -631,111 +763,102 @@ export default function ParkingLotManagement() {
     toast.success(
       `Đã xuất báo cáo ${localSlots.length} ô đỗ Tầng ${selectedFloor} - Khu ${selectedZone} thành công.`
     );
-  }, [localSlots, selectedFloor, selectedZone, toast]);
+  };
 
   // 16. Thao tác cấu trúc bãi xe
-  const handleOpenAddFloor = useCallback(() => {
+  const handleOpenAddFloor = () => {
     setStructureModalConfig({
       isOpen: true,
       mode: "add_floor",
       initialData: null,
     });
-  }, []);
+  };
 
-  const handleOpenAddZone = useCallback(() => {
+  const handleOpenAddZone = () => {
     setStructureModalConfig({
       isOpen: true,
       mode: "add_zone",
       initialData: null,
     });
-  }, []);
+  };
 
   // Hàm hỗ trợ cuộn mượt lên vị trí sơ đồ ma trận
-  const scrollToMatrixView = useCallback(() => {
+  const scrollToMatrixView = () => {
     const el = document.getElementById("parking-lot-matrix-view");
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, []);
+  };
 
-  const handleSelectFloor = useCallback(
-    (floorCode) => {
-      if (!floorCode) return;
-      const code = String(floorCode).trim().toUpperCase();
-      setSelectedFloor(code);
-      scrollToMatrixView();
-      toast.info(`Đang xem sơ đồ Tầng ${code}.`);
-    },
-    [scrollToMatrixView, toast]
-  );
+  const handleSelectFloor = (floorCode) => {
+    if (!floorCode) return;
+    const code = String(floorCode).trim().toUpperCase();
+    setSelectedFloor(code);
+    scrollToMatrixView();
+    toast.info(`Đang xem sơ đồ Tầng ${code}.`);
+  };
 
-  const handleSelectZone = useCallback(
-    (zoneCode) => {
-      if (!zoneCode) return;
-      const code = String(zoneCode).trim().toUpperCase();
-      setSelectedZone(code);
-      scrollToMatrixView();
-      toast.info(`Đang xem sơ đồ Khu ${code}.`);
-    },
-    [scrollToMatrixView, toast]
-  );
+  const handleSelectZone = (zoneCode) => {
+    if (!zoneCode) return;
+    const code = String(zoneCode).trim().toUpperCase();
+    setSelectedZone(code);
+    scrollToMatrixView();
+    toast.info(`Đang xem sơ đồ Khu ${code}.`);
+  };
 
-  const handleSaveStructureItem = useCallback(
-    (itemData) => {
-      if (structureModalConfig.mode === "edit_item") {
-        setStructureList((prev) =>
-          prev.map((it) =>
-            it === structureModalConfig.initialData
-              ? { ...it, ...itemData }
-              : it
-          )
-        );
-        toast.success(`Đã cập nhật danh mục "${itemData.name}".`);
-      } else {
-        setStructureList((prev) => [...prev, itemData]);
+  const handleSaveStructureItem = (itemData) => {
+    if (structureModalConfig.mode === "edit_item") {
+      setStructureList((prev) =>
+        prev.map((it) =>
+          it === structureModalConfig.initialData
+            ? { ...it, ...itemData }
+            : it
+        )
+      );
+      toast.success(`Đã cập nhật danh mục "${itemData.name}".`);
+    } else {
+      setStructureList((prev) => [...prev, itemData]);
 
-        // ĐỒNG BỘ TỨC THÌ: Chuyển ngay bộ lọc & sơ đồ sang Tầng/Khu mới tạo
-        if (itemData.type === "Tầng") {
-          setSelectedFloor(itemData.code);
-        } else if (itemData.type === "Khu") {
-          setSelectedZone(itemData.code);
-        }
-
-        setTimeout(() => {
-          scrollToMatrixView();
-        }, 150);
-
-        // Ghi nhận hoạt động vào nhật ký
-        setActivities((prev) => [
-          {
-            id: `act-${Date.now()}`,
-            color: itemData.type === "Tầng" ? "bg-blue-500" : "bg-purple-500",
-            text: `Đã thêm ${itemData.type} "${itemData.name}" (Mã: ${itemData.code}) vào cấu trúc bãi.`,
-          },
-          ...prev.slice(0, 4),
-        ]);
-
-        toast.success(
-          `Đã thêm ${itemData.type} "${itemData.name}" vào cấu trúc và chuyển sơ đồ đến ${itemData.name}.`
-        );
+      // ĐỒNG BỘ TỨC THÌ: Chuyển ngay bộ lọc & sơ đồ sang Tầng/Khu mới tạo
+      if (itemData.type === "Tầng") {
+        setSelectedFloor(itemData.code);
+      } else if (itemData.type === "Khu") {
+        setSelectedZone(itemData.code);
       }
-    },
-    [structureModalConfig, scrollToMatrixView, toast]
-  );
 
-  const handleEditStructure = useCallback((item) => {
+      setTimeout(() => {
+        scrollToMatrixView();
+      }, 150);
+
+      // Ghi nhận hoạt động vào nhật ký
+      setActivities((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          color: itemData.type === "Tầng" ? "bg-blue-500" : "bg-purple-500",
+          text: `Đã thêm ${itemData.type} "${itemData.name}" (Mã: ${itemData.code}) vào cấu trúc bãi.`,
+        },
+        ...prev.slice(0, 4),
+      ]);
+
+      toast.success(
+        `Đã thêm ${itemData.type} "${itemData.name}" vào cấu trúc và chuyển sơ đồ đến ${itemData.name}.`
+      );
+    }
+  };
+
+  const handleEditStructure = (item) => {
     setStructureModalConfig({
       isOpen: true,
       mode: "edit_item",
       initialData: item,
     });
-  }, []);
+  };
 
-  const handleDeleteStructure = useCallback((item) => {
+  const handleDeleteStructure = (item) => {
     setDeleteStructureTarget(item);
-  }, []);
+  };
 
-  const handleConfirmDeleteStructure = useCallback(() => {
+  const handleConfirmDeleteStructure = () => {
     if (!deleteStructureTarget) return;
     setStructureList((prev) =>
       prev.filter((it) => it !== deleteStructureTarget)
@@ -752,7 +875,7 @@ export default function ParkingLotManagement() {
 
     toast.success(`Đã xóa ${deleteStructureTarget.name} khỏi cấu trúc bãi.`);
     setDeleteStructureTarget(null);
-  }, [deleteStructureTarget, toast]);
+  };
 
   return (
     <div className="space-y-6">
@@ -762,42 +885,48 @@ export default function ParkingLotManagement() {
         description="Theo dõi sức chứa, trạng thái từng ô và quản lý cấu trúc bãi đỗ"
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<Download className="w-3.5 h-3.5 text-slate-500" />}
-              onClick={handleExportReport}
-              className="cursor-pointer"
-            >
-              Xuất báo cáo
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<Plus className="w-3.5 h-3.5 text-slate-500" />}
-              onClick={handleOpenAddFloor}
-              className="cursor-pointer"
-            >
-              Thêm tầng
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<Plus className="w-3.5 h-3.5 text-slate-500" />}
-              onClick={handleOpenAddZone}
-              className="cursor-pointer"
-            >
-              Thêm khu
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<Plus className="w-3.5 h-3.5" />}
-              onClick={() => setIsAddSlotModalOpen(true)}
-              className="cursor-pointer"
-            >
-              Thêm ô đỗ xe
-            </Button>
+            {!isCustomer && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Download className="w-3.5 h-3.5 text-slate-500" />}
+                onClick={handleExportReport}
+                className="cursor-pointer"
+              >
+                Xuất báo cáo
+              </Button>
+            )}
+            {isManager && (
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Plus className="w-3.5 h-3.5 text-slate-500" />}
+                  onClick={handleOpenAddFloor}
+                  className="cursor-pointer"
+                >
+                  Thêm tầng
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Plus className="w-3.5 h-3.5 text-slate-500" />}
+                  onClick={handleOpenAddZone}
+                  className="cursor-pointer"
+                >
+                  Thêm khu
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => setIsAddSlotModalOpen(true)}
+                  className="cursor-pointer"
+                >
+                  Thêm ô đỗ xe
+                </Button>
+              </>
+            )}
           </div>
         }
       />
@@ -850,6 +979,7 @@ export default function ParkingLotManagement() {
         onResetFilters={handleResetFilters}
         viewMode={viewMode}
         setViewMode={setViewMode}
+        canEditStructure={!isCustomer && isManager}
       />
 
       {/* 4. Hàng 4 thẻ thống kê nhanh (Metric Cards) */}
@@ -876,7 +1006,7 @@ export default function ParkingLotManagement() {
 
       {/* 5. Khu vực trung tâm: Sơ đồ ma trận / Bảng danh sách & Panel chi tiết */}
       <div id="parking-lot-matrix-view" className="grid grid-cols-1 lg:grid-cols-12 gap-6 scroll-mt-6">
-        <div className="lg:col-span-9">
+        <div className={isCustomer ? "lg:col-span-12" : "lg:col-span-9"}>
           {isLoading ? (
             <div className="bg-white rounded-xl border border-slate-200 p-16 flex flex-col items-center justify-center text-center shadow-2xs">
               <LoadingSpinner size="lg" />
@@ -912,6 +1042,7 @@ export default function ParkingLotManagement() {
               onDeleteSlot={handleOpenDeleteSlot}
               selectedFloor={selectedFloor}
               selectedZone={selectedZone}
+              isManager={isManager}
             />
           ) : (
             <ParkingSlotMatrix
@@ -926,37 +1057,44 @@ export default function ParkingLotManagement() {
               onSelectSlot={handleSelectSlot}
               matchesFilter={matchesFilter}
               onAddSlot={() => setIsAddSlotModalOpen(true)}
+              onReservationSuccess={refetch}
+              isManager={isManager}
             />
           )}
         </div>
 
-        <div className="lg:col-span-3">
-          <SlotDetailPanel
-            selectedSlot={activeSelectedSlot}
-            setSelectedSlot={setSelectedSlot}
-            onUpdateStatus={handleUpdateSlotStatus}
-            onEditSlot={handleOpenEditSlot}
-            onDeleteSlot={handleOpenDeleteSlot}
-            onAcknowledgeOverstay={handleAcknowledgeOverstay}
-            onReportViolation={handleReportViolation}
-          />
-        </div>
+        {!isCustomer && (
+          <div className="lg:col-span-3">
+            <SlotDetailPanel
+              selectedSlot={activeSelectedSlot}
+              setSelectedSlot={setSelectedSlot}
+              onUpdateStatus={handleUpdateSlotStatus}
+              onEditSlot={handleOpenEditSlot}
+              onDeleteSlot={handleOpenDeleteSlot}
+              onAcknowledgeOverstay={handleAcknowledgeOverstay}
+              onReportViolation={handleReportViolation}
+              isManager={isManager}
+            />
+          </div>
+        )}
       </div>
 
       {/* 6. Chân trang: Cấu trúc bãi & Hoạt động gần đây */}
-      <ParkingLotStructureAndActivity
-        structureList={structureList}
-        selectedFloor={selectedFloor}
-        selectedZone={selectedZone}
-        onSelectFloor={handleSelectFloor}
-        onSelectZone={handleSelectZone}
-        onConfigureStructure={handleOpenAddFloor}
-        onAddFloor={handleOpenAddFloor}
-        onAddZone={handleOpenAddZone}
-        onEditStructure={handleEditStructure}
-        onDeleteStructure={handleDeleteStructure}
-        activities={activities}
-      />
+      {!isCustomer && (
+        <ParkingLotStructureAndActivity
+          structureList={structureList}
+          selectedFloor={selectedFloor}
+          selectedZone={selectedZone}
+          onSelectFloor={handleSelectFloor}
+          onSelectZone={handleSelectZone}
+          onConfigureStructure={handleOpenAddFloor}
+          onAddFloor={handleOpenAddFloor}
+          onAddZone={handleOpenAddZone}
+          onEditStructure={handleEditStructure}
+          onDeleteStructure={handleDeleteStructure}
+          activities={activities}
+        />
+      )}
 
       {/* 7. Các modals hỗ trợ thao tác người dùng */}
       <EditSlotModal
@@ -978,12 +1116,15 @@ export default function ParkingLotManagement() {
 
       <ConfirmModal
         isOpen={isDeleteSlotModalOpen}
-        onClose={() => setIsDeleteSlotModalOpen(false)}
+        onClose={() => {
+          if (!isDeletingSlot) setIsDeleteSlotModalOpen(false);
+        }}
         title="Xác nhận xóa ô đỗ xe"
         description={`Bạn có chắc chắn muốn xóa ô đỗ ${
           slotToDelete?.label || slotToDelete?.code || slotToDelete?.id || ""
         }? Thao tác này không thể hoàn tác.`}
         variant="error"
+        loading={isDeletingSlot}
         confirmText="Xóa ô đỗ"
         cancelText="Hủy"
         onConfirm={handleConfirmDeleteSlot}

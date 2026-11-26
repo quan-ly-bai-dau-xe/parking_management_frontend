@@ -1,0 +1,47 @@
+✔ [PASS] [TEST-GATE-001][SC-GATE-001] ST-CORE-01: Check-in builds valid payload for backend API
+✔ [PASS] [TEST-GATE-002][SC-GATE-002] ST-CORE-02: Capacity Control: Blocks new check-in when all parking slots are occupied
+✔ [PASS] [TEST-GATE-003][SC-GATE-003] ST-CORE-03: Anti-passback: Rejects entry for vehicle already inside the parking lot
+✔ [PASS] ST-CORE-04: Security Guard: Rejects entry for blacklisted / warning vehicles
+✔ [PASS] [TEST-PRICE-001][SC-PRICE-001] ST-CORE-05: Fee Calculator calculates exact rates across all business tiers
+✔ [PASS] [TEST-GATE-004][SC-GATE-004] ST-CORE-07: Ghost Exit Defense: Handles already closed or missing open session gracefully
+✔ [PASS] ST-CORE-08: Mismatch Detection: Flags discrepancy when entry plate differs from exit plate
+✔ [PASS] GUARD-01: Dual-layer Guard: Prevents simultaneous duplicate requests on check-in/out
+✔ [PASS] [TEST-HIST-001][SC-HIST-001] HISTORY-01: ParkingSessionSchema validates complete backend session response
+✔ [PASS] HISTORY-02: ParkingSessionSchema validates in-progress session (null exit time & null fee)
+✔ [PASS] [TEST-HIST-002][SC-HIST-001] HISTORY-03: getParkingSessionStatus classifies session status correctly
+✔ [PASS] HISTORY-04: validateAndMapSessions filters out broken sessions and maps safely
+✔ [PASS] HISTORY-05: getParkingSessions cleans query filters and constructs API URL
+✔ [PASS] HISTORY-06: Anomaly Detection: Flags sessions exceeding 24 hours or missing verification images
+✔ [PASS] HISTORY-07: getParkingSessions handles API failure gracefully
+✔ [PASS] HISTORY-08: URL search query params (license_plate / plate) filter history sessions
+✔ [PASS] HISTORY-09: ticket_type filter query param is propagated to backend and mapped properly
+✔ [PASS] [TEST-LOT-001][SC-LOT-001] SLOT-01: getAllParkingSlotsInventory returns exactly 96 slots conforming to PostgreSQL schema
+✔ [PASS] [TEST-LOT-002][SC-LOT-001] SLOT-02: getAvailableSlotsForCheckIn excludes slots occupied by open sessions
+✔ [PASS] SLOT-03: normalizeSlot correctly maps status and human-readable badges
+✔ [PASS] SLOT-04: Zone density calculation accurately reports occupancy percentage
+✔ [PASS] SLOT-05: EV slot compatibility check enforces charging kind for electric vehicles
+✔ [PASS] SLOT-06: getAvailableSlotsForCheckIn with filterReserved excludes ticket-reserved and maintenance slots unless matching licensePlate
+✔ [PASS] [TEST-FE-001][SC-VEH-001] VEHICLE-01: VehicleFormSchema validates valid Vietnamese license plates
+✔ [PASS] [TEST-FE-002][SC-VEH-002] VEHICLE-02: VehicleFormSchema rejects invalid or malformed license plates
+✔ [PASS] VEHICLE-03: VehicleListItemSchema accepts complete and sparse vehicle models
+✔ [PASS] VEHICLE-04: mapVehicleSearchItem resolves vehicle status (parked, active, left)
+✔ [PASS] VEHICLE-05: mapVehicleSearchItem handles customer fallback without crash
+✔ [PASS] VEHICLE-06: toCreatePayload formats fields for backend POST request
+✔ [PASS] VEHICLE-07: toUpdatePayload preserves row_version for optimistic concurrency control
+✔ [PASS] VEHICLE-08: 2-way form conversion consistency (Entity <-> FormData)
+✔ [PASS] VEHICLE-09: Edge cases & Adversarial inputs (null, undefined, non-objects)
+✔ [PASS] VEHICLE-10: assignSlotToSession validates slotId and throws on missing slot
+✔ [PASS] VEHICLE-11: assignSlotToSession updates local state and syncs slot assignment
+✔ [PASS] VEHICLE-12: Scan plate synchronization updates search filter state and triggers matching filter
+✔ [PASS] VEHICLE-13: Scan sync search filter accurately narrows vehicle list with Vietnamese normalization
+✔ [PASS] VEHICLE-14: Camera auto-paste synchronization fills search input and triggers vehicle matching
+✔ [PASS] VEHICLE-15: Check-in records image URL into parking history session payload
+✔ [PASS] VEHICLE-16: Image scan result maps plate and populates 5 canonical vehicle fields
+✔ [PASS] VEHICLE-17: 5 canonical fields handle walk-in vehicle fallback gracefully
+✔ [PASS] VEHICLE-18: Camera auto-detection subscribes to detectedData without manual user typing
+✔ [PASS] VEHICLE-19: Walk-in vehicles receive 'Vé lượt vãng lai' badge and do NOT receive false positive 'Vé tháng hiệu lực'
+
+================================================================================
+🗺️ [TEST & TRACEABILITY DASHBOARD GENERATED]: file:///E:/code/parking_management/reports/test-report.html
+   (100% Dynamic Discovery: Đã quét 0 nhóm thư mục test thực tế)
+================================================================================

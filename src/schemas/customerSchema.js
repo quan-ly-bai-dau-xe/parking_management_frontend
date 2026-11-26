@@ -41,6 +41,10 @@ export const CustomerListItemSchema = z.object({
   isAnonymized: z.boolean().optional(),
   is_test_sample: z.boolean().optional(),
   isTestSample: z.boolean().optional(),
+  wallet_balance: z.union([z.number(), z.string()]).nullable().optional(),
+  walletBalance: z.union([z.number(), z.string()]).nullable().optional(),
+  wallet_status: z.string().nullable().optional(),
+  walletStatus: z.string().nullable().optional(),
 });
 
 export const CustomerDetailSchema = z.object({
@@ -66,5 +70,9 @@ export const CustomerDetailSchema = z.object({
   status_reason: z.string().nullable().optional(),
   is_anonymized: z.boolean().optional(),
   row_version: z.number().optional(),
+  wallet_balance: z.union([z.number(), z.string()]).nullable().optional(),
+  walletBalance: z.union([z.number(), z.string()]).nullable().optional(),
+  wallet_status: z.string().nullable().optional(),
+  walletStatus: z.string().nullable().optional(),
   vehicles: z.array(z.any()).optional().default([]),
 });

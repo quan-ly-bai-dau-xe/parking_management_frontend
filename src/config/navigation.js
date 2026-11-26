@@ -11,6 +11,7 @@ export const ROUTES = {
   PARKING_LOT: "/parking-lot",
   TICKETS: "/tickets",
   EMPLOYEES: "/employees",
+  STATISTICS: "/statistics",
   NOTIFICATIONS: "/notifications",
   CAMERA_SCANNER: "/camera-scanner",
   REGISTER: "/register",
@@ -18,7 +19,8 @@ export const ROUTES = {
   CUSTOMER_PROFILE: "/profile",
   CUSTOMER_OVERVIEW: "/overview",
   CUSTOMER_VEHICLE: "/customerVehicle",
-  CUSTOEMR_TICKET: "/customerTicket",
+  CUSTOMER_TICKET: "/customerTicket",
+  VNPAY_RETURN: "/wallet/vnpay-return",
 };
 
 export const DEFAULT_PATH = ROUTES.HOME;

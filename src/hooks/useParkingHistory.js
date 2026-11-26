@@ -125,13 +125,15 @@ export function useParkingHistory() {
   );
 
   // Đồng bộ searchTerm và licensePlate khi URL search param thay đổi
-  useEffect(() => {
+  const [prevQueryPlate, setPrevQueryPlate] = useState(queryPlate);
+  if (queryPlate !== prevQueryPlate) {
+    setPrevQueryPlate(queryPlate);
     if (queryPlate) {
       setSearchTerm(queryPlate);
       setLicensePlate(queryPlate);
       setCurrentPage(1);
     }
-  }, [queryPlate]);
+  }
 
   // Fetch session data from backend with server-side filters & pagination
   useEffect(() => {
@@ -228,10 +230,13 @@ export function useParkingHistory() {
         toast.success(`✓ Đã giải phóng ô đỗ thành công. Phiên xe ${targetPlate} được bảo lưu an toàn.`);
       } else if (actionType === "cancel_glitch") {
         // Nghiệp vụ 2: Hủy phiên ảo do camera quét lỗi (0đ, giải phóng vị trí)
+        const glitchNotes = reason ? `[HỦY PHIÊN ẢO]: ${reason}` : "Hủy phiên do quét sai";
         const res = await forceCloseSessionAndReleaseSlot({
           licensePlate: targetPlate,
           sessionCode: targetSessionCode,
-          notes: reason ? `[HỦY PHIÊN ẢO]: ${reason}` : "Hủy phiên do quét sai",
+          waiveFee: true,
+          waiverReason: glitchNotes,
+          notes: glitchNotes,
         });
         const message = res?.alreadyClosed
           ? PARKING_HISTORY_MESSAGES.CLOSE_SESSION_ALREADY(targetPlate)

@@ -19,12 +19,14 @@ export const SLOT_STATUS = Object.freeze({
   OCCUPIED: "OCCUPIED",
   OVERSTAY: "OVERSTAY",
   RESERVED: "RESERVED",
+  CHARGING: "CHARGING",
   MAINTENANCE: "MAINTENANCE",
 });
 
 export const SLOT_TYPES = Object.freeze({
   STANDARD: "STANDARD",
   PRIORITY: "PRIORITY",
+  EV_CHARGING: "EV_CHARGING",
 });
 
 export const SLOT_STATUS_OPTIONS = [
@@ -32,6 +34,7 @@ export const SLOT_STATUS_OPTIONS = [
   { value: SLOT_STATUS.OCCUPIED, label: "Đang đỗ" },
   { value: SLOT_STATUS.OVERSTAY, label: "Cảnh báo quá giờ" },
   { value: SLOT_STATUS.RESERVED, label: "Đã đặt trước" },
+  { value: SLOT_STATUS.CHARGING, label: "Đang sạc" },
   { value: SLOT_STATUS.MAINTENANCE, label: "Bảo trì" },
 ];
 
@@ -45,6 +48,7 @@ export const OVERSTAY_THRESHOLDS = {
 export const VEHICLE_TYPE_OPTIONS = [
   { value: SLOT_TYPES.STANDARD, label: "Ô tô tiêu chuẩn" },
   { value: SLOT_TYPES.PRIORITY, label: "Xe ưu tiên" },
+  { value: SLOT_TYPES.EV_CHARGING, label: "Trạm sạc xe điện (EV)" },
 ];
 
 export const INITIAL_STRUCTURE_LIST = [

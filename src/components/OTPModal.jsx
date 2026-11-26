@@ -1,10 +1,17 @@
 import { useState } from "react";
 import { authService } from "../services/authService";
+import useModalA11y from "../hooks/useModalA11y";
 
 export default function OtpModal({ isOpen, onClose, account, onSuccess }) {
     const [otp, setOtp] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+
+    const { titleId, dialogProps } = useModalA11y({
+        isOpen,
+        onClose,
+        isBusy: loading,
+    });
 
     if (!isOpen) return null;
 
@@ -27,14 +34,20 @@ export default function OtpModal({ isOpen, onClose, account, onSuccess }) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+        <div
+            {...dialogProps}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
+        >
         <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 sm:p-8">
             {/* Modal Header */}
             <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-slate-900">Xác thực mã OTP</h3>
+            <h3 id={titleId} className="text-xl font-bold text-slate-900">Xác thực mã OTP</h3>
             <button
                 type="button"
-                onClick={onClose}
+                onClick={() => {
+                    if (!loading) onClose?.();
+                }}
+                aria-label="Đóng"
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors"
             >
                 ✕

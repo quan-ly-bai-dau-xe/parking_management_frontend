@@ -1,0 +1,666 @@
+{
+  "suiteTitle": "EmployeeSchema & Payload Transformation Matrix",
+  "records": [
+    {
+      "description": "resolvePositionId: id số 1",
+      "input": "1",
+      "actual": "1",
+      "expected": "1",
+      "match": "PASS",
+      "rawInput": 1,
+      "rawActual": 1,
+      "rawExpected": 1
+    },
+    {
+      "description": "resolvePositionId: id chuỗi '3'",
+      "input": "\"3\"",
+      "actual": "3",
+      "expected": "3",
+      "match": "PASS",
+      "rawInput": "3",
+      "rawActual": 3,
+      "rawExpected": 3
+    },
+    {
+      "description": "resolvePositionId: 'Quản lý' -> 1",
+      "input": "{\"role\":\"Quản lý\"}",
+      "actual": "1",
+      "expected": "1",
+      "match": "PASS",
+      "rawInput": {
+        "role": "Quản lý"
+      },
+      "rawActual": 1,
+      "rawExpected": 1
+    },
+    {
+      "description": "resolvePositionId: 'ql' -> 1",
+      "input": "{\"role\":\"ql\"}",
+      "actual": "1",
+      "expected": "1",
+      "match": "PASS",
+      "rawInput": {
+        "role": "ql"
+      },
+      "rawActual": 1,
+      "rawExpected": 1
+    },
+    {
+      "description": "resolvePositionId: 'Nhân viên vận hành' -> 2",
+      "input": "{\"role\":\"Nhân viên vận hành\"}",
+      "actual": "2",
+      "expected": "2",
+      "match": "PASS",
+      "rawInput": {
+        "role": "Nhân viên vận hành"
+      },
+      "rawActual": 2,
+      "rawExpected": 2
+    },
+    {
+      "description": "resolvePositionId: 'nvvh' -> 2",
+      "input": "{\"role\":\"nvvh\"}",
+      "actual": "2",
+      "expected": "2",
+      "match": "PASS",
+      "rawInput": {
+        "role": "nvvh"
+      },
+      "rawActual": 2,
+      "rawExpected": 2
+    },
+    {
+      "description": "resolvePositionId: 'Nhân viên thu ngân' -> 3",
+      "input": "{\"role\":\"Nhân viên thu ngân\"}",
+      "actual": "3",
+      "expected": "3",
+      "match": "PASS",
+      "rawInput": {
+        "role": "Nhân viên thu ngân"
+      },
+      "rawActual": 3,
+      "rawExpected": 3
+    },
+    {
+      "description": "resolvePositionId: 'nvtn' -> 3",
+      "input": "{\"role\":\"nvtn\"}",
+      "actual": "3",
+      "expected": "3",
+      "match": "PASS",
+      "rawInput": {
+        "role": "nvtn"
+      },
+      "rawActual": 3,
+      "rawExpected": 3
+    },
+    {
+      "description": "resolvePositionId: 'Kỹ thuật viên' -> 4",
+      "input": "{\"role\":\"Kỹ thuật viên\"}",
+      "actual": "4",
+      "expected": "4",
+      "match": "PASS",
+      "rawInput": {
+        "role": "Kỹ thuật viên"
+      },
+      "rawActual": 4,
+      "rawExpected": 4
+    },
+    {
+      "description": "resolvePositionId: 'ktv' -> 4",
+      "input": "{\"role\":\"ktv\"}",
+      "actual": "4",
+      "expected": "4",
+      "match": "PASS",
+      "rawInput": {
+        "role": "ktv"
+      },
+      "rawActual": 4,
+      "rawExpected": 4
+    },
+    {
+      "description": "resolvePositionId: undefined -> default 2",
+      "input": "undefined",
+      "actual": "2",
+      "expected": "2",
+      "match": "PASS",
+      "rawActual": 2,
+      "rawExpected": 2
+    },
+    {
+      "description": "resolvePositionId: 'UnknownRole' -> default 2",
+      "input": "\"UnknownRole\"",
+      "actual": "2",
+      "expected": "2",
+      "match": "PASS",
+      "rawInput": "UnknownRole",
+      "rawActual": 2,
+      "rawExpected": 2
+    },
+    {
+      "description": "normalizeStatus: 'active' -> ACTIVE",
+      "input": "\"active\"",
+      "actual": "\"ACTIVE\"",
+      "expected": "\"ACTIVE\"",
+      "match": "PASS",
+      "rawInput": "active",
+      "rawActual": "ACTIVE",
+      "rawExpected": "ACTIVE"
+    },
+    {
+      "description": "normalizeStatus: 'ACTIVE' -> ACTIVE",
+      "input": "\"ACTIVE\"",
+      "actual": "\"ACTIVE\"",
+      "expected": "\"ACTIVE\"",
+      "match": "PASS",
+      "rawInput": "ACTIVE",
+      "rawActual": "ACTIVE",
+      "rawExpected": "ACTIVE"
+    },
+    {
+      "description": "normalizeStatus: 'inactive' -> INACTIVE",
+      "input": "\"inactive\"",
+      "actual": "\"INACTIVE\"",
+      "expected": "\"INACTIVE\"",
+      "match": "PASS",
+      "rawInput": "inactive",
+      "rawActual": "INACTIVE",
+      "rawExpected": "INACTIVE"
+    },
+    {
+      "description": "normalizeStatus: 'INACTIVE' -> INACTIVE",
+      "input": "\"INACTIVE\"",
+      "actual": "\"INACTIVE\"",
+      "expected": "\"INACTIVE\"",
+      "match": "PASS",
+      "rawInput": "INACTIVE",
+      "rawActual": "INACTIVE",
+      "rawExpected": "INACTIVE"
+    },
+    {
+      "description": "normalizeStatus: 'Khóa' -> INACTIVE",
+      "input": "\"Khóa\"",
+      "actual": "\"INACTIVE\"",
+      "expected": "\"INACTIVE\"",
+      "match": "PASS",
+      "rawInput": "Khóa",
+      "rawActual": "INACTIVE",
+      "rawExpected": "INACTIVE"
+    },
+    {
+      "description": "normalizeStatus: null -> ACTIVE",
+      "input": "null",
+      "actual": "\"ACTIVE\"",
+      "expected": "\"ACTIVE\"",
+      "match": "PASS",
+      "rawInput": null,
+      "rawActual": "ACTIVE",
+      "rawExpected": "ACTIVE"
+    },
+    {
+      "description": "normalizeStatus: undefined -> ACTIVE",
+      "input": "undefined",
+      "actual": "\"ACTIVE\"",
+      "expected": "\"ACTIVE\"",
+      "match": "PASS",
+      "rawActual": "ACTIVE",
+      "rawExpected": "ACTIVE"
+    },
+    {
+      "description": "resolveAddress: address tường minh ưu tiên",
+      "input": "{\"address\":\"123 Lê Duẩn\",\"area\":\"Hả...",
+      "actual": "\"123 Lê Duẩn\"",
+      "expected": "\"123 Lê Duẩn\"",
+      "match": "PASS",
+      "rawInput": {
+        "address": "123 Lê Duẩn",
+        "area": "Hải Châu",
+        "city": "Đà Nẵng"
+      },
+      "rawActual": "123 Lê Duẩn",
+      "rawExpected": "123 Lê Duẩn"
+    },
+    {
+      "description": "resolveAddress: ghép area + city",
+      "input": "{\"area\":\"Hải Châu\",\"city\":\"Đà Nẵng\"}",
+      "actual": "\"Hải Châu, Đà Nẵng\"",
+      "expected": "\"Hải Châu, Đà Nẵng\"",
+      "match": "PASS",
+      "rawInput": {
+        "area": "Hải Châu",
+        "city": "Đà Nẵng"
+      },
+      "rawActual": "Hải Châu, Đà Nẵng",
+      "rawExpected": "Hải Châu, Đà Nẵng"
+    },
+    {
+      "description": "resolveAddress: chỉ có area",
+      "input": "{\"area\":\"Hải Châu\"}",
+      "actual": "\"Hải Châu\"",
+      "expected": "\"Hải Châu\"",
+      "match": "PASS",
+      "rawInput": {
+        "area": "Hải Châu"
+      },
+      "rawActual": "Hải Châu",
+      "rawExpected": "Hải Châu"
+    },
+    {
+      "description": "resolveAddress: chỉ có city",
+      "input": "{\"city\":\"Đà Nẵng\"}",
+      "actual": "\"Đà Nẵng\"",
+      "expected": "\"Đà Nẵng\"",
+      "match": "PASS",
+      "rawInput": {
+        "city": "Đà Nẵng"
+      },
+      "rawActual": "Đà Nẵng",
+      "rawExpected": "Đà Nẵng"
+    },
+    {
+      "description": "resolveAddress: object rỗng -> undefined",
+      "input": "{}",
+      "actual": "undefined",
+      "expected": "undefined",
+      "match": "PASS",
+      "rawInput": {}
+    },
+    {
+      "description": "resolveAddress: undefined -> undefined",
+      "input": "undefined",
+      "actual": "undefined",
+      "expected": "undefined",
+      "match": "PASS"
+    },
+    {
+      "description": "createPayload: trim full_name",
+      "input": "\"  Nguyễn Văn An  \"",
+      "actual": "\"Nguyễn Văn An\"",
+      "expected": "\"Nguyễn Văn An\"",
+      "match": "PASS",
+      "rawInput": "  Nguyễn Văn An  ",
+      "rawActual": "Nguyễn Văn An",
+      "rawExpected": "Nguyễn Văn An"
+    },
+    {
+      "description": "createPayload: trim email",
+      "input": "\"  an.nguyen@smartparking.vn  \"",
+      "actual": "\"an.nguyen@smartparking.vn\"",
+      "expected": "\"an.nguyen@smartparking.vn\"",
+      "match": "PASS",
+      "rawInput": "  an.nguyen@smartparking.vn  ",
+      "rawActual": "an.nguyen@smartparking.vn",
+      "rawExpected": "an.nguyen@smartparking.vn"
+    },
+    {
+      "description": "createPayload: trim phone",
+      "input": "\"  0901234567  \"",
+      "actual": "\"0901234567\"",
+      "expected": "\"0901234567\"",
+      "match": "PASS",
+      "rawInput": "  0901234567  ",
+      "rawActual": "0901234567",
+      "rawExpected": "0901234567"
+    },
+    {
+      "description": "createPayload: position_id mặc định",
+      "input": "undefined",
+      "actual": "2",
+      "expected": "2",
+      "match": "PASS",
+      "rawActual": 2,
+      "rawExpected": 2
+    },
+    {
+      "description": "createPayload: password ban đầu mặc định",
+      "input": "undefined",
+      "actual": "\"P@ssword12345\"",
+      "expected": "\"P@ssword12345\"",
+      "match": "PASS",
+      "rawActual": "P@ssword12345",
+      "rawExpected": "P@ssword12345"
+    },
+    {
+      "description": "createPayload: status mặc định",
+      "input": "undefined",
+      "actual": "\"ACTIVE\"",
+      "expected": "\"ACTIVE\"",
+      "match": "PASS",
+      "rawActual": "ACTIVE",
+      "rawExpected": "ACTIVE"
+    },
+    {
+      "description": "createPayload: address rỗng -> undefined",
+      "input": "undefined",
+      "actual": "undefined",
+      "expected": "undefined",
+      "match": "PASS"
+    },
+    {
+      "description": "createPayload: code rỗng -> undefined",
+      "input": "undefined",
+      "actual": "undefined",
+      "expected": "undefined",
+      "match": "PASS"
+    },
+    {
+      "description": "createPayload full: full_name",
+      "input": "\"Lê Thị Thu Hà\"",
+      "actual": "\"Lê Thị Thu Hà\"",
+      "expected": "\"Lê Thị Thu Hà\"",
+      "match": "PASS",
+      "rawInput": "Lê Thị Thu Hà",
+      "rawActual": "Lê Thị Thu Hà",
+      "rawExpected": "Lê Thị Thu Hà"
+    },
+    {
+      "description": "createPayload full: email",
+      "input": "\"thuha@smartpark.vn\"",
+      "actual": "\"thuha@smartpark.vn\"",
+      "expected": "\"thuha@smartpark.vn\"",
+      "match": "PASS",
+      "rawInput": "thuha@smartpark.vn",
+      "rawActual": "thuha@smartpark.vn",
+      "rawExpected": "thuha@smartpark.vn"
+    },
+    {
+      "description": "createPayload full: phone",
+      "input": "\"0935 111 222\"",
+      "actual": "\"0935 111 222\"",
+      "expected": "\"0935 111 222\"",
+      "match": "PASS",
+      "rawInput": "0935 111 222",
+      "rawActual": "0935 111 222",
+      "rawExpected": "0935 111 222"
+    },
+    {
+      "description": "createPayload full: role 'Nhân viên thu ngân' -> position 3",
+      "input": "\"Nhân viên thu ngân\"",
+      "actual": "3",
+      "expected": "3",
+      "match": "PASS",
+      "rawInput": "Nhân viên thu ngân",
+      "rawActual": 3,
+      "rawExpected": 3
+    },
+    {
+      "description": "createPayload full: birthday DD/MM/YYYY -> ISO YYYY-MM-DD",
+      "input": "\"20/10/1995\"",
+      "actual": "\"1995-10-20\"",
+      "expected": "\"1995-10-20\"",
+      "match": "PASS",
+      "rawInput": "20/10/1995",
+      "rawActual": "1995-10-20",
+      "rawExpected": "1995-10-20"
+    },
+    {
+      "description": "createPayload full: ghép address area + city",
+      "input": "{\"area\":\"Quận 1\",\"city\":\"Hồ Chí Minh\"}",
+      "actual": "\"Quận 1, Hồ Chí Minh\"",
+      "expected": "\"Quận 1, Hồ Chí Minh\"",
+      "match": "PASS",
+      "rawInput": {
+        "area": "Quận 1",
+        "city": "Hồ Chí Minh"
+      },
+      "rawActual": "Quận 1, Hồ Chí Minh",
+      "rawExpected": "Quận 1, Hồ Chí Minh"
+    },
+    {
+      "description": "createPayload full: code",
+      "input": "\"NV003\"",
+      "actual": "\"NV003\"",
+      "expected": "\"NV003\"",
+      "match": "PASS",
+      "rawInput": "NV003",
+      "rawActual": "NV003",
+      "rawExpected": "NV003"
+    },
+    {
+      "description": "createPayload full: gender",
+      "input": "\"FEMALE\"",
+      "actual": "\"FEMALE\"",
+      "expected": "\"FEMALE\"",
+      "match": "PASS",
+      "rawInput": "FEMALE",
+      "rawActual": "FEMALE",
+      "rawExpected": "FEMALE"
+    },
+    {
+      "description": "createPayload full: identity_card_number (CCCD)",
+      "input": "\"048195000123\"",
+      "actual": "\"048195000123\"",
+      "expected": "\"048195000123\"",
+      "match": "PASS",
+      "rawInput": "048195000123",
+      "rawActual": "048195000123",
+      "rawExpected": "048195000123"
+    },
+    {
+      "description": "createPayload full: status 'active' -> 'ACTIVE'",
+      "input": "\"active\"",
+      "actual": "\"ACTIVE\"",
+      "expected": "\"ACTIVE\"",
+      "match": "PASS",
+      "rawInput": "active",
+      "rawActual": "ACTIVE",
+      "rawExpected": "ACTIVE"
+    },
+    {
+      "description": "createPayload full: password",
+      "input": "\"CustomPassword123@\"",
+      "actual": "\"CustomPassword123@\"",
+      "expected": "\"CustomPassword123@\"",
+      "match": "PASS",
+      "rawInput": "CustomPassword123@",
+      "rawActual": "CustomPassword123@",
+      "rawExpected": "CustomPassword123@"
+    },
+    {
+      "description": "createPayload full: province_id number",
+      "input": "79",
+      "actual": "79",
+      "expected": "79",
+      "match": "PASS",
+      "rawInput": 79,
+      "rawActual": 79,
+      "rawExpected": 79
+    },
+    {
+      "description": "createPayload full: district_id number",
+      "input": "1",
+      "actual": "1",
+      "expected": "1",
+      "match": "PASS",
+      "rawInput": 1,
+      "rawActual": 1,
+      "rawExpected": 1
+    },
+    {
+      "description": "createPayload full: ward_id number",
+      "input": "5",
+      "actual": "5",
+      "expected": "5",
+      "match": "PASS",
+      "rawInput": 5,
+      "rawActual": 5,
+      "rawExpected": 5
+    },
+    {
+      "description": "createPayload: date_of_birth ISO chuẩn giữ nguyên",
+      "input": "\"1990-05-15\"",
+      "actual": "\"1990-05-15\"",
+      "expected": "\"1990-05-15\"",
+      "match": "PASS",
+      "rawInput": "1990-05-15",
+      "rawActual": "1990-05-15",
+      "rawExpected": "1990-05-15"
+    },
+    {
+      "description": "createPayload error: Thiếu họ tên",
+      "input": "{\"name\":\"   \",\"email\":\"test@smartpa...",
+      "actual": "[THROWS AS EXPECTED]",
+      "expected": "[Function Check]",
+      "match": "PASS",
+      "rawInput": {
+        "name": "   ",
+        "email": "test@smartpark.vn",
+        "phone": "0901234567"
+      }
+    },
+    {
+      "description": "createPayload error: Email không đúng định dạng",
+      "input": "{\"name\":\"Nguyễn Văn A\",\"email\":\"not...",
+      "actual": "[THROWS AS EXPECTED]",
+      "expected": "[Function Check]",
+      "match": "PASS",
+      "rawInput": {
+        "name": "Nguyễn Văn A",
+        "email": "not-an-email",
+        "phone": "0901234567"
+      }
+    },
+    {
+      "description": "createPayload error: Email rỗng",
+      "input": "{\"name\":\"Nguyễn Văn A\",\"email\":\"  \"...",
+      "actual": "[THROWS AS EXPECTED]",
+      "expected": "[Function Check]",
+      "match": "PASS",
+      "rawInput": {
+        "name": "Nguyễn Văn A",
+        "email": "  ",
+        "phone": "0901234567"
+      }
+    },
+    {
+      "description": "createPayload error: Phone rỗng",
+      "input": "{\"name\":\"Nguyễn Văn A\",\"email\":\"van...",
+      "actual": "[THROWS AS EXPECTED]",
+      "expected": "[Function Check]",
+      "match": "PASS",
+      "rawInput": {
+        "name": "Nguyễn Văn A",
+        "email": "vana@smartpark.vn",
+        "phone": "  "
+      }
+    },
+    {
+      "description": "createPayload error: Phone sai định dạng chữ",
+      "input": "{\"name\":\"Nguyễn Văn A\",\"email\":\"van...",
+      "actual": "[THROWS AS EXPECTED]",
+      "expected": "[Function Check]",
+      "match": "PASS",
+      "rawInput": {
+        "name": "Nguyễn Văn A",
+        "email": "vana@smartpark.vn",
+        "phone": "abc-xyz"
+      }
+    },
+    {
+      "description": "updatePayload: cập nhật tên",
+      "input": "\"Trần Quốc Bảo (Cập nhật)\"",
+      "actual": "\"Trần Quốc Bảo (Cập nhật)\"",
+      "expected": "\"Trần Quốc Bảo (Cập nhật)\"",
+      "match": "PASS",
+      "rawInput": "Trần Quốc Bảo (Cập nhật)",
+      "rawActual": "Trần Quốc Bảo (Cập nhật)",
+      "rawExpected": "Trần Quốc Bảo (Cập nhật)"
+    },
+    {
+      "description": "updatePayload: row_version mặc định 1",
+      "input": "undefined",
+      "actual": "1",
+      "expected": "1",
+      "match": "PASS",
+      "rawActual": 1,
+      "rawExpected": 1
+    },
+    {
+      "description": "updatePayload: email không truyền -> undefined",
+      "input": "undefined",
+      "actual": "undefined",
+      "expected": "undefined",
+      "match": "PASS"
+    },
+    {
+      "description": "updatePayload: phone không truyền -> undefined",
+      "input": "undefined",
+      "actual": "undefined",
+      "expected": "undefined",
+      "match": "PASS"
+    },
+    {
+      "description": "updatePayload: status 'inactive' -> 'INACTIVE'",
+      "input": "\"inactive\"",
+      "actual": "\"INACTIVE\"",
+      "expected": "\"INACTIVE\"",
+      "match": "PASS",
+      "rawInput": "inactive",
+      "rawActual": "INACTIVE",
+      "rawExpected": "INACTIVE"
+    },
+    {
+      "description": "updatePayload: row_version từ rowVersion",
+      "input": "5",
+      "actual": "5",
+      "expected": "5",
+      "match": "PASS",
+      "rawInput": 5,
+      "rawActual": 5,
+      "rawExpected": 5
+    },
+    {
+      "description": "updatePayload: role 'Quản lý' -> position_id 1",
+      "input": "\"Quản lý\"",
+      "actual": "1",
+      "expected": "1",
+      "match": "PASS",
+      "rawInput": "Quản lý",
+      "rawActual": 1,
+      "rawExpected": 1
+    },
+    {
+      "description": "updatePayload: địa chỉ từ area/city",
+      "input": "{\"area\":\"Cẩm Lệ\",\"city\":\"Đà Nẵng\"}",
+      "actual": "\"Cẩm Lệ, Đà Nẵng\"",
+      "expected": "\"Cẩm Lệ, Đà Nẵng\"",
+      "match": "PASS",
+      "rawInput": {
+        "area": "Cẩm Lệ",
+        "city": "Đà Nẵng"
+      },
+      "rawActual": "Cẩm Lệ, Đà Nẵng",
+      "rawExpected": "Cẩm Lệ, Đà Nẵng"
+    },
+    {
+      "description": "updatePayload: birthday DD/MM/YYYY -> ISO",
+      "input": "\"12/04/1992\"",
+      "actual": "\"1992-04-12\"",
+      "expected": "\"1992-04-12\"",
+      "match": "PASS",
+      "rawInput": "12/04/1992",
+      "rawActual": "1992-04-12",
+      "rawExpected": "1992-04-12"
+    },
+    {
+      "description": "updatePayload error: Email sai định dạng",
+      "input": "{\"email\":\"invalid-email-address\"}",
+      "actual": "[THROWS AS EXPECTED]",
+      "expected": "[Function Check]",
+      "match": "PASS",
+      "rawInput": {
+        "email": "invalid-email-address"
+      }
+    },
+    {
+      "description": "updatePayload error: Phone quá ngắn",
+      "input": "{\"phone\":\"123\"}",
+      "actual": "[THROWS AS EXPECTED]",
+      "expected": "[Function Check]",
+      "match": "PASS",
+      "rawInput": {
+        "phone": "123"
+      }
+    }
+  ],
+  "recordedAt": "2026-11-25T04:00:55.843Z"
+}

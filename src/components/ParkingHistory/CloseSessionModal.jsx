@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import ConfirmModal from "../common/Modal/ConfirmModal";
+import ConfirmModal from "../common/modal/ConfirmModal";
 import LoadingSpinner from "../common/LoadingSpinner";
 import { previewParkingFee } from "../../services/parkingSessionService";
 import { formatLicensePlateForDisplay } from "../../utils/plateFormatter";
@@ -37,7 +37,11 @@ export default function CloseSessionModal({
   const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
-    if (isOpen && session) {
+    if (!isOpen || !session) return undefined;
+    let isCancelled = false;
+
+    queueMicrotask(() => {
+      if (isCancelled) return;
       setActionType("manual_checkout");
       setPaymentMethod("CASH");
       setReasonCode("");
@@ -45,28 +49,36 @@ export default function CloseSessionModal({
       setApproverName("");
       setFeePreview(null);
       setValidationError("");
+    });
 
-      // Tải dự tính cước phí nếu là xe ra bãi
-      const fetchFee = async () => {
-        setIsPreviewLoading(true);
-        try {
-          const entryTime = session.entryTime || session.entry_time || session.entryTimeRaw;
-          const res = await previewParkingFee({
-            licensePlate: session.licensePlate || session.license_plate,
-            sessionCode: session.sessionCode || session.session_code,
-            entryTime,
-            vehicleType: session.vehicleType || session.vehicle_type || "CAR",
-            hasActiveTicket: Boolean(session.hasActiveTicket),
-          });
+    // Tải dự tính cước phí nếu là xe ra bãi
+    const fetchFee = async () => {
+      setIsPreviewLoading(true);
+      try {
+        const entryTime = session.entryTime || session.entry_time || session.entryTimeRaw;
+        const res = await previewParkingFee({
+          licensePlate: session.licensePlate || session.license_plate,
+          sessionCode: session.sessionCode || session.session_code,
+          entryTime,
+          vehicleType: session.vehicleType || session.vehicle_type || "CAR",
+          hasActiveTicket: Boolean(session.hasActiveTicket),
+        });
+        if (!isCancelled) {
           setFeePreview(res);
-        } catch (err) {
-          console.warn("Could not preview fee:", err);
-        } finally {
+        }
+      } catch (err) {
+        console.warn("Could not preview fee:", err);
+      } finally {
+        if (!isCancelled) {
           setIsPreviewLoading(false);
         }
-      };
-      fetchFee();
-    }
+      }
+    };
+    fetchFee();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen, session]);
 
   if (!session) return null;

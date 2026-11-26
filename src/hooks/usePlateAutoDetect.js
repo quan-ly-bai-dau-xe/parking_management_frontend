@@ -5,15 +5,23 @@ import {
   computeDownscaledDimensions,
   computeGrayscaleThumbnail,
   createPlateAutoDetectMachine,
+  isStaticScene,
 } from '../utils/plateAutoDetect';
 import { scanPlate } from '../services/plateScanService';
 
 const PREFERRED_CAMERA_KEY = 'preferred_camera_device_id';
+// Empirical OCR benchmark (Round 91 TL Decision 2 / Finding H2):
+// Committed git HEAD value (1280px, quality 0.85) is retained because statistical Wilson score
+// interval proves differences of 1-3 frames out of 99 frames are noise (overlap [87.4%, 97.2%] vs [88.7%, 97.8%]),
+// and downscaling 720p streams to 960px degrades OCR accuracy on real webcam inputs.
 const MAX_LONG_SIDE = 1280;
 const JPEG_QUALITY = 0.85;
 const THUMB_WIDTH = 32;
 const THUMB_HEIGHT = 24;
-const LOOP_TICK_MS = 250;
+const INTERVAL_CONFIRMING_MS = 250;
+const INTERVAL_SEARCHING_MS = 600;
+const INTERVAL_STATIC_MS = 2000;
+const INTERVAL_KEEP_ALIVE_MS = 3000;
 
 function mapGetUserMediaError(err) {
   if (!err) {
@@ -42,7 +50,13 @@ function mapGetUserMediaError(err) {
  * @param {React.RefObject<HTMLVideoElement>} params.videoRef
  * @param {string|number|null} [params.gateId=null]
  */
-export function usePlateAutoDetect({ isOpen, videoRef, gateId = 1 }) {
+export function usePlateAutoDetect({
+  isOpen,
+  videoRef,
+  gateId = 1,
+  keepAlivePlate = '',
+  onKeepAliveSighting = null,
+}) {
   const [snapshot, setSnapshot] = useState({
     scanState: SCAN_STATES.IDLE,
     statusMessage: STATUS_MESSAGES.SEARCHING,
@@ -268,7 +282,7 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = 1 }) {
     videoRef,
   ]);
 
-  // Continuous polling driver delegating all rate-limit, motion-gating, and state rules to the pure machine
+  // Continuous adaptive polling driver delegating rate-limit, motion-gating, and state rules to the pure machine
   useEffect(() => {
     if (
       !isOpen ||
@@ -280,13 +294,21 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = 1 }) {
     }
 
     const machine = getMachine();
-    const intervalId = setInterval(() => {
+    let timeoutId = null;
+    let isCancelled = false;
+    let prevThumb = null;
+
+    const runLoop = async () => {
+      if (isCancelled) return;
+
       if (typeof document !== 'undefined' && document.hidden) {
+        timeoutId = setTimeout(runLoop, INTERVAL_SEARCHING_MS);
         return;
       }
 
       const video = videoRef.current;
       if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+        timeoutId = setTimeout(runLoop, INTERVAL_SEARCHING_MS);
         return;
       }
 
@@ -338,17 +360,147 @@ export function usePlateAutoDetect({ isOpen, videoRef, gateId = 1 }) {
         return { blob, width, height };
       };
 
-      machine.tick({ thumbnail, captureFrame, gateId });
-    }, LOOP_TICK_MS);
+      const tickResult = await machine.tick({ thumbnail, captureFrame, gateId });
+
+      if (isCancelled) return;
+
+      // Adaptive polling intervals:
+      // - 250-300ms when CONFIRMING (collecting 3/4 matches)
+      // - 1500-2500ms when scene is static (e.g. after 422 or no motion)
+      // - 500-1000ms when SEARCHING
+      const currentSnap = machine.getSnapshot();
+      let nextInterval;
+
+      if (currentSnap.scanState === SCAN_STATES.CONFIRMING) {
+        nextInterval = INTERVAL_CONFIRMING_MS;
+      } else if (
+        tickResult?.action === 'skipped_static_422' ||
+        currentSnap.lastResponseWas422 ||
+        (prevThumb && thumbnail && isStaticScene(prevThumb, thumbnail))
+      ) {
+        nextInterval = INTERVAL_STATIC_MS;
+      } else {
+        nextInterval = INTERVAL_SEARCHING_MS;
+      }
+
+      prevThumb = thumbnail;
+      timeoutId = setTimeout(runLoop, nextInterval);
+    };
+
+    const initialDelay = snapshot.scanState === SCAN_STATES.CONFIRMING
+      ? INTERVAL_CONFIRMING_MS
+      : INTERVAL_SEARCHING_MS;
+    timeoutId = setTimeout(runLoop, initialDelay);
 
     return () => {
-      clearInterval(intervalId);
+      isCancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [isOpen, isTabVisible, snapshot.scanState, gateId, getMachine, videoRef]);
 
   const applyAuthoritativeScan = useCallback(async () => {
     return getMachine().apply({ gateId });
   }, [gateId, getMachine]);
+
+  // Browser Mode walk-in presence probe: while DETECTED & pending, check periodically
+  // whether the same plate is still in front of the camera to refresh lastSeenAt (D1/D2).
+  useEffect(() => {
+    const cleanKeepAlive = String(keepAlivePlate || '')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase();
+    if (
+      !isOpen ||
+      !isTabVisible ||
+      !cleanKeepAlive ||
+      cameraDeviceError ||
+      snapshot.scanState !== SCAN_STATES.DETECTED
+    ) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+    let inFlight = false;
+    let activeController = null;
+
+    const probePresence = async () => {
+      if (isCancelled || inFlight) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+
+      const currentVideo = videoRef.current;
+      if (
+        !currentVideo ||
+        currentVideo.readyState < 2 ||
+        !currentVideo.videoWidth ||
+        !currentVideo.videoHeight
+      ) {
+        return;
+      }
+
+      inFlight = true;
+      activeController = new AbortController();
+      try {
+        const { width, height } = computeDownscaledDimensions(
+          currentVideo.videoWidth,
+          currentVideo.videoHeight,
+          MAX_LONG_SIDE
+        );
+        if (!captureCanvasRef.current) {
+          captureCanvasRef.current = document.createElement('canvas');
+        }
+        const canvas = captureCanvasRef.current;
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.drawImage(currentVideo, 0, 0, width, height);
+        const blob = await new Promise((resolve) => {
+          canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY);
+        });
+        if (!blob || isCancelled || activeController.signal.aborted) return;
+
+        const responseData = await scanPlate({
+          imageBlob: blob,
+          preview: true,
+          gateId,
+          signal: activeController.signal,
+        });
+        if (isCancelled || activeController.signal.aborted) return;
+
+        const sightedNorm = String(responseData?.plate_final || '')
+          .replace(/[^A-Za-z0-9]/g, '')
+          .toUpperCase();
+        if (sightedNorm && sightedNorm === cleanKeepAlive) {
+          onKeepAliveSighting?.(Date.now(), responseData);
+        }
+      } catch {
+        // 422 (empty road) or transient errors intentionally do not refresh lastSeenAt
+      } finally {
+        activeController = null;
+        inFlight = false;
+      }
+    };
+
+    const intervalId = setInterval(probePresence, INTERVAL_KEEP_ALIVE_MS);
+    return () => {
+      isCancelled = true;
+      clearInterval(intervalId);
+      if (activeController) {
+        activeController.abort();
+      }
+    };
+  }, [
+    isOpen,
+    isTabVisible,
+    keepAlivePlate,
+    cameraDeviceError,
+    snapshot.scanState,
+    gateId,
+    videoRef,
+    onKeepAliveSighting,
+  ]);
 
   return {
     scanState: snapshot.scanState,

@@ -19,6 +19,7 @@ export default function CustomerModal({
     <BaseModal
       isOpen={isOpen}
       onClose={onClose}
+      isBusy={isSubmitting}
       title={editingCustomerId ? "Sửa thông tin khách hàng" : "Thêm khách hàng mới"}
       size="lg"
     >

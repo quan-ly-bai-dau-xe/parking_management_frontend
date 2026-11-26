@@ -37,6 +37,9 @@ function mapCustomerListItem(item) {
   const vehicles = (item.vehicles || []).map(mapCustomerVehicle);
   const vehiclesCount = item.vehicles_count ?? vehicles.length;
   const hasActiveTicket = Boolean(item.has_active_ticket ?? item.hasActiveTicket);
+  const rawWalletBalance = item.wallet_balance ?? item.walletBalance ?? 0;
+  const walletBalance = Number.isFinite(Number(rawWalletBalance)) ? Number(rawWalletBalance) : 0;
+  const walletStatus = item.wallet_status ?? item.walletStatus ?? "ACTIVE";
 
   return {
     id: String(item.id),
@@ -53,6 +56,8 @@ function mapCustomerListItem(item) {
     vehiclesCount,
     vehicles,
     hasActiveTicket,
+    walletBalance,
+    walletStatus,
     // Điều kiện xóa an toàn theo quy tắc DEL-02:
     // Không có xe đang hoạt động và không có vé xe hiệu lực
     canDelete: vehiclesCount === 0 && !hasActiveTicket,
@@ -117,6 +122,10 @@ export const customerService = {
           gender: detail.gender || cust.gender,
           vehicles: detailVehicles,
           vehiclesCount: totalVehiclesCount,
+          walletBalance: Number.isFinite(Number(detail.wallet_balance ?? cust.walletBalance))
+            ? Number(detail.wallet_balance ?? cust.walletBalance)
+            : cust.walletBalance,
+          walletStatus: detail.wallet_status || cust.walletStatus,
           rowVersion: detail.row_version || cust.rowVersion,
           canDelete: totalVehiclesCount === 0 && !cust.hasActiveTicket,
         };

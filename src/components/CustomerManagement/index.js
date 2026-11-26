@@ -1,4 +1,5 @@
 export { default as CustomerModal } from "./CustomerModal";
+export { default as CustomerDetailModal } from "./CustomerDetailModal";
 export { default as CustomerFilters } from "./CustomerFilters";
 export { default as CustomerAdvancedFilterPopover } from "./CustomerAdvancedFilterPopover";
 export { default as DeleteBlockedModal } from "./DeleteBlockedModal";

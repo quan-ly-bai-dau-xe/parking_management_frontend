@@ -1,4 +1,3 @@
-import React from "react";
 import { DataTable, EmptyState, Pagination, Button } from "../common";
 import CustomerVehicleExpandedList from "./CustomerVehicleExpandedList";
 

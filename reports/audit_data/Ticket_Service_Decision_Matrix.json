@@ -1,0 +1,248 @@
+{
+  "suiteTitle": "Ticket Service Decision Matrix",
+  "records": [
+    {
+      "description": "formatCurrencyVND: Số nguyên dương",
+      "input": "500000",
+      "actual": "\"500.000đ\"",
+      "expected": "\"500.000đ\"",
+      "match": "PASS",
+      "rawInput": 500000,
+      "rawActual": "500.000đ",
+      "rawExpected": "500.000đ"
+    },
+    {
+      "description": "formatCurrencyVND: Chuỗi số hợp lệ",
+      "input": "\"1200000\"",
+      "actual": "\"1.200.000đ\"",
+      "expected": "\"1.200.000đ\"",
+      "match": "PASS",
+      "rawInput": "1200000",
+      "rawActual": "1.200.000đ",
+      "rawExpected": "1.200.000đ"
+    },
+    {
+      "description": "formatCurrencyVND: Đã có hậu tố 'đ'",
+      "input": "\"500.000đ\"",
+      "actual": "\"500.000đ\"",
+      "expected": "\"500.000đ\"",
+      "match": "PASS",
+      "rawInput": "500.000đ",
+      "rawActual": "500.000đ",
+      "rawExpected": "500.000đ"
+    },
+    {
+      "description": "formatCurrencyVND: Giá trị 0 (biên)",
+      "input": "0",
+      "actual": "\"0đ\"",
+      "expected": "\"0đ\"",
+      "match": "PASS",
+      "rawInput": 0,
+      "rawActual": "0đ",
+      "rawExpected": "0đ"
+    },
+    {
+      "description": "formatCurrencyVND: Null / Rỗng",
+      "input": "null",
+      "actual": "\"—\"",
+      "expected": "\"—\"",
+      "match": "PASS",
+      "rawInput": null,
+      "rawActual": "—",
+      "rawExpected": "—"
+    },
+    {
+      "description": "formatCurrencyVND: Chuỗi rỗng",
+      "input": "\"\"",
+      "actual": "\"—\"",
+      "expected": "\"—\"",
+      "match": "PASS",
+      "rawInput": "",
+      "rawActual": "—",
+      "rawExpected": "—"
+    },
+    {
+      "description": "normalizeTicketStatus: ACTIVE -> active",
+      "input": "\"ACTIVE\"",
+      "actual": "\"active\"",
+      "expected": "\"active\"",
+      "match": "PASS",
+      "rawInput": "ACTIVE",
+      "rawActual": "active",
+      "rawExpected": "active"
+    },
+    {
+      "description": "normalizeTicketStatus: EXPIRED -> expired",
+      "input": "\"EXPIRED\"",
+      "actual": "\"expired\"",
+      "expected": "\"expired\"",
+      "match": "PASS",
+      "rawInput": "EXPIRED",
+      "rawActual": "expired",
+      "rawExpected": "expired"
+    },
+    {
+      "description": "normalizeTicketStatus: RENEWING -> renewing",
+      "input": "\"RENEWING\"",
+      "actual": "\"renewing\"",
+      "expected": "\"renewing\"",
+      "match": "PASS",
+      "rawInput": "RENEWING",
+      "rawActual": "renewing",
+      "rawExpected": "renewing"
+    },
+    {
+      "description": "normalizeTicketStatus: EXPIRING -> expiring",
+      "input": "\"EXPIRING\"",
+      "actual": "\"expiring\"",
+      "expected": "\"expiring\"",
+      "match": "PASS",
+      "rawInput": "EXPIRING",
+      "rawActual": "expiring",
+      "rawExpected": "expiring"
+    },
+    {
+      "description": "normalizeTicketStatus: TERMINATED -> cancelled",
+      "input": "\"TERMINATED\"",
+      "actual": "\"cancelled\"",
+      "expected": "\"cancelled\"",
+      "match": "PASS",
+      "rawInput": "TERMINATED",
+      "rawActual": "cancelled",
+      "rawExpected": "cancelled"
+    },
+    {
+      "description": "normalizeTicketStatus: CANCELLED -> cancelled",
+      "input": "\"CANCELLED\"",
+      "actual": "\"cancelled\"",
+      "expected": "\"cancelled\"",
+      "match": "PASS",
+      "rawInput": "CANCELLED",
+      "rawActual": "cancelled",
+      "rawExpected": "cancelled"
+    },
+    {
+      "description": "normalizeTicketStatus: Null -> mặc định active",
+      "input": "null",
+      "actual": "\"active\"",
+      "expected": "\"active\"",
+      "match": "PASS",
+      "rawInput": null,
+      "rawActual": "active",
+      "rawExpected": "active"
+    },
+    {
+      "description": "mapTicketItem: Payload chuẩn từ Backend",
+      "input": "\"VT0010\"",
+      "actual": "{\"id\":10,\"ticketCode\":\"VT0010\",\"cus...",
+      "expected": "{\"id\":10,\"ticketCode\":\"VT0010\",\"cus...",
+      "match": "PASS",
+      "rawInput": "VT0010",
+      "rawActual": {
+        "id": 10,
+        "ticketCode": "VT0010",
+        "customerCode": "KH0001",
+        "customerName": "Nguyễn Văn A",
+        "licensePlate": "43A-123.45",
+        "ticketType": "Vé tháng",
+        "slotLocation": "Tầng B1 - A-01",
+        "price": "500.000đ",
+        "status": "active",
+        "statusText": "Đang hoạt động",
+        "rowVersion": 2,
+        "notes": "Vé xe nhân viên"
+      },
+      "rawExpected": {
+        "id": 10,
+        "ticketCode": "VT0010",
+        "customerCode": "KH0001",
+        "customerName": "Nguyễn Văn A",
+        "licensePlate": "43A-123.45",
+        "ticketType": "Vé tháng",
+        "slotLocation": "Tầng B1 - A-01",
+        "price": "500.000đ",
+        "status": "active",
+        "statusText": "Đang hoạt động",
+        "rowVersion": 2,
+        "notes": "Vé xe nhân viên"
+      }
+    },
+    {
+      "description": "Error Status: Backend trả HTTP 500",
+      "input": "\"/api/v1/tickets/\"",
+      "actual": "500",
+      "expected": "500",
+      "match": "PASS",
+      "rawInput": "/api/v1/tickets/",
+      "rawActual": 500,
+      "rawExpected": 500
+    },
+    {
+      "description": "Error Code: Mất kết nối mạng (ECONNREFUSED)",
+      "input": "\"/api/v1/tickets/\"",
+      "actual": "\"ECONNREFUSED\"",
+      "expected": "\"ECONNREFUSED\"",
+      "match": "PASS",
+      "rawInput": "/api/v1/tickets/",
+      "rawActual": "ECONNREFUSED",
+      "rawExpected": "ECONNREFUSED"
+    },
+    {
+      "description": "getTicketTypes count",
+      "input": "\"/api/v1/tickets/types/\"",
+      "actual": "1",
+      "expected": "1",
+      "match": "PASS",
+      "rawInput": "/api/v1/tickets/types/",
+      "rawActual": 1,
+      "rawExpected": 1
+    },
+    {
+      "description": "getTicketTypes[0].code",
+      "input": "{\"id\":1,\"code\":\"DAILY\",\"name\":\"Vé n...",
+      "actual": "\"DAILY\"",
+      "expected": "\"DAILY\"",
+      "match": "PASS",
+      "rawInput": {
+        "id": 1,
+        "code": "DAILY",
+        "name": "Vé ngày",
+        "duration_days": 1,
+        "default_price": 50000
+      },
+      "rawActual": "DAILY",
+      "rawExpected": "DAILY"
+    },
+    {
+      "description": "getTickets count",
+      "input": "\"/api/v1/tickets/\"",
+      "actual": "1",
+      "expected": "1",
+      "match": "PASS",
+      "rawInput": "/api/v1/tickets/",
+      "rawActual": 1,
+      "rawExpected": 1
+    },
+    {
+      "description": "getTickets[0].ticketCode",
+      "input": "\"VT0010\"",
+      "actual": "\"VT0010\"",
+      "expected": "\"VT0010\"",
+      "match": "PASS",
+      "rawInput": "VT0010",
+      "rawActual": "VT0010",
+      "rawExpected": "VT0010"
+    },
+    {
+      "description": "getTickets[0].price",
+      "input": "\"500.000đ\"",
+      "actual": "\"500.000đ\"",
+      "expected": "\"500.000đ\"",
+      "match": "PASS",
+      "rawInput": "500.000đ",
+      "rawActual": "500.000đ",
+      "rawExpected": "500.000đ"
+    }
+  ],
+  "recordedAt": "2026-11-25T04:00:56.024Z"
+}

@@ -43,6 +43,8 @@ export const ParkingSessionSchema = z.object({
   fee: z.union([z.string(), z.number()]).nullable().optional(),
   fee_amount: z.union([z.string(), z.number()]).nullable().optional(),
   feeNumber: z.number().nullable().optional(),
+  payment_method: z.string().nullable().optional(),
+  paymentMethod: z.string().nullable().optional(),
 
   status: z.string().nullable().optional(),
   review_status: z.string().nullable().optional(),

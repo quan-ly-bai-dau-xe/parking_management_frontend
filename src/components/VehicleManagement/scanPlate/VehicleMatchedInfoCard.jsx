@@ -1,4 +1,5 @@
-import { isVehicleTicketActive, formatDate } from "../../../utils/parking/plateScanMapper.js";
+import { isVehicleTicketActive } from "../../../utils/parking/plateScanMapper.js";
+import { formatDateVN } from "../../../utils/formatDateTime.js";
 
 /**
  * VehicleMatchedInfoCard
@@ -66,7 +67,9 @@ export default function VehicleMatchedInfoCard({
     matchedVehicle?.ticket?.effective_to ||
     null;
 
-  const ticketExpiration = rawExpiration ? formatDate(rawExpiration) : null;
+  const ticketExpiration = rawExpiration
+    ? formatDateVN(rawExpiration, "") || null
+    : null;
 
   const isTicketExpired =
     matchedVehicle?.ticketStatus === "expired" ||

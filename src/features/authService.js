@@ -1,5 +1,54 @@
 import { apiClient, fetchCsrfToken } from "../services/apiClient.js";
 
+export const AUTH_USER_CHANGED_EVENT = "sp:auth-user-changed";
+
+function dispatchAuthUserChanged(user = null) {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.dispatchEvent === "function" &&
+    typeof CustomEvent === "function"
+  ) {
+    window.dispatchEvent(
+      new CustomEvent(AUTH_USER_CHANGED_EVENT, {
+        detail: { user },
+      })
+    );
+  }
+}
+
+export function clearStoredAuth({ notify = true } = {}) {
+  const keys = ["sp_auth_token", "sp_user"];
+  try {
+    if (typeof localStorage !== "undefined" && typeof localStorage?.removeItem === "function") {
+      for (const key of keys) {
+        try {
+          localStorage.removeItem(key);
+        } catch {
+          // Ignore storage access errors
+        }
+      }
+    }
+  } catch {
+    // Ignore storage access errors
+  }
+  try {
+    if (typeof sessionStorage !== "undefined" && typeof sessionStorage?.removeItem === "function") {
+      for (const key of keys) {
+        try {
+          sessionStorage.removeItem(key);
+        } catch {
+          // Ignore storage access errors
+        }
+      }
+    }
+  } catch {
+    // Ignore storage access errors
+  }
+  if (notify) {
+    dispatchAuthUserChanged(null);
+  }
+}
+
 export const authService = {
   login: async ({ account, password, rememberMe }) => {
     if (!account || !password) {
@@ -16,8 +65,11 @@ export const authService = {
       }),
     });
 
+    // Prevent stale sp_user in the opposite storage from shadowing the newly logged-in account
+    clearStoredAuth({ notify: false });
     const storage = rememberMe ? localStorage : sessionStorage;
     storage.setItem("sp_user", JSON.stringify(user));
+    dispatchAuthUserChanged(user);
     return { status: 200, user };
   },
 
@@ -78,12 +130,9 @@ export const authService = {
     },
 
     logout: () => {
-        return new Promise((resolve) => {
-            localStorage.removeItem('sp_auth_token');
-            localStorage.removeItem('sp_user');
-            sessionStorage.removeItem('sp_auth_token');
-            sessionStorage.removeItem('sp_user');
-            resolve(true);
-        });
+        clearStoredAuth({ notify: true });
+        return apiClient("/api/v1/auth/logout/", { method: "POST" })
+            .catch(() => {})
+            .then(() => true);
     }
 };
