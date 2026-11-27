@@ -460,7 +460,6 @@ export const parkingLotService = {
   getReservations,
   cancelReservation,
   updateSlotStatus,
-  getParkingStructure,
   fetchParkingStructure,
   getParkingLotConfig,
   fetchParkingLotConfig,

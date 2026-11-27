@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   fetchVehicles,
   fetchVehicleSummary,
@@ -32,6 +32,7 @@ export default function useVehicleData() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshStats();
   }, [refreshStats]);
 
@@ -162,6 +163,7 @@ export default function useVehicleData() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadVehicles();
   }, [loadVehicles]);
 

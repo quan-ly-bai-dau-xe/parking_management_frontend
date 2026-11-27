@@ -1,24 +1,14 @@
 import { test, expect } from "@playwright/test";
-import { loginAsStaff } from "./helpers/auth.js";
 
 const CUSTOMER_CREDENTIALS = {
   email: "trinh.xuan.truong@example.com",
   password: "Parking@Dev2026",
 };
 
-function generateUniquePlate() {
-  const num3 = String(Math.floor(100 + Math.random() * 900));
-  const num2 = String(Math.floor(10 + Math.random() * 90));
-  return `30A-${num3}.${num2}`;
-}
-
 test.describe("Mission-Critical Customer Flow: Login -> Add Vehicle -> Buy Ticket -> Verify Overview", () => {
   test("Luồng khép kín khách hàng: Đăng nhập -> Thêm phương tiện -> Mua vé -> Kiểm tra tổng quan", async ({
     page,
   }) => {
-    const uniquePlate = generateUniquePlate();
-    const modelName = "E2E Civic";
-
     // 1. Đăng nhập với tài khoản Customer thật
     await page.goto("/login");
     const userInput = page.locator('input[type="text"], input[name="username"], input[name="account"], input[type="email"]').first();

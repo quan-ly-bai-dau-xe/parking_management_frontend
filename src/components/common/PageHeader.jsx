@@ -1,5 +1,3 @@
-import React from "react";
-
 /**
  * PageHeader component
  * Standardized page-level header with title, description, optional breadcrumb, and action slots.

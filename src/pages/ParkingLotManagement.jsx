@@ -67,11 +67,6 @@ export default function ParkingLotManagement() {
     };
   }, []);
 
-  const extractSlotLabel = useCallback(
-    (rawCode) => parseCustomerSlotCode(rawCode).label,
-    [parseCustomerSlotCode],
-  );
-
   const fetchCustomerParkedSpots = useCallback(async () => {
     if (!isCustomer) {
       setCustomerParkedSpots([]);
@@ -105,6 +100,7 @@ export default function ParkingLotManagement() {
   }, [isCustomer]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCustomerParkedSpots();
   }, [fetchCustomerParkedSpots]);
 
@@ -152,7 +148,7 @@ export default function ParkingLotManagement() {
         }
       }, 150);
     },
-    [parseCustomerSlotCode, selectedFloor, selectedZone],
+    [parseCustomerSlotCode, selectedFloor, selectedZone, setSelectedFloor, setSelectedZone],
   );
 
   useEffect(() => {

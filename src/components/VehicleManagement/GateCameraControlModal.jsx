@@ -1378,6 +1378,7 @@ export default function GateCameraControlModal({
     scanDetails,
     setErrorMessage,
     setRawLookup,
+    toast,
     triggerBarrierOpen,
     waiverReason,
   ]);

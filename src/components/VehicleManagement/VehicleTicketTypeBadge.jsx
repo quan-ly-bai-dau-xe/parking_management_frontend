@@ -1,4 +1,3 @@
-import React from "react";
 import { TICKET_TYPE_STYLES } from "../../constants/vehicleConstants";
 
 export default function VehicleTicketTypeBadge({ ticketType }) {
@@ -19,7 +18,7 @@ export default function VehicleTicketTypeBadge({ ticketType }) {
   }
 
   const lower = rawType.toLowerCase();
-  let style = TICKET_TYPE_STYLES.DEFAULT;
+  let style;
 
   if (lower.includes(TICKET_TYPE_STYLES.DAILY.keyword)) {
     style = TICKET_TYPE_STYLES.DAILY;

@@ -11,7 +11,6 @@ import { useState } from "react";
  * 4. Xe bị kẹt phiên gửi cũ (Treo phiên)
  */
 export default function GateSimulatorBar({
-  laneMode = "entry",
   onSimulateScan,
   onSimulateManualInput,
   currentScannedPlate = "",

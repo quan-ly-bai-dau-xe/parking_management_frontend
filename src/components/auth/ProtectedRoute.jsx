@@ -10,6 +10,7 @@ import { useToast } from "../../context/ToastContext";
  * - Mặc định false trong production: Bật bảo vệ nghiêm ngặt, chuyển hướng về /login nếu chưa đăng nhập.
  * - true khi dev/test: Bỏ qua kiểm tra login.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const BYPASS_AUTH =
   import.meta.env?.VITE_BYPASS_AUTH === "true" ||
   (typeof window !== "undefined" && window.localStorage?.getItem("BYPASS_AUTH") === "true") ||

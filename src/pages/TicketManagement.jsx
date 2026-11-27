@@ -19,7 +19,6 @@ export default function TicketManagement() {
     filteredTickets,
     totalCount,
     filters,
-    loading,
     error,
     refreshTickets,
     currentPage,

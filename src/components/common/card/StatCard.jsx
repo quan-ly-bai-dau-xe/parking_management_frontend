@@ -1,5 +1,3 @@
-import React from "react";
-
 const colorStyles = {
   blue: {
     bg: "bg-blue-50 text-blue-600",

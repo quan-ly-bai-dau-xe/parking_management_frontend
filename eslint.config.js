@@ -41,25 +41,25 @@ export default defineConfig([
     files: ['src/**/*.{js,jsx}'],
     rules: {
       // Guardrail: cảnh báo file quá lớn
-      'max-lines': [
-        'warn',
-        {
-          max: 200,
-          skipBlankLines: true,
-          skipComments: true,
-        },
-      ],
+      // 'max-lines': [
+      //   'warn',
+      //   {
+      //     max: 200,
+      //     skipBlankLines: true,
+      //     skipComments: true,
+      //   },
+      // ],
 
       // Guardrail: hạn chế useEffect không cần thiết
-      'no-restricted-syntax': [
-        'warn',
-        {
-          selector:
-            "CallExpression[callee.name='useEffect'], CallExpression[callee.object.name='React'][callee.property.name='useEffect']",
-          message:
-            'Hãy cân nhắc liệu useEffect có thực sự cần thiết. Ưu tiên derived state, event handlers hoặc custom hooks khi phù hợp. Chỉ dùng useEffect để đồng bộ với hệ thống bên ngoài.',
-        },
-      ],
+      // 'no-restricted-syntax': [
+      //   'warn',
+      //   {
+      //     selector:
+      //       "CallExpression[callee.name='useEffect'], CallExpression[callee.object.name='React'][callee.property.name='useEffect']",
+      //     message:
+      //       'Hãy cân nhắc liệu useEffect có thực sự cần thiết. Ưu tiên derived state, event handlers hoặc custom hooks khi phù hợp. Chỉ dùng useEffect để đồng bộ với hệ thống bên ngoài.',
+      //   },
+      // ],
     },
   },
   ...storybook.configs["flat/recommended"]

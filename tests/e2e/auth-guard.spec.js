@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { loginAsStaff } from "./helpers/auth.js";
 
 test.describe("Mission-Critical 1: Authentication & Route Protection Guard", () => {
   test("Chặn truy cập trái phép và redirect về Login khi chưa đăng nhập", async ({ page }) => {

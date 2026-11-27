@@ -11,10 +11,6 @@ import {
 export default function ParkingHistoryFilters({
   searchTerm = "",
   setSearchTerm,
-  sessionCode = "",
-  setSessionCode,
-  licensePlate = "",
-  setLicensePlate,
   statusFilter,
   setStatusFilter,
   ticketTypeFilter = "all",
@@ -47,11 +43,13 @@ export default function ParkingHistoryFilters({
   onResetFilters,
 }) {
   const [localSearch, setLocalSearch] = useState(searchTerm);
+  const [prevSearchTerm, setPrevSearchTerm] = useState(searchTerm);
 
   // Synchronize local input with prop if changed from outside
-  useEffect(() => {
+  if (searchTerm !== prevSearchTerm) {
+    setPrevSearchTerm(searchTerm);
     setLocalSearch(searchTerm);
-  }, [searchTerm]);
+  }
 
   // Debounced search trigger
   useEffect(() => {

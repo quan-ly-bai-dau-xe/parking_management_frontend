@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo, useId } from "react";
+import { useRef, useState, useEffect, useMemo, useId } from "react";
 
 /**
  * SearchableCombobox

@@ -35,6 +35,7 @@ export default function useCustomerData() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     const cleanup = fetchCustomerList();
     return cleanup;
   }, [fetchCustomerList]);

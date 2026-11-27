@@ -12,7 +12,6 @@ import {
 } from "../../constants/abnormalSessionConstants";
 import {
   resolveTicketTypeName,
-  normalizeTicketTypeName,
 } from "../../utils/ticket/ticketTypeHelper";
 
 /**
@@ -101,7 +100,6 @@ export default function CloseSessionModal({
     isManager,
     approverName,
   });
-  const isFormValid = validationResult.isValid;
 
   const handleConfirm = () => {
     if (!validationResult.isValid) {
