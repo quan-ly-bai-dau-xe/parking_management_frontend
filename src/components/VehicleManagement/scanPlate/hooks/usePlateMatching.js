@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   mapPlateScanToVehicle,
   matchPlateLookup,
@@ -27,12 +27,17 @@ export function usePlateMatching({
   const [searchStatus, setSearchStatus] = useState("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [rawLookup, setRawLookup] = useState(null);
+  const matchEpochRef = useRef(0);
 
   const handleMatchPlate = useCallback(
-    async (plateInput) => {
+    async (plateInput, options = {}) => {
       const rawInput = (plateInput || "").trim();
       const norm = normalizePlate(rawInput);
       if (!norm) return null;
+
+      const requestEpoch = ++matchEpochRef.current;
+      const shouldCommit =
+        typeof options?.shouldCommit === "function" ? options.shouldCommit : null;
 
       setIsScanning(true);
       setSearchStatus("idle");
@@ -44,6 +49,13 @@ export function usePlateMatching({
           vehicles,
           mockVehiclesFallback,
         });
+
+        if (
+          requestEpoch !== matchEpochRef.current ||
+          (shouldCommit && !shouldCommit(result))
+        ) {
+          return null;
+        }
 
         if (result.success) {
           setMatchedVehicle(result.vehicle);
@@ -65,6 +77,12 @@ export function usePlateMatching({
           return result;
         }
       } catch (unexpectedErr) {
+        if (
+          requestEpoch !== matchEpochRef.current ||
+          (shouldCommit && !shouldCommit(null, unexpectedErr))
+        ) {
+          return null;
+        }
         const msg = unexpectedErr?.message || "Đã xảy ra lỗi không xác định khi tra cứu biển số.";
         setMatchedVehicle(null);
         setRawLookup(null);
@@ -75,7 +93,9 @@ export function usePlateMatching({
         }
         return { success: false, errorMessage: msg, error: unexpectedErr };
       } finally {
-        setIsScanning(false);
+        if (requestEpoch === matchEpochRef.current) {
+          setIsScanning(false);
+        }
       }
     },
     [vehicles, mockVehiclesFallback, onResetBarrier, onMatchSuccess, onMatchError]
@@ -106,6 +126,8 @@ export function usePlateMatching({
 
         const mapped = mapPlateScanToVehicle(scanResult);
         if (mapped && mapped.isRecognized) {
+          matchEpochRef.current += 1;
+          setIsScanning(false);
           setMatchedVehicle(mapped);
           setSearchStatus("matched");
           setRawLookup(scanResult.vehicle_lookup || null);
@@ -131,9 +153,11 @@ export function usePlateMatching({
   );
 
   const resetMatching = useCallback(() => {
+    matchEpochRef.current += 1;
     setDetectedPlate("");
     setMatchedVehicle(null);
     setScanDetails(null);
+    setIsScanning(false);
     setSearchStatus("idle");
     setErrorMessage("");
     setRawLookup(null);

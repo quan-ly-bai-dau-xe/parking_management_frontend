@@ -3,7 +3,7 @@ import { BaseModal } from "../common/modal";
 import { Button } from "../common";
 import { customerService } from "../../services/customerService";
 import { VehicleFormSchema } from "../../schemas/vehicleSchema";
-import { INITIAL_VEHICLE_FORM_STATE, DEFAULT_UNASSIGNED_SLOT_LABEL } from "../../constants/vehicleConstants";
+import { INITIAL_VEHICLE_FORM_STATE } from "../../constants/vehicleConstants";
 import { mapVehicleToFormData, mapFormDataToVehicleEntity } from "../../utils/vehicle/vehicleFormMapper";
 import CustomerSelectCombobox from "./CustomerSelectCombobox";
 import VehicleFormFields from "./VehicleFormFields";
@@ -119,6 +119,7 @@ export default function EditVehicleModal({
     <BaseModal
       isOpen={isOpen}
       onClose={onClose}
+      isBusy={isSubmitting}
       title={isAddingNew ? "Thêm phương tiện mới" : "Chỉnh sửa phương tiện"}
       size="2xl"
     >

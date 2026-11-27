@@ -1,5 +1,5 @@
 import { ParkingSessionSchema } from "../../schemas/parkingSessionSchema.js";
-import { formatIsoDateToDisplay } from "../formatDateTime.js";
+import { formatDateVN, formatDateTimeVN } from "../formatDateTime.js";
 import { calculateParkingFee } from "./parkingFeeCalculator.js";
 
 /**
@@ -26,27 +26,16 @@ export const MAPPER_DEFAULTS = {
 };
 
 /**
- * Định dạng datetime sang tiếng Việt (dd/MM/yyyy HH:mm)
+ * Định dạng datetime sang tiếng Việt (HH:mm dd/MM/yyyy, Asia/Ho_Chi_Minh)
  */
 export function formatDateTime(value) {
   if (!value) return MAPPER_DEFAULTS.EMPTY_PLACEHOLDER;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
-    .format(date)
-    .replace(",", "");
+  return formatDateTimeVN(value, MAPPER_DEFAULTS.EMPTY_PLACEHOLDER);
 }
 
 export function formatDate(value) {
   if (!value) return MAPPER_DEFAULTS.EMPTY_PLACEHOLDER;
-  return formatIsoDateToDisplay(value) || value;
+  return formatDateVN(value, MAPPER_DEFAULTS.EMPTY_PLACEHOLDER);
 }
 
 /**
@@ -116,8 +105,15 @@ function extractCustomer(rawCustomer = {}, rawVehicle = {}) {
     rawVehicle.customer_phone ||
     MAPPER_DEFAULTS.EMPTY_PLACEHOLDER;
   const code = rawCustomer.code || rawCustomer.customerCode || "";
+  const hasWallet = Boolean(rawCustomer.has_wallet ?? rawCustomer.hasWallet);
+  const rawBalance = rawCustomer.wallet_balance ?? rawCustomer.walletBalance;
+  const walletBalance =
+    rawBalance !== undefined && rawBalance !== null && rawBalance !== ""
+      ? Number(rawBalance)
+      : 0;
+  const walletStatus = rawCustomer.wallet_status || rawCustomer.walletStatus || "ACTIVE";
 
-  return { id, name, phone, code };
+  return { id, name, phone, code, hasWallet, walletBalance, walletStatus };
 }
 
 /**
@@ -168,7 +164,7 @@ function extractTicket(rawTicket = {}, source = {}, hasPlate = false) {
  * Ngăn chặn hoàn toàn false-positive đối với vé lượt hoặc xe vãng lai.
  */
 export function isVehicleTicketActive(matchedVehicle, hasValidTicket = false) {
-  if (Boolean(hasValidTicket)) return true;
+  if (hasValidTicket) return true;
   if (!matchedVehicle) return false;
   if (matchedVehicle.hasActiveTicket) return true;
   if (matchedVehicle.ticketState === "active") return true;
@@ -284,10 +280,10 @@ export function mapParkingSession(raw) {
     try {
       const entryDate = new Date(entryTimeRaw);
       if (!Number.isNaN(entryDate.getTime())) {
-        const elapsedMinutes = Math.max(0, Math.round((Date.now() - entryDate.getTime()) / (1000 * 60)));
         estimatedFee = calculateParkingFee({
           vehicleType: raw.vehicleType || "CAR",
-          durationMinutes: elapsedMinutes,
+          entryTime: entryDate,
+          exitTime: Date.now(),
           hasActiveTicket,
         });
         overstayLevel = estimatedFee.overstayLevel || "normal";
@@ -316,6 +312,7 @@ export function mapParkingSession(raw) {
     durationMinutes: raw.duration_minutes ?? null,
     fee: feeDisplay,
     feeNumber,
+    paymentMethod: raw.payment_method || raw.paymentMethod || null,
     estimatedFee,
     overstayLevel,
     status,

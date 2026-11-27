@@ -1,4 +1,3 @@
-import React from "react";
 import { useNavigate } from "react-router-dom";
 import { BaseModal } from "../common/modal";
 import { Button } from "../common";

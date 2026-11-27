@@ -2,9 +2,11 @@ import PlateScannerModal from "../components/PlateScannerModal"; // Điều ch�
 
 export default function CameraScanPage() {
   // Lấy mode và gateId từ query URL (ví dụ: /camera-scanner?mode=in&gateId=1)
-  const searchParams = new URLSearchParams(window.location.search);
+  const searchString =
+    typeof window !== "undefined" ? window.location.search : "";
+  const searchParams = new URLSearchParams(searchString);
   const mode = searchParams.get("mode") || "in";
-  const gateId = Number(searchParams.get("gateId")) || (mode === "out" ? 2 : 1);
+  const gateId = Number(searchParams.get("gateId")) || (mode === "out" ? 3 : 1);
 
   // Lắng nghe và gửi kết quả về tab chính qua BroadcastChannel và localStorage
   const handleDetected = (plate, resultData) => {
@@ -35,11 +37,15 @@ export default function CameraScanPage() {
     }
 
     // Đóng tab quét sau khi đã áp dụng kết quả
-    window.close();
+    if (typeof window !== "undefined") {
+      window.close();
+    }
   };
 
   const handleClose = () => {
-    window.close();
+    if (typeof window !== "undefined") {
+      window.close();
+    }
   };
 
   return (

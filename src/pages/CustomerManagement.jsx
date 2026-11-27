@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { Button, PageHeader } from "../components/common";
 import {
   CustomerModal,
+  CustomerDetailModal,
   CustomerFilters,
   CustomerDataTable,
   CustomerDeleteModals,
@@ -63,9 +64,41 @@ export default function CustomerManagement() {
   } = useCustomerManagementLogic(customerData, setCustomerData, toast);
 
   const { totalPages, paginatedList } = usePagination(customers, currentPage, itemsPerPage);
+  const [detailCustomer, setDetailCustomer] = useState(null);
+
+  const handleWalletUpdated = useCallback(
+    (customerId, updatedWallet) => {
+      setCustomerData((prev) =>
+        prev.map((c) =>
+          String(c.id) === String(customerId)
+            ? {
+                ...c,
+                walletBalance: updatedWallet.balance,
+                walletStatus: updatedWallet.status,
+              }
+            : c,
+        ),
+      );
+      setDetailCustomer((prev) =>
+        prev && String(prev.id) === String(customerId)
+          ? {
+              ...prev,
+              walletBalance: updatedWallet.balance,
+              walletStatus: updatedWallet.status,
+            }
+          : prev,
+      );
+    },
+    [setCustomerData],
+  );
 
   const columns = useMemo(
-    () => getCustomerColumns({ onEdit: handleEditClick, onDeleteClick: handleDeleteClick }),
+    () =>
+      getCustomerColumns({
+        onViewDetail: (row) => setDetailCustomer(row),
+        onEdit: handleEditClick,
+        onDeleteClick: handleDeleteClick,
+      }),
     [handleEditClick, handleDeleteClick],
   );
 
@@ -151,6 +184,13 @@ export default function CustomerManagement() {
         onConfirmDelete={handleConfirmDelete}
         customerBlockedFromDelete={customerBlockedFromDelete}
         onCloseBlocked={() => setCustomerBlockedFromDelete(null)}
+      />
+
+      <CustomerDetailModal
+        isOpen={Boolean(detailCustomer)}
+        onClose={() => setDetailCustomer(null)}
+        customer={detailCustomer}
+        onWalletUpdated={handleWalletUpdated}
       />
     </>
   );

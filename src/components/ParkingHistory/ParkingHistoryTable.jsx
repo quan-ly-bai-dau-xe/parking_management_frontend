@@ -7,6 +7,8 @@ import {
 import ParkingSessionThumbnail from "./ParkingSessionThumbnail";
 import VehicleTicketTypeBadge from "../VehicleManagement/VehicleTicketTypeBadge";
 import { formatLicensePlateForDisplay } from "../../utils/plateFormatter";
+import { formatCurrencyVND } from "../../constants/paymentConstants";
+import { formatDateTimeVN } from "../../utils/formatDateTime";
 
 function getDisplayTicketType(item) {
   const raw = item?.ticketType || item?.ticket_type_name || item?.ticket_type;
@@ -84,7 +86,10 @@ export default function ParkingHistoryTable({
                     <VehicleTicketTypeBadge ticketType={displayTicketType} />
                   </div>
                   <div className="col-span-1 text-slate-600">
-                    {item.entryTime || item.entry_time || PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT}
+                    {item.entryTime ||
+                      (item.entry_time
+                        ? formatDateTimeVN(item.entry_time, PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT)
+                        : PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT)}
                   </div>
                   <div className="col-span-1 text-slate-600">{formattedExitTime}</div>
                   <div className="col-span-1 text-slate-600">
@@ -134,13 +139,30 @@ export default function ParkingHistoryTable({
                             ~{item.estimatedFee.feeFormatted}
                           </span>
                           <span className="text-[10px] text-amber-600/80">
-                            {item.estimatedFee.isCapped ? "(Đã áp trần 100k/ngày)" : "(Tạm tính)"}
+                            {item.estimatedFee.hasPackageCoverage && item.estimatedFee.overageHours > 0
+                              ? "(Tạm tính vượt hạn)"
+                              : item.estimatedFee.isCapped
+                              ? "(Đã áp trần)"
+                              : "(Tạm tính)"}
                           </span>
                         </>
                       ) : (
-                        <span className="font-semibold text-emerald-600">
-                          {item.fee || (item.fee_amount !== undefined && item.fee_amount !== null ? `${item.fee_amount}đ` : "0đ")}
-                        </span>
+                        <>
+                          <span className="font-semibold text-emerald-600">
+                            {item.fee || (item.fee_amount !== undefined && item.fee_amount !== null ? formatCurrencyVND(item.fee_amount) : "0đ")}
+                          </span>
+                          {item.paymentMethod && (
+                            <span className="text-[10px] font-medium text-slate-500">
+                              {item.paymentMethod === "WALLET"
+                                ? "Ví khách hàng (WALLET)"
+                                : item.paymentMethod === "VIETQR"
+                                ? "Chuyển khoản (VIETQR)"
+                                : item.paymentMethod === "CASH"
+                                ? "Tiền mặt (CASH)"
+                                : item.paymentMethod}
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                     <ParkingSessionThumbnail item={item} onPreview={onPreviewImage} />

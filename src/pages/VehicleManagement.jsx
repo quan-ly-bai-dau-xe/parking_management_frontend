@@ -17,7 +17,6 @@ import { ROUTES } from "../config/navigation";
 import { VEHICLE_DELETE_MESSAGES } from "../constants/vehicleConstants";
 
 import {
-  ScanPlateModal,
   AssignSlotModal,
   PageSectionHeader,
   EditVehicleModal,
@@ -28,6 +27,7 @@ import {
   VehicleFilters,
   TicketDetailModal,
 } from "../components/VehicleManagement";
+import GateCameraControlModal from "../components/VehicleManagement/GateCameraControlModal";
 
 import {
   Pagination,
@@ -56,7 +56,6 @@ export default function VehicleManagement() {
     vehicles,
     setVehicles,
     vehicleStats,
-    isLoading,
     backendError,
     refreshStats,
     reload: reloadVehicles,
@@ -376,7 +375,38 @@ export default function VehicleManagement() {
       handleCloseDeleteModal();
     } catch (err) {
       console.error("Delete vehicle error:", err);
-      toast.error(err?.message || VEHICLE_DELETE_MESSAGES.DELETE_ERROR_DEFAULT);
+      const errorCode = err?.data?.code;
+      // Match explicit backend DEL-03 error codes before falling back to generic 409 handling.
+      if (errorCode === "PROP-DEL-03-ACTIVE-TKT") {
+        setDeleteModalState((prev) => ({
+          ...prev,
+          hasActiveTicket: true,
+          loading: false,
+        }));
+        toast.error(
+          err?.data?.message || "Phương tiện đang có vé đỗ xe còn hiệu lực, không được phép xóa."
+        );
+        return;
+      }
+      if (errorCode === "PROP-DEL-03-OPEN-SES") {
+        setDeleteModalState((prev) => ({
+          ...prev,
+          isParked: true,
+          loading: false,
+        }));
+        toast.error(
+          err?.data?.message || "Phương tiện đang đỗ trong bãi xe (có phiên đỗ đang mở), không được phép xóa."
+        );
+        return;
+      }
+      if (!errorCode && err?.status === 409) {
+        toast.error(
+          err?.data?.message || err?.message || VEHICLE_DELETE_MESSAGES.DELETE_ERROR_DEFAULT
+        );
+        setDeleteModalState((prev) => ({ ...prev, loading: false }));
+        return;
+      }
+      toast.error(err?.data?.message || err?.message || VEHICLE_DELETE_MESSAGES.DELETE_ERROR_DEFAULT);
       setDeleteModalState((prev) => ({ ...prev, loading: false }));
     }
   };
@@ -639,12 +669,12 @@ export default function VehicleManagement() {
         onAssignSlot={handleSaveAssignSlot}
       />
 
-      <ScanPlateModal
+      <GateCameraControlModal
         isOpen={isScanModalOpen}
         onClose={() => setIsScanModalOpen(false)}
         vehicles={vehicles}
         onVehicleMatched={handleVehicleMatchedFromScan}
-        onCheckInSuccess={handleCheckInSuccess}
+        onSessionChange={(_, res) => handleCheckInSuccess(res)}
       />
 
       <EditVehicleModal

@@ -142,3 +142,44 @@ export function formatLicensePlateForDisplay(plate, vehicleType = null) {
 
   return s;
 }
+
+const ASCII_PLATE_INPUT_RE = /^[A-Za-z0-9 \t.-]+$/;
+
+/**
+ * Validate and normalize customer-entered license plate input to align with
+ * backend `vehicle.license_plate_norm` while preserving standard Vietnamese display format.
+ *
+ * @param {string} rawPlate
+ * @param {string|null} [vehicleType="CAR"]
+ * @returns {{ valid: boolean, reason: string, normalized: string, formatted: string }}
+ */
+export function validateVehiclePlateInput(rawPlate, vehicleType = "CAR") {
+  const trimmed = String(rawPlate || "").trim();
+  if (!trimmed) {
+    return { valid: false, reason: "EMPTY", normalized: "", formatted: "" };
+  }
+  if (!ASCII_PLATE_INPUT_RE.test(trimmed)) {
+    return {
+      valid: false,
+      reason: "INVALID_CHARS",
+      normalized: "",
+      formatted: trimmed.toUpperCase(),
+    };
+  }
+  const normalized = normalizeLicensePlate(trimmed);
+  if (normalized.length < 5 || normalized.length > 12) {
+    return {
+      valid: false,
+      reason: "INVALID_LENGTH",
+      normalized,
+      formatted: normalized,
+    };
+  }
+  const formatted = formatLicensePlateForDisplay(normalized, vehicleType);
+  return {
+    valid: true,
+    reason: "",
+    normalized,
+    formatted,
+  };
+}

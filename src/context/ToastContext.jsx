@@ -38,7 +38,7 @@ export function ToastProvider({ children }) {
       {children}
       <div
         aria-live="polite"
-        className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"
+        className="fixed bottom-4 right-4 left-4 sm:left-auto sm:bottom-5 sm:right-5 z-50 flex flex-col gap-2 sm:max-w-sm sm:w-full pointer-events-none"
       >
         {toasts.map((toast) => {
           let badgeColor = "bg-slate-900/90 text-white border-slate-700";

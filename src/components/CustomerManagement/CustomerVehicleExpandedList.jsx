@@ -1,5 +1,3 @@
-import React from "react";
-
 export default function CustomerVehicleExpandedList({ customer, onClose }) {
   if (!customer || !customer.vehicles || customer.vehicles.length === 0) {
     return null;

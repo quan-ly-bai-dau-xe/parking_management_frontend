@@ -1,4 +1,4 @@
-import { formatIsoDateToDisplay } from "../formatDateTime.js";
+import { formatDateVN, formatDateTimeVN } from "../formatDateTime.js";
 import { DEFAULT_UNASSIGNED_SLOT_LABEL } from "../../constants/vehicleConstants.js";
 
 /**
@@ -6,7 +6,7 @@ import { DEFAULT_UNASSIGNED_SLOT_LABEL } from "../../constants/vehicleConstants.
  */
 export function formatDate(value) {
   if (!value) return "—";
-  return formatIsoDateToDisplay(value) || value;
+  return formatDateVN(value, "—");
 }
 
 /**
@@ -188,8 +188,8 @@ export function mapVehicleSearchItem(item) {
       floor: item.parking_position?.floor_name || rawSession?.floor_name || "",
       zone: item.parking_position?.zone_code || rawSession?.zone_code || "",
     },
-    entryTime: formatDate(rawSession?.entry_time || item.entry_time),
-    exitTime: formatDate(rawSession?.exit_time || item.exit_time),
+    entryTime: formatDateTimeVN(rawSession?.entry_time || item.entry_time, "—"),
+    exitTime: formatDateTimeVN(rawSession?.exit_time || item.exit_time, "—"),
     rowVersion: item.row_version || 1,
     note: item.notes || item.note || "",
   };
