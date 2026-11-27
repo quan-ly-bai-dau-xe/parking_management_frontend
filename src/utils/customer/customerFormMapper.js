@@ -1,5 +1,5 @@
-import { STATUS_MAP_DISPLAY_TO_CODE } from "../../constants/customerConstants";
-import { formatDisplayDateToIso } from "../formatDateTime";
+import { STATUS_MAP_DISPLAY_TO_CODE } from "../../constants/customerConstants.js";
+import { parseDisplayToApiDate } from "../dateUtils.js";
 
 /**
  * mapCustomerFormToBackendPayload
@@ -30,7 +30,7 @@ export function mapCustomerFormToBackendPayload(formData) {
   }
 
   const rawDob = formData.birthday || formData.date_of_birth;
-  const isoDob = formatDisplayDateToIso(rawDob);
+  const isoDob = parseDisplayToApiDate(rawDob);
   if (isoDob) {
     payload.date_of_birth = isoDob;
   }

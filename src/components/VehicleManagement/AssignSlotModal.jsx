@@ -66,7 +66,14 @@ export default function AssignSlotModal({ isOpen, onClose, vehicle, onAssignSlot
   }, [isOpen, vehicleTypeCode, vehicle?.licensePlate]);
 
   const selectedSlot = useMemo(
-    () => availableSlots.find((s) => s.id === selectedSlotId) || null,
+    () =>
+      availableSlots.find(
+        (s) =>
+          selectedSlotId !== null &&
+          selectedSlotId !== undefined &&
+          (String(s.id) === String(selectedSlotId) ||
+            String(s.code || "").toUpperCase() === String(selectedSlotId).toUpperCase())
+      ) || null,
     [availableSlots, selectedSlotId]
   );
 

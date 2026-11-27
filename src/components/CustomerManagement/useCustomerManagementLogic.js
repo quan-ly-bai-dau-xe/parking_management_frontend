@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { customerService } from "../../services/customerService";
+import { isValidDateFormat } from "../../utils/dateUtils";
 
 export const initialAdvancedFilters = {
   idNumber: "",
@@ -204,6 +205,10 @@ export function useCustomerManagementLogic(customerData, setCustomerData, toast)
 
   const handleSubmitCustomer = async (event) => {
     event.preventDefault();
+    if (newCustomer.birthday && newCustomer.birthday.trim() && !isValidDateFormat(newCustomer.birthday)) {
+      toast.error("Ngày sinh không đúng định dạng dd/mm/yyyy hoặc ngày không hợp lệ trên lịch.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       if (editingCustomerId) {

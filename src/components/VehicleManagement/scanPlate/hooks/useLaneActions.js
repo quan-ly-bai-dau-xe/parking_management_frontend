@@ -160,7 +160,13 @@ export function useLaneActions({
     setActionSuccessMessage("");
 
     try {
-      const chosenSlot = availableSlots.find((s) => s.id === selectedSlotId);
+      const chosenSlot = availableSlots.find(
+        (s) =>
+          selectedSlotId !== null &&
+          selectedSlotId !== undefined &&
+          (String(s.id) === String(selectedSlotId) ||
+            String(s.code || "").toUpperCase() === String(selectedSlotId).toUpperCase())
+      );
       if (!chosenSlot) {
         setErrorMessage("⚠️ Vui lòng chọn một vị trí đỗ khả dụng trước khi xác nhận vào bãi.");
         return;

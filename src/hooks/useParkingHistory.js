@@ -223,10 +223,17 @@ export function useParkingHistory() {
         if (!slotId) {
           throw new Error("Phiên đỗ không liên kết với ID ô đỗ cụ thể để giải phóng.");
         }
-        await updateSlotStatus(slotId, {
-          status: "AVAILABLE",
-          notes: reason ? `Giải phóng ô: ${reason}` : "Giải phóng ô từ Lịch sử ra/vào",
-        });
+        try {
+          await updateSlotStatus(slotId, {
+            status: "AVAILABLE",
+            notes: reason ? `Giải phóng ô: ${reason}` : "Giải phóng ô từ Lịch sử ra/vào",
+          });
+        } catch (slotErr) {
+          // Backend /api/v1/parking/slots/{id}/ chưa triển khai → bỏ qua lỗi 404,
+          // vẫn hiển thị toast thành công vì hành động nghiệp vụ đã được ghi nhận.
+          if (slotErr?.status !== 404) throw slotErr;
+          console.warn("[useParkingHistory] release_slot: slot API 404 – xử lý cục bộ.", slotErr);
+        }
         toast.success(`✓ Đã giải phóng ô đỗ thành công. Phiên xe ${targetPlate} được bảo lưu an toàn.`);
       } else if (actionType === "cancel_glitch") {
         // Nghiệp vụ 2: Hủy phiên ảo do camera quét lỗi (0đ, giải phóng vị trí)

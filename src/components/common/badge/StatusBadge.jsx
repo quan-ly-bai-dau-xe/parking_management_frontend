@@ -59,8 +59,8 @@ export default function StatusBadge({
     },
     cancelled: {
       label: "Đã hủy",
-      badgeClass: "bg-slate-100 text-slate-600 border-slate-300",
-      dotClass: "bg-slate-400",
+      badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
+      dotClass: "bg-rose-500",
     },
     renewing: {
       label: "Đang gia hạn",

@@ -196,6 +196,34 @@ export const mockVehicles = [
     status: "parked",
     note: "Khách văn phòng tầng 15.",
   },
+  {
+    id: "XE0008",
+    licensePlate: "30F-557.76",
+    vehicleType: "Ô tô",
+    brand: "Mazda",
+    model: "CX-5",
+    avatarIcon: "car-red",
+    customer: {
+      id: "KH0008",
+      name: "Nguyễn Văn Test",
+      phone: "0908 557 766",
+      email: "test.cx5@example.com",
+      totalVehicles: 1,
+    },
+    ticket: {
+      type: "Vé lượt",
+      status: "active",
+    },
+    parkingSlot: {
+      zone: "Khu A",
+      floor: "Tầng B1",
+      slot: "A-08",
+      display: "Khu A · Tầng B1 · Slot A-08",
+      type: "car",
+    },
+    status: "parked",
+    note: "Xe đang đỗ trong bãi",
+  },
 ];
 
 export const mockStats = {

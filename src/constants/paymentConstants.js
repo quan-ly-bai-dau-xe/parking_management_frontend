@@ -46,3 +46,42 @@ export function formatCurrencyVND(amount) {
   return `${new Intl.NumberFormat("vi-VN").format(num)}đ`;
 }
 
+// Bảng giá cơ sở vé tháng theo loại phương tiện (VND / tháng cơ sở)
+export const BASE_MONTHLY_RATES = Object.freeze({
+  CAR: 1200000,  // Ô tô: 1.200.000đ/tháng
+  EV: 1100000,   // Xe điện: 1.100.000đ/tháng (ưu đãi xe xanh)
+  BIKE: 150000,  // Xe máy: 150.000đ/tháng
+});
+
+// Các gói thời hạn vé đỗ xe cho khách hàng đăng ký
+export const TICKET_PLANS = Object.freeze([
+  {
+    id: "MONTHLY",
+    name: "Vé tháng",
+    durationDays: 30,
+    months: 1,
+    discount: 0,
+    badge: null,
+    desc: "Linh hoạt theo tháng, phù hợp nhu cầu ngắn hạn.",
+  },
+  {
+    id: "QUARTERLY",
+    name: "Vé quý (3 tháng)",
+    durationDays: 90,
+    months: 3,
+    discount: 0.08, // Giảm 8%
+    badge: "Tiết kiệm 8%",
+    desc: "Ổn định 90 ngày, ưu tiên giữ cố định vị trí đỗ.",
+  },
+  {
+    id: "YEARLY",
+    name: "Vé năm (12 tháng)",
+    durationDays: 365,
+    months: 12,
+    discount: 0.16, // Giảm 16%
+    badge: "Tiết kiệm 16%",
+    desc: "Trọn gói 1 năm với mức chiết khấu cao nhất.",
+  },
+]);
+
+

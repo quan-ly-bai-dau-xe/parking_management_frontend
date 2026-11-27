@@ -7,6 +7,10 @@ import {
   PARKING_ZONE_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
 } from "../../constants/parkingLotConstants";
+import {
+  createSlotSchema,
+  normalizeSlotCode,
+} from "../../schemas/parkingSlotSchema.js";
 
 export default function AddSlotModal({
   isOpen,
@@ -15,6 +19,7 @@ export default function AddSlotModal({
   selectedZone = "A",
   floorOptions = PARKING_FLOOR_OPTIONS,
   zoneOptions = PARKING_ZONE_OPTIONS,
+  existingSlots = [],
   onAdd,
 }) {
   const [formData, setFormData] = useState({
@@ -46,27 +51,25 @@ export default function AddSlotModal({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.code.trim()) {
-      setError("Vui lòng nhập mã ô đỗ xe (ví dụ: A-09).");
+
+    // Xác thực toàn diện qua Zod Schema bao gồm kiểm tra trùng mã ô đỗ
+    const schema = createSlotSchema(existingSlots);
+    const parseResult = schema.safeParse(formData);
+
+    if (!parseResult.success) {
+      const firstIssue = parseResult.error.issues[0];
+      setError(firstIssue?.message || "Dữ liệu ô đỗ không hợp lệ.");
       return;
     }
 
-    if (formData.isUnderMaintenance && !formData.maintenanceReason.trim()) {
-      setError("Vui lòng nhập lý do bảo trì ô đỗ.");
-      return;
-    }
-
-    const code = formData.code.trim().toUpperCase();
+    const validData = parseResult.data;
+    const code = normalizeSlotCode(validData.code);
     const row = code.includes("-") ? code.split("-")[0] : formData.row || "A";
 
-    // Phân tách trạng thái an toàn:
-    // Tuyệt đối không cho phép tự ý gán có xe (OCCUPIED) hoặc đặt trước (RESERVED) khi tạo mới.
-    // Nếu có bảo trì/chưa nghiệm thu -> MAINTENANCE (kèm lý do bắt buộc).
-    // Nếu sẵn sàng đưa vào vận hành -> AVAILABLE.
-    const initialStatus = formData.isUnderMaintenance ? "MAINTENANCE" : "AVAILABLE";
-    const resolvedNotes = formData.isUnderMaintenance
-      ? `[Bảo trì hạ tầng] ${formData.maintenanceReason.trim()}${formData.note ? ` - ${formData.note.trim()}` : ""}`
-      : formData.note.trim();
+    const initialStatus = validData.isUnderMaintenance ? "MAINTENANCE" : "AVAILABLE";
+    const resolvedNotes = validData.isUnderMaintenance
+      ? `[Bảo trì hạ tầng] ${validData.maintenanceReason.trim()}${validData.note ? ` - ${validData.note.trim()}` : ""}`
+      : (validData.note || "").trim();
 
     onAdd?.({
       id: code,
@@ -74,10 +77,10 @@ export default function AddSlotModal({
       code,
       label: code,
       row,
-      floor: formData.floor,
-      zone: formData.zone,
-      type: formData.type,
-      slot_kind: formData.type,
+      floor: validData.floor,
+      zone: validData.zone,
+      type: validData.type,
+      slot_kind: validData.type,
       status: initialStatus,
       plate: null,
       licensePlate: "—",

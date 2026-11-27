@@ -14,7 +14,7 @@ import {
   getAvailableSlotsForCheckIn,
 } from "#src/services/parkingSessionService.js";
 
-test("ST-CORE-01: Check-in builds valid payload for backend API", async () => {
+test("[TEST-GATE-001][SC-GATE-001] ST-CORE-01: Check-in builds valid payload for backend API", async () => {
   const originalRequest = axiosInstance.request;
   let capturedBody = null;
 
@@ -55,7 +55,7 @@ test("ST-CORE-01: Check-in builds valid payload for backend API", async () => {
   }
 });
 
-test("ST-CORE-02: Capacity Control: Blocks new check-in when all parking slots are occupied", async () => {
+test("[TEST-GATE-002][SC-GATE-002] ST-CORE-02: Capacity Control: Blocks new check-in when all parking slots are occupied", async () => {
   const originalRequest = axiosInstance.request;
 
   try {
@@ -66,9 +66,16 @@ test("ST-CORE-02: Capacity Control: Blocks new check-in when all parking slots a
       status: "open",
     }));
 
-    axiosInstance.request = async () => ({
-      data: { count: 96, results: allOccupiedSessions },
-    });
+    axiosInstance.request = async (config) => {
+      if (config.url.includes("/api/v1/parking/slots/")) {
+        const err = new Error("Not Found");
+        err.status = 404;
+        throw err;
+      }
+      return {
+        data: { count: 96, results: allOccupiedSessions },
+      };
+    };
 
     const availableSlots = await getAvailableSlotsForCheckIn();
     assert.equal(availableSlots.length, 0, "Không còn slot nào khả dụng khi bãi đầy");
@@ -77,7 +84,7 @@ test("ST-CORE-02: Capacity Control: Blocks new check-in when all parking slots a
   }
 });
 
-test("ST-CORE-03: Anti-passback: Rejects entry for vehicle already inside the parking lot", () => {
+test("[TEST-GATE-003][SC-GATE-003] ST-CORE-03: Anti-passback: Rejects entry for vehicle already inside the parking lot", () => {
   // Case A: Tra cứu trả về open_session đang tồn tại
   const lookupWithOpenSession = {
     open_session: { id: 101, session_code: "SES-CURRENT" },
@@ -113,7 +120,7 @@ test("ST-CORE-04: Security Guard: Rejects entry for blacklisted / warning vehicl
   assert.equal(res2.reasonCode, "BLACKLISTED");
 });
 
-test("ST-CORE-05: Fee Calculator calculates exact rates across all business tiers", () => {
+test("[TEST-PRICE-001][SC-PRICE-001] ST-CORE-05: Fee Calculator calculates exact rates across all business tiers", () => {
   // Tier 1: Thời gian dưới 15 phút vẫn tính tròn 1 giờ đầu theo quy tắc OQ-85 -> 10.000đ (hoursBilled: 1)
   const grace10m = calculateParkingFee({ durationMinutes: 10 });
   assert.equal(grace10m.feeAmount, DEFAULT_HOURLY_RATE_VND);
@@ -190,7 +197,7 @@ test("ST-CORE-05: Fee Calculator calculates exact rates across all business tier
   assert.equal(exactAtExpiry.isCoveredByTicket, true);
 });
 
-test("ST-CORE-07: Ghost Exit Defense: Handles already closed or missing open session gracefully", async () => {
+test("[TEST-GATE-004][SC-GATE-004] ST-CORE-07: Ghost Exit Defense: Handles already closed or missing open session gracefully", async () => {
   const originalRequest = axiosInstance.request;
 
   try {

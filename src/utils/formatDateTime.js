@@ -223,5 +223,4 @@ export function buildEffectiveFromIso(dateStr, now = new Date()) {
   const offHours = String(Math.floor(absOffset / 60)).padStart(2, "0");
   const offMins = String(absOffset % 60).padStart(2, "0");
   return `${y}-${m}-${d}T00:00:00${sign}${offHours}:${offMins}`;
->>>>>>> origin/feat/frontend-update
 }

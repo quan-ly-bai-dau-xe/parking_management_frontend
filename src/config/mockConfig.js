@@ -23,31 +23,31 @@ export const DEFAULT_MOCK_ALL = ENV_MOCK === "true";
  */
 export const MODULE_MOCK_CONFIG = {
   // 1. Quản lý phương tiện (Vehicle Management)
-  vehicles: undefined,
+  vehicles: false,
 
   // 2. Quản lý vé đỗ xe (Ticket Management)
-  tickets: true ,
+  tickets: false,
 
   // 3. Sơ đồ & vị trí bãi đỗ xe (Parking Lot & Slots)
-  parkingLot: true,
+  parkingLot: false,
 
   // 4. Tổng hợp & Báo cáo Dashboard (Reports & Analytics)
-  dashboard: true,
+  dashboard: false,
 
   // 5. Quản lý khách hàng (Customer Management)
-  customers: true,
+  customers: false,
 
   // 6. Phiên đỗ xe & Barrier Check-in/Check-out (Sessions)
-  parkingSessions: undefined,
+  parkingSessions: false,
 
   // 7. Nhận diện biển số xe (Plate Scans & OCR)
-  plateScans: undefined,
+  plateScans: false,
 
   // 8. Quản lý nhân viên (Employee Management)
-  employees: true,
+  employees: false,
 
-  // 9. Ví khách hàng (Customer Wallet)
-  wallet: undefined,
+  // 9. Ví khách hàng (Customer Wallet - Mô phỏng an toàn vì backend chưa có DB ví)
+  wallet: false,
 };
 
 /**
@@ -56,7 +56,12 @@ export const MODULE_MOCK_CONFIG = {
  * @returns {boolean} true nếu dùng mock, false nếu gọi API thật.
  */
 export function isMockEnabled(moduleKey) {
-  // Ưu tiên kiểm tra override trong localStorage nếu có (tiện cho dev test nhanh trên trình duyệt)
+  // 1. Kiểm tra cấu hình cụ thể trong MODULE_MOCK_CONFIG trước (Định nghĩa trong code là ưu tiên số 1)
+  if (moduleKey && typeof MODULE_MOCK_CONFIG[moduleKey] === "boolean") {
+    return MODULE_MOCK_CONFIG[moduleKey];
+  }
+
+  // 2. Kiểm tra override trong localStorage nếu có (tiện cho dev test nhanh trên trình duyệt khi module chưa được set cố định)
   try {
     if (typeof window !== "undefined" && window.localStorage) {
       const localOverride = window.localStorage.getItem(`MOCK_${moduleKey.toUpperCase()}`);
@@ -71,11 +76,6 @@ export function isMockEnabled(moduleKey) {
     // Ignore storage errors in test or restricted environments
   }
 
-  // Nếu module có cấu hình riêng (true/false) trong MODULE_MOCK_CONFIG
-  if (moduleKey && typeof MODULE_MOCK_CONFIG[moduleKey] === "boolean") {
-    return MODULE_MOCK_CONFIG[moduleKey];
-  }
-
-  // Kế thừa cờ cấu hình toàn cục
+  // 3. Kế thừa cờ cấu hình toàn cục
   return DEFAULT_MOCK_ALL;
 }

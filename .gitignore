@@ -45,3 +45,7 @@ start-opencode.bat
 
 playwright-report
 test-results
+*.lcov
+reports/
+src/experiments/
+src/temp_test_revert_demo.js

@@ -390,18 +390,6 @@ export async function deleteSlot(slotId) {
   });
 }
 
-/**
- * Lấy sơ đồ cấu trúc phân cấp bãi đỗ xe: Tầng -> Khu vực -> Ô đỗ (J1 Structure Routing)
- * Endpoint: GET /api/v1/parking/structure/
- *
- * @returns {Promise<Array<Object>>} Danh sách tầng, khu vực và ô đỗ
- */
-export async function getParkingStructure() {
-  return await apiClient("/api/v1/parking/structure/", {
-    method: "GET",
-  });
-}
-
 export async function getCustomerParkingStructure() {
   return await apiClient("/api/v1/me/parking-structure/", {
     method: "GET",

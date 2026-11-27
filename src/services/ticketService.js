@@ -150,4 +150,12 @@ const ticketService = {
   getTicketTypes,
 };
 
+export const FALLBACK_TICKET_TYPES = [
+  { id: 1, code: "DAILY", name: "Vé ngày", duration_days: 1, default_price: 50000, description: "Vé gửi xe theo ngày" },
+  { id: 2, code: "MONTHLY", name: "Vé tháng", duration_days: 30, default_price: 500000, description: "Vé gửi xe định kỳ hàng tháng" },
+  { id: 3, code: "QUARTERLY", name: "Vé quý", duration_days: 90, default_price: 1200000, description: "Vé gửi xe định kỳ theo quý" },
+  { id: 4, code: "YEARLY", name: "Vé năm", duration_days: 365, default_price: 4800000, description: "Vé gửi xe định kỳ hàng năm" },
+];
+
+export { ticketService };
 export default ticketService;

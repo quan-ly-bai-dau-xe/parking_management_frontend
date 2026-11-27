@@ -1,10 +1,8 @@
 import { apiClient } from "./apiClient";
-import { mockCustomers } from "../mocks/customerData";
 import { CustomerListItemSchema, CustomerDetailSchema } from "../schemas/customerSchema";
 import { STATUS_MAP_CODE_TO_DISPLAY } from "../constants/customerConstants";
-import { formatIsoDateToDisplay } from "../utils/formatDateTime";
+import { formatDateToDisplay } from "../utils/dateUtils";
 import { mapCustomerFormToBackendPayload } from "../utils/customer/customerFormMapper";
-import { isMockEnabled } from "../config/appConfig.js";
 
 /**
  * Mapper functions: Chuyển đổi dữ liệu vehicle
@@ -31,7 +29,7 @@ function mapCustomerListItem(item) {
   const code = item.customerCode || item.code || String(item.id);
   const name = item.name || item.full_name || "";
   const idNumber = item.idNumber || item.identity_card_number || "";
-  const birthday = formatIsoDateToDisplay(item.birthday || item.date_of_birth || "");
+  const birthday = formatDateToDisplay(item.birthday || item.date_of_birth || "");
   const statusDisplay =
     item.status_display || STATUS_MAP_CODE_TO_DISPLAY[item.status] || item.status || "Đang hoạt động";
   const vehicles = (item.vehicles || []).map(mapCustomerVehicle);
@@ -84,19 +82,12 @@ function validateAndMapCustomers(rawData) {
   });
 }
 
-// Biến điều khiển mock data tập trung từ appConfig:
-const USE_MOCK = isMockEnabled("customers");
-
 export const customerService = {
   /**
    * Lấy danh sách khách hàng từ backend và tự động đồng bộ đầy đủ
    * thông tin Ngày sinh (date_of_birth), Email, Giới tính (gender) từ API chi tiết.
    */
   async getCustomers(params = {}) {
-    if (USE_MOCK) {
-      return validateAndMapCustomers([...mockCustomers]);
-    }
-
     const query = new URLSearchParams(params).toString();
     const url = `/api/v1/customers/${query ? `?${query}` : ""}`;
     const response = await apiClient(url);
@@ -117,7 +108,7 @@ export const customerService = {
 
         return {
           ...cust,
-          birthday: formatIsoDateToDisplay(detail.date_of_birth || detail.birthday) || cust.birthday,
+          birthday: formatDateToDisplay(detail.date_of_birth || detail.birthday) || cust.birthday,
           email: detail.email || cust.email,
           gender: detail.gender || cust.gender,
           vehicles: detailVehicles,
@@ -142,12 +133,6 @@ export const customerService = {
    * Lấy chi tiết thông tin 1 khách hàng từ GET /api/v1/customers/{id}/
    */
   async getCustomerById(id) {
-    if (USE_MOCK) {
-      const found = mockCustomers.find((c) => String(c.id) === String(id));
-      if (!found) throw new Error("Không tìm thấy khách hàng");
-      return mapCustomerListItem(found);
-    }
-
     const response = await apiClient(`/api/v1/customers/${id}/`);
     const valid = CustomerDetailSchema.parse(response);
     return valid;
@@ -157,19 +142,6 @@ export const customerService = {
    * Thêm mới khách hàng với payload được chuẩn hóa cho backend Django
    */
   async createCustomer(customerData) {
-    if (USE_MOCK) {
-      const newMockItem = {
-        ...customerData,
-        id: customerData.customerCode || `KH${Date.now()}`,
-        vehicles: customerData.vehicles || [],
-        vehiclesCount: 0,
-        hasActiveTicket: false,
-        canDelete: true,
-      };
-      mockCustomers.unshift(newMockItem);
-      return mapCustomerListItem(newMockItem);
-    }
-
     const backendPayload = mapCustomerFormToBackendPayload(customerData);
     const createdResponse = await apiClient("/api/v1/customers/", {
       method: "POST",
@@ -186,17 +158,6 @@ export const customerService = {
    * Cập nhật thông tin khách hàng
    */
   async updateCustomer(id, customerData) {
-    if (USE_MOCK) {
-      const index = mockCustomers.findIndex((c) => String(c.id) === String(id));
-      if (index !== -1) {
-        mockCustomers[index] = { ...mockCustomers[index], ...customerData };
-      }
-      return {
-        ...customerData,
-        id,
-      };
-    }
-
     const backendPayload = mapCustomerFormToBackendPayload(customerData);
     if (customerData.rowVersion) {
       backendPayload.row_version = customerData.rowVersion;
@@ -212,14 +173,6 @@ export const customerService = {
    * Xóa khách hàng với bảo vệ kiểm tra DEL-02
    */
   async deleteCustomer(id) {
-    if (USE_MOCK) {
-      const index = mockCustomers.findIndex((c) => String(c.id) === String(id));
-      if (index !== -1) {
-        mockCustomers.splice(index, 1);
-      }
-      return true;
-    }
-
     return await apiClient(`/api/v1/customers/${id}/`, {
       method: "DELETE",
     });

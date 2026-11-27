@@ -11,7 +11,10 @@ import { formatDateTimeVN } from "../../../utils/formatDateTime";
 import { calculateParkingDuration } from "../../../utils/parking/parkingFeeCalculator";
 import { useCurrentUser } from "../../../hooks/useCurrentUser";
 import AbnormalReasonSelector from "../../ParkingHistory/AbnormalReasonSelector";
-import { formatAuditNotes } from "../../../constants/abnormalSessionConstants";
+import {
+  formatAuditNotes,
+  validateAbnormalAction,
+} from "../../../constants/abnormalSessionConstants";
 
 const ACTION_TYPES = {
   MANUAL_CHECKOUT: "manual_checkout",
