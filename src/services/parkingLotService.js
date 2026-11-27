@@ -390,6 +390,7 @@ export async function deleteSlot(slotId) {
   });
 }
 
+
 export async function getCustomerParkingStructure() {
   return await apiClient("/api/v1/me/parking-structure/", {
     method: "GET",
