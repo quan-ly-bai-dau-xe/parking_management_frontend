@@ -1,3 +1,5 @@
+import VehicleTicketTypeBadge from "../VehicleManagement/VehicleTicketTypeBadge";
+
 export default function CustomerVehicleExpandedList({ customer, onClose }) {
   if (!customer || !customer.vehicles || customer.vehicles.length === 0) {
     return null;
@@ -25,6 +27,7 @@ export default function CustomerVehicleExpandedList({ customer, onClose }) {
               <tr>
                 <th className="py-2 px-3">Biển số</th>
                 <th className="py-2 px-3">Loại xe</th>
+                <th className="py-2 px-3">Vé hiện tại</th>
                 <th className="py-2 px-3">Trạng thái</th>
               </tr>
             </thead>
@@ -35,6 +38,9 @@ export default function CustomerVehicleExpandedList({ customer, onClose }) {
                     {v.licensePlate}
                   </td>
                   <td className="py-2.5 px-3">{v.vehicleType || "—"}</td>
+                  <td className="py-2.5 px-3">
+                    <VehicleTicketTypeBadge ticketType={v.ticket?.type || v.ticketType} />
+                  </td>
                   <td className="py-2.5 px-3">{v.status || "—"}</td>
                 </tr>
               ))}

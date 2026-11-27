@@ -67,14 +67,13 @@ export default function VehicleTable({
         ),
     },
     {
-      header: "Loại vé",
+      header: "Vé hiện tại",
       accessor: (row) => (
-        <VehicleTicketTypeBadge ticketType={row.ticket?.type || row.ticketType} />
+        <div className="flex flex-col items-start gap-1">
+          <VehicleTicketTypeBadge ticketType={row.ticket?.type || row.ticketType} />
+          <div className="text-2xs">{renderTicketBadge(row.ticket)}</div>
+        </div>
       ),
-    },
-    {
-      header: "Ngày hết hạn vé",
-      accessor: (row) => renderTicketBadge(row.ticket),
     },
     {
       header: "Vị trí đỗ",

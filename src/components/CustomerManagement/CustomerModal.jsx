@@ -146,23 +146,6 @@ export default function CustomerModal({
 
           <div className="flex flex-col gap-1">
             <label className="text-2xs font-semibold text-slate-600">
-              Gói vé đăng ký
-            </label>
-            <select
-              value={customerData.packageType || "Vé tháng"}
-              onChange={(e) => onChange("packageType", e.target.value)}
-              className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500"
-            >
-              {TICKET_PACKAGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1 sm:col-span-2">
-            <label className="text-2xs font-semibold text-slate-600">
               Trạng thái tài khoản
             </label>
             <select

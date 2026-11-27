@@ -95,6 +95,34 @@ export function resolveTicketTypeName({
 }
 
 /**
+ * Tổng hợp danh sách loại vé định kỳ từ các xe của một khách hàng.
+ * @param {Array<object>} vehicles
+ * @returns {string|null} Chuỗi tổng hợp (vd: "Vé tháng (2), Vé năm") hoặc null nếu chưa có vé định kỳ
+ */
+export function summarizeCustomerTickets(vehicles) {
+  if (!Array.isArray(vehicles) || vehicles.length === 0) return null;
+
+  const ticketCounts = vehicles.reduce((acc, v) => {
+    const rawType = v?.ticket?.type || v?.ticketType;
+    if (!rawType || rawType === "—" || rawType === "Chưa có vé" || rawType === TICKET_TYPE_NAMES.ONE_TIME) {
+      return acc;
+    }
+    const normalized = normalizeTicketTypeName(rawType, true);
+    if (normalized && normalized !== TICKET_TYPE_NAMES.ONE_TIME) {
+      acc[normalized] = (acc[normalized] || 0) + 1;
+    }
+    return acc;
+  }, {});
+
+  const entries = Object.entries(ticketCounts);
+  if (entries.length === 0) return null;
+
+  return entries
+    .map(([type, count]) => (count > 1 ? `${type} (${count})` : type))
+    .join(", ");
+}
+
+/**
  * Tạo nhãn hiển thị cước phí 0đ cho xe có vé hiệu lực
  * Ví dụ: "0đ (Vé năm có hiệu lực)", "0đ (Vé quý có hiệu lực)", "0đ (Vé định kỳ có hiệu lực)"
  * @param {string|null|undefined} ticketTypeName 

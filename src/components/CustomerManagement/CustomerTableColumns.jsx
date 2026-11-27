@@ -83,15 +83,6 @@ export const getCustomerColumns = ({ onViewDetail, onEdit, onDeleteClick }) => [
     },
   },
   {
-    header: "Gói vé đăng ký",
-    accessor: "packageType",
-    renderCell: (row) => (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-        {row.packageType || "Vé tháng"}
-      </span>
-    ),
-  },
-  {
     header: "Số dư ví",
     accessor: "walletBalance",
     align: "right",

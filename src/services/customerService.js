@@ -14,11 +14,22 @@ function mapCustomerVehicle(item) {
       ? (rawType?.name || rawType?.code)
       : (item.vehicle_type_name || (typeof rawType === "string" ? rawType : null));
 
+  const ticketType =
+    item.ticketType ||
+    item.ticket_type_name ||
+    item.ticket_type ||
+    item.active_ticket?.ticket_type_name ||
+    item.active_ticket?.ticket_type ||
+    item.ticket?.type ||
+    null;
+
   return {
     id: String(item.id),
     licensePlate: item.licensePlate || item.license_plate || "",
     status: item.status || "",
     vehicleType: typeName || "Ô tô",
+    ticketType,
+    ticket: item.ticket || item.active_ticket || null,
   };
 }
 
