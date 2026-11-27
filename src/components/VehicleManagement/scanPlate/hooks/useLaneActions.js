@@ -160,13 +160,18 @@ export function useLaneActions({
     setActionSuccessMessage("");
 
     try {
-      const chosenSlot = availableSlots.find(
-        (s) =>
-          selectedSlotId !== null &&
-          selectedSlotId !== undefined &&
-          (String(s.id) === String(selectedSlotId) ||
-            String(s.code || "").toUpperCase() === String(selectedSlotId).toUpperCase())
-      );
+      const assignedSlotId = matchedVehicle?.parkingSlot?.slotId;
+      const chosenSlot =
+        availableSlots.find(
+          (s) =>
+            selectedSlotId !== null &&
+            selectedSlotId !== undefined &&
+            (String(s.id) === String(selectedSlotId) ||
+              String(s.code || "").toUpperCase() === String(selectedSlotId).toUpperCase())
+        ) ||
+        (assignedSlotId ? availableSlots.find((s) => String(s.id) === String(assignedSlotId)) : null) ||
+        availableSlots[0] ||
+        null;
       if (!chosenSlot) {
         setErrorMessage("⚠️ Vui lòng chọn một vị trí đỗ khả dụng trước khi xác nhận vào bãi.");
         return;

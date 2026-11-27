@@ -8,6 +8,46 @@ import { useCurrentUser } from "../../../hooks/useCurrentUser.js";
 import { formatTimeVN } from "../../../utils/formatDateTime.js";
 
 const UNKNOWN_ENTRY_TIME_LABEL = "Chưa rõ giờ vào";
+const MIN_WAIVER_REASON_LENGTH = 10;
+const TRIVIAL_WAIVER_REASONS = new Set([
+  "ok",
+  "test",
+  "free",
+  "none",
+  "null",
+  "khong",
+  "không",
+  "khac",
+  "khác",
+  "mien cuoc",
+  "miễn cước",
+  "ly do",
+  "lý do",
+]);
+
+function validateWaiverReason(reason) {
+  const trimmed = String(reason || "").trim();
+  if (!trimmed) {
+    return { isValid: false, error: "Vui lòng nhập lý do miễn cước đặc cách." };
+  }
+  if (trimmed.length < MIN_WAIVER_REASON_LENGTH) {
+    return {
+      isValid: false,
+      error: `Lý do miễn cước phải có ít nhất ${MIN_WAIVER_REASON_LENGTH} ký tự có nghĩa.`,
+    };
+  }
+  if (
+    !/[a-zA-ZÀ-ỹ]/.test(trimmed) ||
+    /(.)\1{4,}/.test(trimmed) ||
+    TRIVIAL_WAIVER_REASONS.has(trimmed.toLowerCase())
+  ) {
+    return {
+      isValid: false,
+      error: "Lý do miễn cước không hợp lệ hoặc quá chung chung (WF2-STEP-03).",
+    };
+  }
+  return { isValid: true, error: "" };
+}
 
 /**
  * ExitLanePanel
@@ -26,6 +66,7 @@ export default function ExitLanePanel({
   calculatedDurationMinutes,
   backendFeePreview = null,
   isLoadingFeePreview = false,
+  isScanning = false,
   exitFeeCalc = null,
   isFeeExempt = false,
   setIsFeeExempt,
@@ -121,12 +162,17 @@ export default function ExitLanePanel({
 
   // Cảnh báo Ghost Exit khi có biển số nhưng không tìm thấy phiên đỗ đang mở
   const isGhostExit = Boolean(
-    detectedPlate && !rawLookup?.open_session && !backendFeePreview?.entry_time && !isLoadingFeePreview
+    detectedPlate &&
+      !isScanning &&
+      !rawLookup?.open_session &&
+      !backendFeePreview?.entry_time &&
+      !isLoadingFeePreview
   );
 
-  // Điều kiện vô hiệu hóa xác nhận xuất bãi (Bảo vệ an toàn chống Ghost Exit theo ST-CORE-07)
-  const isWaiverInvalid = isFeeExempt && (!isManager || !waiverReason.trim());
-  const isGhostExitBlocked = isGhostExit && (!isManager || !isFeeExempt || !waiverReason.trim());
+  // Điều kiện vô hiệu hóa xác nhận xuất bãi (WF2-STEP-03 Anti-Fraud UI Gate & ST-CORE-07)
+  const waiverValidation = validateWaiverReason(waiverReason);
+  const isWaiverInvalid = isFeeExempt && (!isManager || !waiverValidation.isValid);
+  const isGhostExitBlocked = isGhostExit && (!isManager || !isFeeExempt || !waiverValidation.isValid);
   const isConfirmDisabled =
     isActionPending ||
     !detectedPlate ||
@@ -295,6 +341,13 @@ export default function ExitLanePanel({
                   className="w-full text-2xs bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
                 />
 
+                {isManager && waiverReason.trim().length > 0 && !waiverValidation.isValid && (
+                  <div className="text-3xs text-amber-800 bg-amber-100/80 p-2 rounded-lg border border-amber-300 flex items-center gap-1.5">
+                    <span>⚠️</span>
+                    <span>{waiverValidation.error}</span>
+                  </div>
+                )}
+
                 {!isManager && (
                   <div className="text-3xs text-rose-700 bg-rose-50 p-2 rounded-lg border border-rose-200 flex items-center gap-1.5">
                     <span>⛔</span>
@@ -311,11 +364,15 @@ export default function ExitLanePanel({
           <div className="space-y-2 pt-1 border-t border-slate-100">
             {/* Phân loại khách hàng: Đã đăng ký App hay Chưa đăng ký App */}
             {(() => {
-              const hasAppAccount = Boolean(
-                matchedVehicle?.customer?.id ||
-                matchedVehicle?.customerId ||
-                (matchedVehicle?.customer?.name && matchedVehicle?.customer?.name !== "Khách vãng lai")
-              );
+              const customerName = matchedVehicle?.customer?.name?.trim() || "";
+              const isGuestCustomer = customerName.toLowerCase().includes("khách vãng lai");
+              const hasAppAccount =
+                !isGuestCustomer &&
+                Boolean(
+                  matchedVehicle?.customer?.id ||
+                  matchedVehicle?.customerId ||
+                  customerName
+                );
               const userWalletBalance = matchedVehicle?.customer?.walletBalance ?? 0;
               const isWalletSufficient = userWalletBalance >= displayFeeAmount;
 
@@ -465,9 +522,9 @@ export default function ExitLanePanel({
               : "Ghost Exit: Cần Quản lý phê duyệt giải quyết sự cố (ST-CORE-07)"
             : isFeeExempt
             ? isManager
-              ? waiverReason.trim()
+              ? waiverValidation.isValid
                 ? "Đủ điều kiện miễn cước"
-                : "Vui lòng nhập lý do miễn cước"
+                : waiverValidation.error
               : "Yêu cầu quyền Quản lý"
             : isZeroFee
             ? "Đủ điều kiện mở barrier"
@@ -485,7 +542,7 @@ export default function ExitLanePanel({
             isGhostExitBlocked
               ? "bg-rose-500 cursor-not-allowed opacity-60"
               : isFeeExempt
-              ? isManager && waiverReason.trim()
+              ? isManager && waiverValidation.isValid
                 ? "bg-emerald-600 hover:bg-emerald-700"
                 : "bg-slate-400 cursor-not-allowed"
               : isZeroFee

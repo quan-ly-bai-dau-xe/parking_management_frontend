@@ -38,6 +38,7 @@ export const APP_NAVIGATION_TABS = [
   { label: "Sơ đồ bãi đậu xe", path: ROUTES.PARKING_LOT },
   { label: "Quản lý loại vé", path: ROUTES.TICKETS },
   { label: "Quản lý nhân viên", path: ROUTES.EMPLOYEES },
+  { label: "Doanh thu & Đối soát", path: ROUTES.STATISTICS },
   { label: "Quét camera", path: ROUTES.CAMERA_SCANNER },
 ];
 

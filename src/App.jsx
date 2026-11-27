@@ -170,7 +170,11 @@ function ManagerOnlyRoute({
   message = "Chức năng Thống kê tổng hợp chỉ dành cho tài khoản Quản lý (Manager).",
 }) {
   const navigate = useNavigate();
-  const { isManager, role } = useCurrentUser();
+  const { isManager, role, user } = useCurrentUser();
+
+  if (!user) {
+    return <Navigate to={ROUTES.LOGIN} replace />;
+  }
 
   if (!isManager) {
     const fallbackPath =

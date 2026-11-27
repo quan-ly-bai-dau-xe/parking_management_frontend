@@ -6,12 +6,15 @@ import {
   RefreshCw,
   AlertTriangle,
   AlertCircle,
+  MapPin,
+  Car,
 } from "lucide-react";
 import { PageHeader, Button, EmptyState, LoadingSpinner } from "../components/common";
 import { ConfirmModal } from "../components/common/modal";
 import { useToast } from "../context/ToastContext";
 import { useParkingLot } from "../hooks/useParkingLot";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { walletService } from "../services/walletService";
 import {
   getStatusText,
   getParkingStructure,
@@ -41,8 +44,71 @@ export default function ParkingLotManagement() {
   const toast = useToast();
   const { role, isManager } = useCurrentUser();
   const isCustomer = role === "CUSTOMER";
+  const MAX_VISIBLE_CUSTOMER_SPOTS = 3;
+  const [customerParkedSpots, setCustomerParkedSpots] = useState([]);
+  const [showAllCustomerSpots, setShowAllCustomerSpots] = useState(false);
 
-  // 1. Quản lý trạng thái bộ lọc
+  const parseCustomerSlotCode = useCallback((rawCode) => {
+    const text = String(rawCode || "").trim().toUpperCase();
+    if (!text) return { floor: "", zone: "", label: "" };
+    const zoneMatch = text.match(/KHU\s+([A-Z0-9-]+)/i);
+    const floorMatch = text.match(/TẦNG\s+([A-Z0-9-]+)/i);
+    const slotMatch = text.match(/SLOT\s+([A-Z0-9-]+)$/i);
+    const parts = text.split("·").map((p) => p.trim()).filter(Boolean);
+    const label = slotMatch
+      ? slotMatch[1]
+      : parts.length > 0
+        ? parts[parts.length - 1]
+        : text;
+    return {
+      floor: floorMatch ? floorMatch[1] : "",
+      zone: zoneMatch ? zoneMatch[1] : "",
+      label,
+    };
+  }, []);
+
+  const extractSlotLabel = useCallback(
+    (rawCode) => parseCustomerSlotCode(rawCode).label,
+    [parseCustomerSlotCode],
+  );
+
+  const fetchCustomerParkedSpots = useCallback(async () => {
+    if (!isCustomer) {
+      setCustomerParkedSpots([]);
+      return;
+    }
+    try {
+      const res = await walletService.getMyVehicles();
+      const list = Array.isArray(res) ? res : res?.results || [];
+      const spots = list
+        .map((v) => {
+          const slotCode = String(
+            v.current_slot ||
+              v.parking_slot_code ||
+              v.active_session?.slot_code ||
+              v.current_ticket?.slot_code ||
+              ""
+          )
+            .trim()
+            .toUpperCase();
+          if (!slotCode) return null;
+          return {
+            plate: v.plate_number || v.license_plate || "Xe của bạn",
+            slotCode,
+          };
+        })
+        .filter(Boolean);
+      setCustomerParkedSpots(spots);
+    } catch {
+      setCustomerParkedSpots([]);
+    }
+  }, [isCustomer]);
+
+  useEffect(() => {
+    fetchCustomerParkedSpots();
+  }, [fetchCustomerParkedSpots]);
+
+  // 1. Quản lý trạng thái bộ lọc (đặt trước customerSlotCodes để lọc đúng tầng/khu)
   const [searchParams] = useSearchParams();
   const floorParam = searchParams.get("floor");
   const zoneParam = searchParams.get("zone");
@@ -51,6 +117,53 @@ export default function ParkingLotManagement() {
 
   const [selectedFloor, setSelectedFloor] = useState(floorParam || "B1");
   const [selectedZone, setSelectedZone] = useState(zoneParam || "A");
+
+  const customerSlotCodes = useMemo(() => {
+    const currentFloor = String(selectedFloor || "").trim().toUpperCase();
+    const currentZone = String(selectedZone || "").trim().toUpperCase();
+    const set = new Set(
+      customerParkedSpots
+        .map((item) => parseCustomerSlotCode(item.slotCode))
+        .filter(({ floor, zone, label }) => {
+          if (!label) return false;
+          if (floor && currentFloor && floor !== currentFloor) return false;
+          if (zone && currentZone && zone !== currentZone) return false;
+          return true;
+        })
+        .map(({ label }) => label),
+    );
+    return set.size > 0 ? set : null;
+  }, [customerParkedSpots, parseCustomerSlotCode, selectedFloor, selectedZone]);
+
+  const scrollToSlot = useCallback(
+    (slotCode) => {
+      const { floor, zone, label } = parseCustomerSlotCode(slotCode);
+      if (!label) return;
+      if (floor && floor !== String(selectedFloor || "").trim().toUpperCase()) {
+        setSelectedFloor(floor);
+      }
+      if (zone && zone !== String(selectedZone || "").trim().toUpperCase()) {
+        setSelectedZone(zone);
+      }
+      setTimeout(() => {
+        const el = document.getElementById(`parking-slot-${label}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 150);
+    },
+    [parseCustomerSlotCode, selectedFloor, selectedZone],
+  );
+
+  useEffect(() => {
+    const slotFromUrl = String(slotParam || "")
+      .trim()
+      .toUpperCase();
+    if (slotFromUrl) {
+      const timer = setTimeout(() => scrollToSlot(slotFromUrl), 350);
+      return () => clearTimeout(timer);
+    }
+  }, [slotParam, scrollToSlot]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState(
     filterParam === "overstay" ? "OVERSTAY" : ""
@@ -149,10 +262,15 @@ export default function ParkingLotManagement() {
   const zoneOptions = useMemo(() => {
     const zones = structureList.filter((item) => item.type === "Khu");
     if (zones.length === 0) return [{ value: "A", label: "Khu A" }];
-    return zones.map((z) => ({
-      value: z.code || z.name.replace(/^Khu\s*/i, ""),
-      label: z.name,
-    }));
+    const seen = new Set();
+    return zones.reduce((acc, z) => {
+      const value = z.code || z.name.replace(/^Khu\s*/i, "");
+      if (!seen.has(value)) {
+        seen.add(value);
+        acc.push({ value, label: z.name });
+      }
+      return acc;
+    }, []);
   }, [structureList]);
 
   // 3c. Tự động chuyển floor/zone đang chọn nếu bị xóa khỏi cấu trúc bãi
@@ -228,6 +346,45 @@ export default function ParkingLotManagement() {
     search: searchQuery,
     isCustomer,
   });
+
+  const handleReservationSuccess = useCallback(
+    async (created) => {
+      await Promise.all([refetch(), fetchCustomerParkedSpots()]);
+      if (!isCustomer || !created) return;
+      const rawLabel = String(
+        created.slot_label ||
+          created.slot_code ||
+          created.slot?.label ||
+          created.slot?.code ||
+          ""
+      )
+        .trim()
+        .toUpperCase();
+      if (!rawLabel) return;
+      const floor = String(created.floor || selectedFloor || "").trim().toUpperCase();
+      const zone = String(created.zone || selectedZone || "").trim().toUpperCase();
+      const slotCode = rawLabel.includes("·")
+        ? rawLabel
+        : `KHU ${zone} · TẦNG ${floor} · SLOT ${rawLabel}`;
+      const plate = String(
+        created.license_plate ||
+          created.plate_number ||
+          created.vehicle_plate ||
+          "Xe đã đặt"
+      )
+        .trim()
+        .toUpperCase();
+
+      setCustomerParkedSpots((prev) => {
+        const exists = prev.some(
+          (item) => item.slotCode === slotCode && item.plate === plate
+        );
+        if (exists) return prev;
+        return [{ plate, slotCode }, ...prev];
+      });
+    },
+    [refetch, fetchCustomerParkedSpots, isCustomer, selectedFloor, selectedZone]
+  );
 
   // 5b. Quản lý danh sách ô đỗ reactive tại client (đồng bộ từ API theo chuẩn React)
   const [prevSlots, setPrevSlots] = useState(slots);
@@ -1004,6 +1161,62 @@ export default function ParkingLotManagement() {
         </div>
       )}
 
+      {/* Banner định vị xe của khách hàng */}
+      {isCustomer && customerParkedSpots.length > 0 && (() => {
+        const visibleSpots = showAllCustomerSpots
+          ? customerParkedSpots
+          : customerParkedSpots.slice(0, MAX_VISIBLE_CUSTOMER_SPOTS);
+        const hiddenCount = customerParkedSpots.length - visibleSpots.length;
+        return (
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50/90 px-4 py-3 text-sm text-sky-900">
+            <div className="flex items-center gap-2 shrink-0 sm:pt-1">
+              <Car className="h-4 w-4 text-sky-600 shrink-0" />
+              <span className="font-semibold">
+                Xe của bạn đang đỗ ({customerParkedSpots.length}):
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 max-h-28 overflow-y-auto pr-1">
+              {visibleSpots.map((item) => {
+                const { floor, label } = parseCustomerSlotCode(item.slotCode);
+                const locationText = floor ? `${floor} · ${label}` : label;
+                return (
+                  <button
+                    key={`${item.plate}-${item.slotCode}`}
+                    type="button"
+                    onClick={() => scrollToSlot(item.slotCode)}
+                    title={`Định vị xe ${item.plate} tại ${item.slotCode}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-white px-2.5 py-1.5 text-xs font-medium text-sky-900 shadow-2xs transition-colors hover:border-sky-400 hover:bg-sky-100/70 cursor-pointer"
+                  >
+                    <span className="font-bold text-slate-900">{item.plate}</span>
+                    <span className="text-slate-400">·</span>
+                    <span className="font-semibold text-sky-700">{locationText}</span>
+                    <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                  </button>
+                );
+              })}
+              {hiddenCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllCustomerSpots(true)}
+                  className="inline-flex items-center rounded-lg border border-sky-300 bg-sky-100/80 px-2.5 py-1.5 text-xs font-semibold text-sky-800 hover:bg-sky-200/80 cursor-pointer"
+                >
+                  +{hiddenCount} xe khác
+                </button>
+              )}
+              {showAllCustomerSpots && customerParkedSpots.length > MAX_VISIBLE_CUSTOMER_SPOTS && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllCustomerSpots(false)}
+                  className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Thu gọn
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 5. Khu vực trung tâm: Sơ đồ ma trận / Bảng danh sách & Panel chi tiết */}
       <div id="parking-lot-matrix-view" className="grid grid-cols-1 lg:grid-cols-12 gap-6 scroll-mt-6">
         <div className={isCustomer ? "lg:col-span-12" : "lg:col-span-9"}>
@@ -1057,8 +1270,9 @@ export default function ParkingLotManagement() {
               onSelectSlot={handleSelectSlot}
               matchesFilter={matchesFilter}
               onAddSlot={() => setIsAddSlotModalOpen(true)}
-              onReservationSuccess={refetch}
+              onReservationSuccess={handleReservationSuccess}
               isManager={isManager}
+              customerSlotCodes={customerSlotCodes}
             />
           )}
         </div>
@@ -1080,21 +1294,23 @@ export default function ParkingLotManagement() {
       </div>
 
       {/* 6. Chân trang: Cấu trúc bãi & Hoạt động gần đây */}
-      {!isCustomer && (
-        <ParkingLotStructureAndActivity
-          structureList={structureList}
-          selectedFloor={selectedFloor}
-          selectedZone={selectedZone}
-          onSelectFloor={handleSelectFloor}
-          onSelectZone={handleSelectZone}
-          onConfigureStructure={handleOpenAddFloor}
-          onAddFloor={handleOpenAddFloor}
-          onAddZone={handleOpenAddZone}
-          onEditStructure={handleEditStructure}
-          onDeleteStructure={handleDeleteStructure}
-          activities={activities}
-        />
-      )}
+      <ParkingLotStructureAndActivity
+        structureList={structureList}
+        selectedFloor={selectedFloor}
+        selectedZone={selectedZone}
+        onSelectFloor={handleSelectFloor}
+        onSelectZone={handleSelectZone}
+        onConfigureStructure={handleOpenAddFloor}
+        onAddFloor={handleOpenAddFloor}
+        onAddZone={handleOpenAddZone}
+        onEditStructure={handleEditStructure}
+        onDeleteStructure={handleDeleteStructure}
+        activities={activities}
+        canEditStructure={!isCustomer && isManager}
+        isCustomer={isCustomer}
+        customerParkedSpots={customerParkedSpots}
+        onSelectCustomerSpot={scrollToSlot}
+      />
 
       {/* 7. Các modals hỗ trợ thao tác người dùng */}
       <EditSlotModal

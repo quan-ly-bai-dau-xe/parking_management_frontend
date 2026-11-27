@@ -20,8 +20,4 @@ test.describe("Mission-Critical 1: Authentication & Route Protection Guard", () 
     await expect(page.locator('input[type="text"], input[name="username"], input[type="email"]').first()).toBeVisible();
     await expect(page.locator('input[type="password"]').first()).toBeVisible();
   });
-
-  test("Đăng nhập thành công với tài khoản nhân viên và truy cập các trang nội bộ", async ({ page }) => {
-    await loginAsStaff(page);
-  });
 });

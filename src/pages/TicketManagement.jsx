@@ -28,6 +28,7 @@ export default function TicketManagement() {
     isLoading,
     ticketTypes,
     setCurrentPage,
+    handleItemsPerPageChange,
     handleFilterChange,
     handleResetFilters,
     handleCreateTicket,

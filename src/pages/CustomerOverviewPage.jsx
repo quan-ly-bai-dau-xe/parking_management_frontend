@@ -468,7 +468,18 @@ export default function CustomerOverviewPage() {
                               <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
-                              <span className="truncate">{slotLabel}</span>
+                              {slotLabel ? (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`${ROUTES.PARKING_LOT}?slot=${encodeURIComponent(slotLabel)}`)}
+                                  className="truncate font-semibold text-sky-600 hover:text-sky-700 hover:underline cursor-pointer"
+                                  title="Xem vị trí trên sơ đồ bãi đỗ"
+                                >
+                                  {slotLabel}
+                                </button>
+                              ) : (
+                                <span className="truncate">—</span>
+                              )}
                             </div>
                           </div>
                         </div>

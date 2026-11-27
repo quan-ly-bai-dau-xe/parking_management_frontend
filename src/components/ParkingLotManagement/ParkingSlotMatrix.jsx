@@ -19,21 +19,31 @@ import Button from "../common/button/Button";
 import ReserveSlotModal from "./ReserveSlotModal";
 import { formatReservedTimeDisplay } from "../../utils/formatDateTime";
 
-function renderSlotCard(slot, isSelected, onCardClick, isMatch = true) {
+function renderSlotCard(slot, isSelected, onCardClick, isMatch = true, isMySlot = false) {
   const opacityClass = isMatch ? "opacity-100" : "opacity-30";
+  const mySlotRingClass = isMySlot
+    ? "ring-2 ring-sky-400 shadow-lg shadow-sky-500/30 relative"
+    : "";
+  const mySlotBadge = isMySlot ? (
+    <span className="absolute -top-2 left-1.5 z-10 rounded-full bg-sky-500 px-1.5 py-0.5 text-[9px] font-bold text-white shadow">
+      XE CỦA BẠN
+    </span>
+  ) : null;
 
   // 1. Ô ĐỖ TRỐNG (AVAILABLE)
   if (slot.status === "AVAILABLE") {
     return (
       <div
         key={slot.slotId || slot.label}
+        id={`parking-slot-${slot.label}`}
         onClick={(e) => onCardClick(e, slot)}
-        className={`h-28 rounded-xl border flex flex-col items-center justify-between p-2 cursor-pointer transition-all ${opacityClass} ${
+        className={`h-28 rounded-xl border flex flex-col items-center justify-between p-2 cursor-pointer transition-all ${opacityClass} ${mySlotRingClass} ${
           isSelected
             ? "border-emerald-400 bg-emerald-950/80 ring-2 ring-emerald-400/50"
             : "border-emerald-500/50 bg-[#06201B] hover:border-emerald-400"
         }`}
       >
+        {mySlotBadge}
         <span className="text-[0.7rem] text-emerald-400 font-bold">{slot.label}</span>
         <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
           <Check className="w-3.5 h-3.5" />
@@ -49,8 +59,9 @@ function renderSlotCard(slot, isSelected, onCardClick, isMatch = true) {
     return (
       <div
         key={slot.slotId || slot.label}
+        id={`parking-slot-${slot.label}`}
         onClick={(e) => onCardClick(e, slot)}
-        className={`h-28 rounded-xl border flex flex-col items-center justify-between p-2 cursor-pointer transition-all relative ${opacityClass} ${
+        className={`h-28 rounded-xl border flex flex-col items-center justify-between p-2 cursor-pointer transition-all relative ${opacityClass} ${mySlotRingClass} ${
           isSelected
             ? isOverstay
               ? "border-amber-400 bg-[#3a131b] ring-2 ring-amber-400/80 shadow-lg shadow-amber-500/20"
@@ -60,6 +71,7 @@ function renderSlotCard(slot, isSelected, onCardClick, isMatch = true) {
               : "border-rose-500/50 bg-[#2A0C16] hover:border-rose-400"
         }`}
       >
+        {mySlotBadge}
         {isOverstay && (
           <span
             title="Phương tiện đỗ quá giờ quy định"
@@ -98,13 +110,15 @@ function renderSlotCard(slot, isSelected, onCardClick, isMatch = true) {
     return (
       <div
         key={slot.slotId || slot.label}
+        id={`parking-slot-${slot.label}`}
         onClick={(e) => onCardClick(e, slot)}
-        className={`h-28 rounded-xl border border-dashed flex flex-col items-center justify-between p-2 cursor-pointer transition-all ${opacityClass} ${
+        className={`h-28 rounded-xl border border-dashed flex flex-col items-center justify-between p-2 cursor-pointer transition-all ${opacityClass} ${mySlotRingClass} ${
           isSelected
             ? "border-amber-400 bg-amber-950/80 ring-2 ring-amber-400/50"
             : "border-amber-500/70 bg-[#251A08] hover:border-amber-400"
         }`}
       >
+        {mySlotBadge}
         <span className="text-[0.7rem] text-amber-400 font-bold">{slot.label}</span>
         <Clock className="w-5 h-5 text-amber-400" />
         <span className="text-[0.6rem] text-amber-300 text-center font-bold leading-tight">
@@ -164,6 +178,7 @@ export default function ParkingSlotMatrix({
   selectedZone = "A",
   onAddSlot,
   onReservationSuccess,
+  customerSlotCodes = null,
 }) {
   const { role, isManager } = useCurrentUser();
   const isCustomer = role === "CUSTOMER";
@@ -201,12 +216,19 @@ export default function ParkingSlotMatrix({
       }
     };
 
-    if (contextMenu.isOpen) {
+    if (!contextMenu.isOpen) return;
+
+    let isCleanedUp = false;
+    const attachTimer = setTimeout(() => {
+      if (isCleanedUp) return;
       document.addEventListener("mousedown", handleOutsideClick);
       window.addEventListener("scroll", handleScroll, true);
       window.addEventListener("keydown", handleKeyDown);
-    }
+    }, 50);
+
     return () => {
+      isCleanedUp = true;
+      clearTimeout(attachTimer);
       document.removeEventListener("mousedown", handleOutsideClick);
       window.removeEventListener("scroll", handleScroll, true);
       window.removeEventListener("keydown", handleKeyDown);
@@ -381,11 +403,16 @@ export default function ParkingSlotMatrix({
                 <div className="grid grid-cols-4 sm:grid-cols-8 gap-2.5">
                   {rowASlots.map((slot) => {
                     const isMatch = matchesFilter(slot);
+                    const isMySlot = Boolean(
+                      customerSlotCodes &&
+                        customerSlotCodes.has(String(slot.label || "").trim().toUpperCase())
+                    );
                     return renderSlotCard(
                       slot,
                       selectedSlot?.id === slot.label,
                       handleSlotCardClick,
-                      isMatch
+                      isMatch,
+                      isMySlot
                     );
                   })}
                 </div>
@@ -422,11 +449,16 @@ export default function ParkingSlotMatrix({
                 <div className="grid grid-cols-4 sm:grid-cols-8 gap-2.5">
                   {rowBSlots.map((slot) => {
                     const isMatch = matchesFilter(slot);
+                    const isMySlot = Boolean(
+                      customerSlotCodes &&
+                        customerSlotCodes.has(String(slot.label || "").trim().toUpperCase())
+                    );
                     return renderSlotCard(
                       slot,
                       selectedSlot?.id === slot.label,
                       handleSlotCardClick,
-                      isMatch
+                      isMatch,
+                      isMySlot
                     );
                   })}
                 </div>
@@ -447,11 +479,16 @@ export default function ParkingSlotMatrix({
                 <div className="grid grid-cols-4 sm:grid-cols-8 gap-2.5">
                   {rowCSlots.map((slot) => {
                     const isMatch = matchesFilter(slot);
+                    const isMySlot = Boolean(
+                      customerSlotCodes &&
+                        customerSlotCodes.has(String(slot.label || "").trim().toUpperCase())
+                    );
                     return renderSlotCard(
                       slot,
                       selectedSlot?.id === slot.label,
                       handleSlotCardClick,
-                      isMatch
+                      isMatch,
+                      isMySlot
                     );
                   })}
                 </div>
@@ -588,8 +625,35 @@ export default function ParkingSlotMatrix({
                   <span>Ô đỗ đã được đặt trước</span>
                 </div>
                 <p className="text-amber-700">
-                  Người đặt: <strong>{vehicleInfoModal.slot.reservedBy || "Khách hàng"}</strong>
+                  Người đặt:{" "}
+                  <strong>
+                    {vehicleInfoModal.slot.reservedBy ||
+                      vehicleInfoModal.slot.active_reservation?.reserved_name ||
+                      "Khách hàng"}
+                  </strong>
                 </p>
+                {(vehicleInfoModal.slot.reservedPhone ||
+                  vehicleInfoModal.slot.active_reservation?.reserved_phone) && (
+                  <p className="text-amber-700">
+                    Số điện thoại:{" "}
+                    <strong>
+                      {vehicleInfoModal.slot.reservedPhone ||
+                        vehicleInfoModal.slot.active_reservation?.reserved_phone}
+                    </strong>
+                  </p>
+                )}
+                {(vehicleInfoModal.slot.plate ||
+                  vehicleInfoModal.slot.licensePlate ||
+                  vehicleInfoModal.slot.active_reservation?.license_plate) && (
+                  <p className="text-amber-700">
+                    Biển số xe:{" "}
+                    <strong className="font-mono">
+                      {vehicleInfoModal.slot.plate ||
+                        vehicleInfoModal.slot.licensePlate ||
+                        vehicleInfoModal.slot.active_reservation?.license_plate}
+                    </strong>
+                  </p>
+                )}
                 {vehicleInfoModal.slot.reservedTime && (
                   <p className="text-amber-700">
                     Thời gian: {formatReservedTimeDisplay(vehicleInfoModal.slot.reservedTime)}

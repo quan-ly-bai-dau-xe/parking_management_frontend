@@ -8,10 +8,12 @@ import {
   previewParkingFee,
 } from "../../services/parkingSessionService";
 import { usePlateAutoDetect } from "../../hooks/usePlateAutoDetect";
+import { useToast } from "../../context/ToastContext";
 import { usePlateMatching } from "./scanPlate/hooks/usePlateMatching";
 import { parseEntryTimeToDate, normalizePlate } from "../../utils/parking/plateScanMapper";
 
 import ScanPlateCameraFeed from "./scanPlate/ScanPlateCameraFeed";
+import ScanPlateImageUpload from "./scanPlate/ScanPlateImageUpload";
 import EntryLanePanel from "./scanPlate/EntryLanePanel";
 import ExitLanePanel from "./scanPlate/ExitLanePanel";
 import CloseSessionSafetyModal from "./scanPlate/CloseSessionSafetyModal";
@@ -67,6 +69,7 @@ export default function GateCameraControlModal({
   onSessionChange = null,
 }) {
   const videoRef = useRef(null);
+  const toast = useToast();
   const actionPendingRef = useRef(false);
   const barrierTimerRef = useRef(null);
   const barrierAutoCloseTimerRef = useRef(null);
@@ -106,6 +109,7 @@ export default function GateCameraControlModal({
   }, [isOpen, initialLane]);
 
   const [barrierState, setBarrierState] = useState("closed");
+  const [scanSourceMode, setScanSourceMode] = useState("camera"); // 'camera' | 'image'
 
   const [isActionPending, setIsActionPending] = useState(false);
   const [actionSuccessMessage, setActionSuccessMessage] = useState("");
@@ -643,6 +647,7 @@ export default function GateCameraControlModal({
     rawLookup,
     setRawLookup,
     handleMatchPlate,
+    handleImageScanned,
     resetMatching,
   } = usePlateMatching({
     vehicles,
@@ -754,6 +759,20 @@ export default function GateCameraControlModal({
   }, [isOpen, laneMode, matchedVehicle, detectedPlate, setErrorMessage]);
 
   const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
+
+  const handleGateImageScanned = useCallback(
+    (scanResult, previewUrl) => {
+      const extractedPlate = scanResult?.plate_final || scanResult?.plate_raw || "";
+      if (extractedPlate) {
+        const formatted = formatLicensePlateForDisplay(extractedPlate);
+        setManualInputPlate(formatted);
+        setCameraDetectedPlate(extractedPlate);
+        setDetectionSource("image");
+      }
+      handleImageScanned(scanResult, previewUrl);
+    },
+    [handleImageScanned]
+  );
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -997,7 +1016,9 @@ export default function GateCameraControlModal({
       const assignedSlotId = matchedVehicle?.parkingSlot?.slotId;
       const chosenSlot =
         availableSlots.find((s) => s.id === selectedSlotId) ||
-        (assignedSlotId ? availableSlots.find((s) => s.id === assignedSlotId) : null);
+        (assignedSlotId ? availableSlots.find((s) => s.id === assignedSlotId) : null) ||
+        availableSlots[0] ||
+        null;
       if (!chosenSlot) {
         setErrorMessage("⚠️ Vui lòng chọn một vị trí đỗ khả dụng trước khi xác nhận vào bãi.");
         return;
@@ -1286,9 +1307,9 @@ export default function GateCameraControlModal({
         ? `${new Intl.NumberFormat("vi-VN").format(Number(resolvedFeeAmount))}đ`
         : "0đ";
 
-      setActionSuccessMessage(
-        `✓ Check-out hoàn tất (${feeFormatted})! Mở barrier mời xe ra bãi.`
-      );
+      const successMsg = `✓ Check-out hoàn tất (${feeFormatted})! Mở barrier mời xe ra bãi.`;
+      setActionSuccessMessage(successMsg);
+      toast.success(successMsg);
 
       if (onSessionChange) {
         onSessionChange("check-out", checkOutResult);
@@ -2158,24 +2179,59 @@ export default function GateCameraControlModal({
 
           {/* Layout chính: Bên trái Camera (50%) - Bên phải Làn Vào/Ra (50%) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
-            {/* Cột trái: 1 Camera Stream duy nhất */}
-            <div className="h-full">
-              <ScanPlateCameraFeed
-                videoRef={videoRef}
-                videoDevices={videoDevices}
-                selectedDeviceId={selectedDeviceId}
-                onChangeCamera={changeCamera}
-                cameraError={cameraError}
-                rawBoundingBox={isManualLookup ? null : rawBoundingBox}
-                sourceDimensions={sourceDimensions}
-                statusMessage={isManualLookup ? "Đang tra cứu thủ công" : statusMessage}
-                isScanning={isScanning}
-                detectedPlate={cameraDetectedPlate}
-                cameraPlate={isManualLookup ? "" : cameraDetectedPlate}
-                barrierState={barrierState}
-                onReset={handleReset}
-                isManualLookup={isManualLookup}
-              />
+            {/* Cột trái: Quét Camera hoặc Tải ảnh từ file */}
+            <div className="h-full flex flex-col space-y-2">
+              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setScanSourceMode("camera")}
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-2xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                    scanSourceMode === "camera"
+                      ? "bg-white text-slate-800 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span>📷</span>
+                  <span>Quét Camera trực tiếp</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScanSourceMode("image")}
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-2xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                    scanSourceMode === "image"
+                      ? "bg-white text-slate-800 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span>🖼️</span>
+                  <span>Tải ảnh từ file</span>
+                </button>
+              </div>
+
+              {scanSourceMode === "camera" ? (
+                <ScanPlateCameraFeed
+                  videoRef={videoRef}
+                  videoDevices={videoDevices}
+                  selectedDeviceId={selectedDeviceId}
+                  onChangeCamera={changeCamera}
+                  cameraError={cameraError}
+                  rawBoundingBox={isManualLookup ? null : rawBoundingBox}
+                  sourceDimensions={sourceDimensions}
+                  statusMessage={isManualLookup ? "Đang tra cứu thủ công" : statusMessage}
+                  isScanning={isScanning}
+                  detectedPlate={cameraDetectedPlate}
+                  cameraPlate={isManualLookup ? "" : cameraDetectedPlate}
+                  barrierState={barrierState}
+                  onReset={handleReset}
+                  isManualLookup={isManualLookup}
+                />
+              ) : (
+                <ScanPlateImageUpload
+                  gateId={activeGateId}
+                  onImageScanned={handleGateImageScanned}
+                  disabled={isActionPending}
+                />
+              )}
             </div>
 
             {/* Cột phải: Panel Làn Vào hoặc Làn Ra */}
@@ -2209,6 +2265,7 @@ export default function GateCameraControlModal({
                   calculatedDurationMinutes={calculatedDurationMinutes}
                   backendFeePreview={backendFeePreview}
                   isLoadingFeePreview={isLoadingFeePreview}
+                  isScanning={isScanning}
                   isFeeExempt={isFeeExempt}
                   setIsFeeExempt={setIsFeeExempt}
                   waiverReason={waiverReason}

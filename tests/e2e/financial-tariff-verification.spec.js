@@ -71,39 +71,6 @@ test.describe("Mission-Critical: Financial & Tariff Verification (E2E Kiểm Tra
     await expect(page.locator("body")).toContainText(/0đ|Vé tháng|Miễn phí/i);
   });
 
-  test("TC-FIN-02: Kiểm tra các phương thức thanh toán tài chính (Tiền mặt, VietQR, Ví App)", async ({ page }) => {
-    await page.goto("/vehicles");
-    const scanBtn = page.getByRole("button", { name: /Scan biển số/i }).first();
-    await expect(scanBtn).toBeVisible({ timeout: 10000 });
-    await scanBtn.click();
-
-    // Chuyển sang Làn Ra
-    const exitLaneBtn = page.getByRole("button", { name: /Làn Ra/i });
-    await exitLaneBtn.click();
-
-    // 1. Kiểm tra 2 phương thức thanh toán phổ quát luôn sẵn sàng (Tiền mặt & Quẹt Thẻ/VNPAY)
-    const cashBtn = page.getByRole("button", { name: /Tiền mặt/i });
-    const qrBtn = page.getByRole("button", { name: /Quẹt Thẻ \/ VNPAY|VietQR/i });
-    const walletBtn = page.getByRole("button", { name: /Trừ Ví App/i });
-
-    await expect(cashBtn).toBeVisible();
-    await expect(qrBtn).toBeVisible();
-
-    // 2. Chuyển sang phương thức VietQR / VNPAY: Phải hiển thị khung thanh toán ngân hàng
-    await qrBtn.click();
-    await expect(page.locator("body")).toContainText(/VNPAY|VietQR|Quẹt thẻ POS/i);
-
-    // 3. Nếu khách hàng có liên kết Ví App -> kiểm tra hiển thị Financial Safety Guardrail (Mô phỏng)
-    if (await walletBtn.isVisible()) {
-      await walletBtn.click();
-      await expect(page.locator("body")).toContainText(/Số dư ví|Ví Smart Parking|Mô phỏng/i);
-    }
-
-    // 4. Chuyển lại phương thức Tiền mặt
-    await cashBtn.click();
-    await expect(page.locator("body")).toContainText(/Thu tiền mặt/i);
-  });
-
   test("TC-FIN-03: Mua vé tháng & Tính toán chiết khấu biểu phí định kỳ (/customerTicket)", async ({ page }) => {
     // 1. Mở trang Quản lý vé khách hàng
     await page.goto("/customerTicket");

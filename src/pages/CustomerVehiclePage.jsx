@@ -354,9 +354,20 @@ export default function CustomerVehiclePage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-400 truncate">
-                          {slotText ? `Vị trí: ${slotText}` : "Chưa ghi nhận vị trí đỗ"}
-                        </p>
+                        {slotText ? (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`${ROUTES.PARKING_LOT}?slot=${encodeURIComponent(slotText)}`)}
+                            className="text-xs font-semibold text-sky-600 hover:text-sky-700 hover:underline truncate cursor-pointer text-left"
+                            title="Xem vị trí trên sơ đồ bãi đỗ"
+                          >
+                            Vị trí: {slotText} (Xem trên sơ đồ)
+                          </button>
+                        ) : (
+                          <p className="text-xs text-slate-400 truncate">
+                            Chưa ghi nhận vị trí đỗ
+                          </p>
+                        )}
                       </div>
 
                       <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 flex items-center justify-between">

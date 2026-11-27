@@ -11,6 +11,7 @@ import {
 } from "../../services/parkingSessionService";
 import { usePlateAutoDetect } from "../../hooks/usePlateAutoDetect";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
+import { useToast } from "../../context/ToastContext";
 import useModalA11y from "../../hooks/useModalA11y";
 import { usePlateMatching } from "./scanPlate/hooks/usePlateMatching";
 import { parseEntryTimeToDate, normalizePlate } from "../../utils/parking/plateScanMapper";
@@ -59,6 +60,7 @@ export default function ScanPlateModal({
   const actionPendingRef = useRef(false);
   const barrierTimerRef = useRef(null);
   const { role: currentUserRole } = useCurrentUser();
+  const toast = useToast();
 
   const [scanSourceMode, setScanSourceMode] = useState("camera"); // 'camera' | 'image'
   const [backendFeePreview, setBackendFeePreview] = useState(null);
@@ -497,9 +499,9 @@ export default function ScanPlateModal({
         ? `${new Intl.NumberFormat("vi-VN").format(checkOutResult.fee_amount)}đ`
         : exitFeeCalc.feeFormatted;
 
-      setActionSuccessMessage(
-        `✓ Check-out hoàn tất (${feeFormatted})! Mở barrier mời xe ra bãi.`
-      );
+      const successMsg = `✓ Check-out hoàn tất (${feeFormatted})! Mở barrier mời xe ra bãi.`;
+      setActionSuccessMessage(successMsg);
+      toast.success(successMsg);
     } catch (err) {
       setErrorMessage(err?.data?.message || err?.message || "Không thể thực hiện Check-out xe.");
     } finally {

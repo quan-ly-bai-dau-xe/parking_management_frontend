@@ -88,7 +88,7 @@ export default function ParkingHistoryTable({
                   <div className="col-span-1">
                     <VehicleTicketTypeBadge ticketType={displayTicketType} />
                   </div>
-                  <div className="col-span-1 text-slate-600">
+                  <div className="col-span-2 text-slate-600">
                     {item.entryTime ||
                       (item.entry_time
                         ? formatDateTimeVN(item.entry_time, PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT)
@@ -131,7 +131,7 @@ export default function ParkingHistoryTable({
                       </span>
                     )}
                   </div>
-                  <div className="col-span-1 flex justify-between items-center">
+                  <div className="col-span-1">
                     <div className="flex flex-col">
                       {isOngoing && item.estimatedFee ? (
                         <>
@@ -160,14 +160,45 @@ export default function ParkingHistoryTable({
                                 ? "Ví khách hàng (WALLET)"
                                 : item.paymentMethod === "VIETQR"
                                 ? "Chuyển khoản (VIETQR)"
+                                : item.paymentMethod === "VNPAY"
+                                ? "VNPAY (VNPAY)"
+                                : item.paymentMethod === "CARD"
+                                ? "Quẹt thẻ (CARD)"
                                 : item.paymentMethod === "CASH"
                                 ? "Tiền mặt (CASH)"
                                 : item.paymentMethod}
                             </span>
                           )}
+                          {item.paymentMethod === "WALLET" ? (
+                            <span className="text-[10px] text-slate-400">
+                              Trừ ví tự động
+                            </span>
+                          ) : (item.paymentMethod === "CARD" ||
+                              item.paymentMethod === "VNPAY" ||
+                              item.paymentMethod === "VIETQR") ? (
+                            <span className="text-[10px] text-blue-500">
+                              Vào TK bãi xe
+                            </span>
+                          ) : null}
+                          {(item.exitHandledByName || item.exit_handled_by_name) && (
+                            <span className="text-[10px] text-slate-400">
+                              {item.paymentMethod === "CASH" || !item.paymentMethod
+                                ? "Thu bởi: "
+                                : "Xác nhận: "}
+                              {item.exitHandledByName || item.exit_handled_by_name}
+                              {(() => {
+                                const code = item.exitHandledByCode || item.exit_handled_by_code;
+                                const pos = item.exitHandledByPosition || item.exit_handled_by_position;
+                                const meta = [code, pos].filter(Boolean).join(" • ");
+                                return meta ? ` (${meta})` : "";
+                              })()}
+                            </span>
+                          )}
                         </>
                       )}
                     </div>
+                  </div>
+                  <div className="col-span-1 flex justify-center items-center">
                     <ParkingSessionThumbnail item={item} onPreview={onPreviewImage} />
                   </div>
                   {/* Cột Ghi chú / Đối soát ở cuối bảng */}

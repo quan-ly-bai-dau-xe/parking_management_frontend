@@ -20,6 +20,10 @@ export default function ParkingLotStructureAndActivity({
   onEditStructure,
   onDeleteStructure,
   activities = [],
+  canEditStructure = true,
+  isCustomer = false,
+  customerParkedSpots = [],
+  onSelectCustomerSpot,
 }) {
   const [activeTab, setActiveTab] = useState("all"); // 'all' | 'floor' | 'zone'
 
@@ -44,8 +48,21 @@ export default function ParkingLotStructureAndActivity({
   const displayActivities =
     activities && activities.length > 0 ? activities : defaultActivities;
 
-  const floors = structureList.filter((item) => item.type === "Tầng");
-  const zones = structureList.filter((item) => item.type === "Khu");
+  const floors = [];
+  const seenFloors = new Set();
+  const zones = [];
+  const seenZones = new Set();
+
+  structureList.forEach((item) => {
+    const code = getItemCode(item);
+    if (item.type === "Tầng" && code && !seenFloors.has(code)) {
+      seenFloors.add(code);
+      floors.push(item);
+    } else if (item.type === "Khu" && code && !seenZones.has(code)) {
+      seenZones.add(code);
+      zones.push(item);
+    }
+  });
 
   const renderStructureCard = (item, isFloor) => {
     const code = getItemCode(item);
@@ -128,22 +145,26 @@ export default function ParkingLotStructureAndActivity({
             </button>
           )}
 
-          <Button
-            variant="ghost"
-            size="xs"
-            icon={<Pencil className="w-3 h-3 text-slate-500" />}
-            onClick={() => onEditStructure?.(item)}
-            className="cursor-pointer"
-            title="Chỉnh sửa hạng mục"
-          />
-          <Button
-            variant="ghost"
-            size="xs"
-            icon={<Trash2 className="w-3 h-3 text-rose-500" />}
-            onClick={() => onDeleteStructure?.(item)}
-            className="cursor-pointer hover:bg-rose-50"
-            title="Xóa hạng mục"
-          />
+          {canEditStructure && (
+            <>
+              <Button
+                variant="ghost"
+                size="xs"
+                icon={<Pencil className="w-3 h-3 text-slate-500" />}
+                onClick={() => onEditStructure?.(item)}
+                className="cursor-pointer"
+                title="Chỉnh sửa hạng mục"
+              />
+              <Button
+                variant="ghost"
+                size="xs"
+                icon={<Trash2 className="w-3 h-3 text-rose-500" />}
+                onClick={() => onDeleteStructure?.(item)}
+                className="cursor-pointer hover:bg-rose-50"
+                title="Xóa hạng mục"
+              />
+            </>
+          )}
         </div>
       </div>
     );
@@ -162,26 +183,28 @@ export default function ParkingLotStructureAndActivity({
               {floors.length} tầng • {zones.length} khu vực • Bấm để đồng bộ sơ đồ
             </p>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="secondary"
-              size="xs"
-              icon={<Plus className="w-3 h-3 text-slate-500" />}
-              onClick={() => (onAddFloor ? onAddFloor() : onConfigureStructure?.())}
-              className="cursor-pointer"
-            >
-              Thêm tầng
-            </Button>
-            <Button
-              variant="secondary"
-              size="xs"
-              icon={<Plus className="w-3 h-3 text-slate-500" />}
-              onClick={() => (onAddZone ? onAddZone() : onConfigureStructure?.())}
-              className="cursor-pointer"
-            >
-              Thêm khu
-            </Button>
-          </div>
+          {canEditStructure && (
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="secondary"
+                size="xs"
+                icon={<Plus className="w-3 h-3 text-slate-500" />}
+                onClick={() => (onAddFloor ? onAddFloor() : onConfigureStructure?.())}
+                className="cursor-pointer"
+              >
+                Thêm tầng
+              </Button>
+              <Button
+                variant="secondary"
+                size="xs"
+                icon={<Plus className="w-3 h-3 text-slate-500" />}
+                onClick={() => (onAddZone ? onAddZone() : onConfigureStructure?.())}
+                className="cursor-pointer"
+              >
+                Thêm khu
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Tab chuyển nhóm */}
@@ -239,25 +262,72 @@ export default function ParkingLotStructureAndActivity({
         </div>
       </div>
 
-      {/* 2. Hoạt động gần đây */}
+      {/* 2. Hoạt động gần đây (Quản lý) hoặc Xe bạn đã đặt (Khách hàng) */}
       <div className="lg:col-span-6 bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
-        <div className="pb-2 border-b border-slate-100">
-          <h2 className="text-base font-bold text-slate-900">
-            Hoạt động gần đây
-          </h2>
-          <p className="text-xs text-slate-400">
-            Nhật ký cập nhật cấu trúc và trạng thái ô đỗ
-          </p>
-        </div>
+        {isCustomer ? (
+          <>
+            <div className="pb-2 border-b border-slate-100">
+              <h2 className="text-base font-bold text-slate-900">
+                Xe bạn đã đặt ({customerParkedSpots.length})
+              </h2>
+              <p className="text-xs text-slate-400">
+                Danh sách xe đang đỗ hoặc đã đăng ký vị trí
+              </p>
+            </div>
 
-        <ul className="space-y-3 text-xs pl-1">
-          {displayActivities.map((act) => (
-            <li key={act.id} className="flex items-start gap-2.5 text-slate-700">
-              <span className={`w-2 h-2 rounded-full ${act.color || "bg-blue-500"} shrink-0 mt-1`} />
-              <span>{act.text}</span>
-            </li>
-          ))}
-        </ul>
+            {customerParkedSpots.length === 0 ? (
+              <div className="text-center py-8 text-xs text-slate-400">
+                Bạn chưa có xe nào đang đỗ hoặc đã đặt chỗ.
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-0.5">
+                {customerParkedSpots.map((spot) => (
+                  <div
+                    key={`${spot.plate}-${spot.slotCode}`}
+                    className="flex items-center justify-between gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-blue-50/40 hover:border-blue-200 transition"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900 truncate">
+                        {spot.plate}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {spot.slotCode}
+                      </p>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      onClick={() => onSelectCustomerSpot?.(spot.slotCode)}
+                      className="shrink-0 cursor-pointer"
+                    >
+                      Xem vị trí
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="pb-2 border-b border-slate-100">
+              <h2 className="text-base font-bold text-slate-900">
+                Hoạt động gần đây
+              </h2>
+              <p className="text-xs text-slate-400">
+                Nhật ký cập nhật cấu trúc và trạng thái ô đỗ
+              </p>
+            </div>
+
+            <ul className="space-y-3 text-xs pl-1">
+              {displayActivities.map((act) => (
+                <li key={act.id} className="flex items-start gap-2.5 text-slate-700">
+                  <span className={`w-2 h-2 rounded-full ${act.color || "bg-blue-500"} shrink-0 mt-1`} />
+                  <span>{act.text}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </div>
     </div>
   );

@@ -65,6 +65,22 @@ export function normalizeSlot(rawSlot = {}) {
         ? "WARNING"
         : null);
 
+  const activeRes = rawSlot.active_reservation ?? rawSlot.activeReservation ?? null;
+  const reservedByName =
+    rawSlot.reservedBy ||
+    rawSlot.reserved_by ||
+    rawSlot.reserved_name ||
+    activeRes?.reserved_name ||
+    activeRes?.customer_name ||
+    activeRes?.user_name ||
+    activeRes?.full_name ||
+    null;
+  const reservedPhone =
+    rawSlot.reserved_phone ||
+    activeRes?.reserved_phone ||
+    activeRes?.phone ||
+    null;
+
   return {
     ...rawSlot,
     id: rawSlot.id !== undefined && rawSlot.id !== null ? rawSlot.id : code,
@@ -76,13 +92,14 @@ export function normalizeSlot(rawSlot = {}) {
     statusText: rawSlot.statusText || getStatusText(status),
     type: slotKind,
     slot_kind: slotKind,
-    plate,
-    licensePlate: plate,
+    plate: plate || activeRes?.license_plate || activeRes?.plate_number || null,
+    licensePlate: plate || activeRes?.license_plate || activeRes?.plate_number || null,
     duration: rawSlot.duration || null,
     isOverstay,
     overstaySeverity,
     reservedTime: formatReservedTimeDisplay(rawSlot.reservedTime || rawSlot.reserved_time, null),
-    reservedBy: rawSlot.reservedBy || rawSlot.reserved_by || null,
+    reservedBy: reservedByName,
+    reservedPhone,
     parkingLot:
       rawSlot.parkingLot ||
       rawSlot.parking_lot_name ||

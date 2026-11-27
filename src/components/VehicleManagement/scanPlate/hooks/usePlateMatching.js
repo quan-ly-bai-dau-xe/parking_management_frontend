@@ -125,7 +125,10 @@ export function usePlateMatching({
         });
 
         const mapped = mapPlateScanToVehicle(scanResult);
-        if (mapped && mapped.isRecognized) {
+        const hasOpenSessionInScan = Boolean(
+          scanResult.vehicle_lookup?.open_session || scanResult.session
+        );
+        if (mapped && mapped.isRecognized && hasOpenSessionInScan) {
           matchEpochRef.current += 1;
           setIsScanning(false);
           setMatchedVehicle(mapped);
