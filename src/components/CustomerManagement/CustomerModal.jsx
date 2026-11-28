@@ -1,7 +1,6 @@
 import { Button } from "../common";
 import { BaseModal } from "../common/modal";
 import {
-  TICKET_PACKAGE_OPTIONS,
   CUSTOMER_STATUS_OPTIONS,
   GENDER_OPTIONS,
 } from "../../constants/customerConstants";
