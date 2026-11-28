@@ -101,6 +101,7 @@ export default function AppTopHeader({
     }
 
     let isMounted = true;
+    let intervalId = null;
     const loadCustomerNotifications = async () => {
       try {
         const res = await getMyNotifications({ pageSize: 10 });
@@ -108,16 +109,24 @@ export default function AppTopHeader({
           setNotifications(res.results || []);
           setServerUnreadCount(res.unreadCount ?? 0);
         }
-      } catch {
-        // Ignore transient network errors during bell polling
+      } catch (err) {
+        if (err?.status === 401 || err?.status === 403) {
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+        }
       }
     };
 
     loadCustomerNotifications();
-    const intervalId = setInterval(loadCustomerNotifications, 10000);
+    intervalId = setInterval(loadCustomerNotifications, 10000);
     return () => {
       isMounted = false;
-      clearInterval(intervalId);
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
     };
   }, [isAuthenticated, isCustomerRole]);
 
