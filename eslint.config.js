@@ -6,6 +6,8 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import pluginPromise from 'eslint-plugin-promise'
+import reactYouMightNotNeedAnEffect from 'eslint-plugin-react-you-might-not-need-an-effect'
+import reactPlugin from 'eslint-plugin-react'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
@@ -15,6 +17,7 @@ export default defineConfig([
     extends: [
       js.configs.recommended,
       reactHooks.configs.flat.recommended,
+      reactYouMightNotNeedAnEffect.configs.recommended,
       reactRefresh.configs.vite,
       pluginPromise.configs['flat/recommended'],
     ],
@@ -24,6 +27,12 @@ export default defineConfig([
         ...globals.node,
       },
       parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    plugins: {
+      react: reactPlugin,
+    },
+    settings: {
+      react: { version: '19.2' },
     },
     rules: {
       // P0: Empty catch & empty block guardrail
@@ -35,6 +44,11 @@ export default defineConfig([
       'no-alert': 'error',
       // Guardrail: cảnh báo comment TODO/FIXME/HACK né sửa lỗi gốc rễ
       'no-warning-comments': ['warn', { terms: ['todo', 'fixme', 'hack'], location: 'start' }],
+      // React Hooks strict guardrails
+      'react-hooks/exhaustive-deps': 'error',
+      'react-hooks/set-state-in-effect': 'error',
+      'react-hooks/set-state-in-render': 'error',
+      'react/no-unstable-nested-components': ['error', { allowAsProps: true }],
     },
   },
   {
@@ -50,7 +64,7 @@ export default defineConfig([
       //   },
       // ],
 
-      // Guardrail: hạn chế useEffect không cần thiết
+      // // Guardrail: hạn chế useEffect không cần thiết
       // 'no-restricted-syntax': [
       //   'warn',
       //   {

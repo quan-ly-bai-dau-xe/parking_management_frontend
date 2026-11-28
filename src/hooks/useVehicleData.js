@@ -32,8 +32,15 @@ export default function useVehicleData() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    refreshStats();
+    let isCancelled = false;
+    queueMicrotask(() => {
+      if (!isCancelled) {
+        refreshStats();
+      }
+    });
+    return () => {
+      isCancelled = true;
+    };
   }, [refreshStats]);
 
   // Load and hydrate vehicles with customer phones and active parking slot
@@ -163,8 +170,15 @@ export default function useVehicleData() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadVehicles();
+    let isCancelled = false;
+    queueMicrotask(() => {
+      if (!isCancelled) {
+        loadVehicles();
+      }
+    });
+    return () => {
+      isCancelled = true;
+    };
   }, [loadVehicles]);
 
   return {
