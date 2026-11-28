@@ -1416,15 +1416,16 @@ export default function GateCameraControlModal({
 
   // Tự động áp dụng (Auto-Apply) trong Browser Mode
   useEffect(() => {
-    if (
-      !isOpen ||
-      workerOnline !== false ||
-      !autoApplyEnabled ||
-      isActionPending ||
-      actionPendingRef.current
-    ) {
-      return;
-    }
+    const timerId = setTimeout(() => {
+      if (
+        !isOpen ||
+        workerOnline !== false ||
+        !autoApplyEnabled ||
+        isActionPending ||
+        actionPendingRef.current
+      ) {
+        return;
+      }
     // Chỉ tự động kích hoạt cho biển số đến từ camera AI, không áp dụng cho tra cứu thủ công
     if (detectionSource !== "camera" || !detectedPlate) {
       return;
@@ -1620,6 +1621,8 @@ export default function GateCameraControlModal({
         });
       }
     }
+    }, 0);
+    return () => clearTimeout(timerId);
   }, [
     isOpen,
     workerOnline,

@@ -214,7 +214,10 @@ export default function ScanPlateModal({
   // Lắng nghe camera tự động nhận diện biển số
   useEffect(() => {
     const plate = detectedData?.plate_final;
-    if (plate && plate !== detectedPlate && scanSourceMode === "camera") {
+    if (!plate || plate === detectedPlate) return undefined;
+    let isCancelled = false;
+    queueMicrotask(() => {
+      if (isCancelled || scanSourceMode !== "camera") return;
       setDetectedPlate(plate);
       handleMatchPlate(plate);
       const conf =
@@ -227,7 +230,10 @@ export default function ScanPlateModal({
         source: "camera",
         imageUrl: detectedData?.image_url || detectedData?.plate_image_url || null,
       });
-    }
+    });
+    return () => {
+      isCancelled = true;
+    };
   }, [detectedData, detectedPlate, handleMatchPlate, scanSourceMode, setDetectedPlate, setScanDetails]);
 
   // Tự động tìm kiếm biển số khi người dùng nhập tay (Debounce Search)
