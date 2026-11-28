@@ -93,19 +93,23 @@ export default function GateCameraControlModal({
 
   // Đồng bộ làn ban đầu từ modal trigger hoặc BroadcastChannel
   useEffect(() => {
-    if (isOpen && initialLane && lastInitialLaneRef.current !== initialLane) {
+    if (!isOpen) {
+      return () => {
+        lastInitialLaneRef.current = "";
+        queueMicrotask(() => {
+          setUserSwitchedLane(false);
+        });
+      };
+    }
+    if (initialLane && lastInitialLaneRef.current !== initialLane) {
       lastInitialLaneRef.current = initialLane;
       const mode = (initialLane === "exit" || initialLane === "out") ? "exit" : "entry";
       queueMicrotask(() => {
         setLaneMode((prev) => (prev !== mode ? mode : prev));
         setUserSwitchedLane(false);
       });
-    } else if (!isOpen) {
-      lastInitialLaneRef.current = "";
-      queueMicrotask(() => {
-        setUserSwitchedLane(false);
-      });
     }
+    return undefined;
   }, [isOpen, initialLane]);
 
   const [barrierState, setBarrierState] = useState("closed");
