@@ -35,9 +35,17 @@ export default function useCustomerData() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    const cleanup = fetchCustomerList();
-    return cleanup;
+    let isCancelled = false;
+    let cleanup;
+    queueMicrotask(() => {
+      if (!isCancelled) {
+        cleanup = fetchCustomerList();
+      }
+    });
+    return () => {
+      isCancelled = true;
+      cleanup?.();
+    };
   }, [fetchCustomerList]);
 
   return {
