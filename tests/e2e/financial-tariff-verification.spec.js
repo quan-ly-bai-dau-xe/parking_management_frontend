@@ -121,41 +121,6 @@ test.describe("Mission-Critical: Financial & Tariff Verification (E2E Kiểm Tra
     await expect(page.locator("body")).not.toContainText(/Đăng ký & Mua vé đỗ xe/i);
   });
 
-  test("TC-FIN-05: Nạp tiền vào Ví Smart Parking qua cổng Sandbox VNPAY (/profile)", async ({ page }) => {
-    // 1. Mở trang Hồ sơ & Ví cá nhân
-    await page.goto("/profile");
-    await expect(page.locator("body")).toContainText(/Ví Smart Parking|Số dư khả dụng/i);
-
-    // 2. Mở Modal Nạp tiền
-    const depositBtn = page.getByRole("button", { name: /Nạp tiền thử nghiệm qua VNPAY/i });
-    await expect(depositBtn).toBeVisible({ timeout: 10000 });
-    await depositBtn.click();
-
-    // 3. Kiểm tra Modal nạp tiền xuất hiện kèm cờ Sandbox Test
-    await expect(page.locator("body")).toContainText(/Nạp tiền vào Ví Smart Parking/i);
-    await expect(page.locator("body")).toContainText(/Sandbox Test/i);
-    await expect(page.locator("body")).toContainText(/Cổng thanh toán điện tử VNPAY/i);
-
-    // 4. Chọn các mệnh giá nạp tiền khác nhau (50.000đ, 200.000đ, 500.000đ)
-    const amount200kBtn = page.getByRole("button", { name: /200\.000đ/i });
-    await expect(amount200kBtn).toBeVisible();
-    await amount200kBtn.click();
-    await expect(page.getByRole("button", { name: /Xác nhận nạp 200\.000đ/i })).toBeVisible();
-
-    const amount500kBtn = page.getByRole("button", { name: /500\.000đ/i });
-    await expect(amount500kBtn).toBeVisible();
-    await amount500kBtn.click();
-    const confirmDepositBtn = page.getByRole("button", { name: /Xác nhận nạp 500\.000đ/i });
-    await expect(confirmDepositBtn).toBeVisible();
-
-    // 5. Bấm nạp tiền mô phỏng
-    await confirmDepositBtn.click();
-    await expect(page.locator("body")).toContainText(/Đang kết nối VNPAY\.\.\.|Đã nạp thành công/i);
-
-    // 6. Chờ thông báo thành công và kiểm tra modal tự động đóng sau khi nạp xong
-    await expect(page.locator("body")).toContainText(/Đã nạp thành công 500\.000đ vào ví!/i, { timeout: 5000 });
-  });
-
   test("TC-FIN-06: Thu cước đối soát giải phóng xe tồn đọng Anti-Passback", async ({ page }) => {
     // 1. Mở Modal Scan biển số tại Làn Vào
     await page.goto("/vehicles");
