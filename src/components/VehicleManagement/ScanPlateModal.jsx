@@ -235,15 +235,16 @@ export default function ScanPlateModal({
 
   useEffect(() => {
     if (!isOpen) {
-      lastAutoSearchedPlateRef.current = "";
-      return;
+      return () => {
+        lastAutoSearchedPlateRef.current = "";
+      };
     }
 
     const cleanInput = (detectedPlate || "").trim();
     const normalizedInput = normalizePlate(cleanInput);
 
     if (normalizedInput.length >= MIN_SEARCH_PLATE_LENGTH) {
-      if (normalizedInput === lastAutoSearchedPlateRef.current) return;
+      if (normalizedInput === lastAutoSearchedPlateRef.current) return undefined;
 
       const timer = setTimeout(() => {
         lastAutoSearchedPlateRef.current = normalizedInput;
@@ -252,6 +253,7 @@ export default function ScanPlateModal({
 
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [isOpen, detectedPlate, handleMatchPlate]);
 
   const handleManualSearch = (e) => {
