@@ -163,21 +163,22 @@ export function usePlateAutoDetect({
 
   // Acquire and release MediaStream cleanly on open, close, unmount, and camera switch
   useEffect(() => {
-    const machine = getMachine();
     let isMounted = true;
     if (!isOpen) {
       stopCameraTracks();
-      queueMicrotask(() => {
+      const timerId = setTimeout(() => {
         if (isMounted) {
-          machine.stop();
+          getMachine().stop();
         }
-      });
+      }, 0);
       return () => {
         isMounted = false;
+        clearTimeout(timerId);
       };
     }
 
     async function initCamera() {
+      const machine = getMachine();
       await Promise.resolve();
       if (!isMounted) return;
 
@@ -279,7 +280,7 @@ export function usePlateAutoDetect({
     return () => {
       isMounted = false;
       stopCameraTracks();
-      machine.stop();
+      getMachine().stop();
     };
   }, [
     isOpen,
