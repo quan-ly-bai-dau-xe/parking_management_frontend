@@ -401,27 +401,15 @@ export default function GateCameraControlModal({
   }, []);
 
   useEffect(() => {
-    if (!isOpen) {
-      if (barrierTimerRef.current) {
-        clearTimeout(barrierTimerRef.current);
-        barrierTimerRef.current = null;
-      }
-      if (barrierAutoCloseTimerRef.current) {
-        clearTimeout(barrierAutoCloseTimerRef.current);
-        barrierAutoCloseTimerRef.current = null;
-      }
-    }
     return () => {
       if (barrierTimerRef.current) {
         clearTimeout(barrierTimerRef.current);
-        barrierTimerRef.current = null;
       }
       if (barrierAutoCloseTimerRef.current) {
         clearTimeout(barrierAutoCloseTimerRef.current);
-        barrierAutoCloseTimerRef.current = null;
       }
     };
-  }, [isOpen, laneMode]);
+  }, []);
 
   // Sync Worker Mode waiting banners & barrier/history transitions from lastAutoEvent (D2, D3, D8)
   useEffect(() => {
@@ -669,33 +657,47 @@ export default function GateCameraControlModal({
 
   useEffect(() => {
     detectedPlateRef.current = detectedPlate;
+  }, [detectedPlate]);
+
+  useEffect(() => {
     pendingEntryInfoRef.current = pendingEntryInfo;
+  }, [pendingEntryInfo]);
+
+  useEffect(() => {
     pendingExitInfoRef.current = pendingExitInfo;
+  }, [pendingExitInfo]);
+
+  useEffect(() => {
     detectedDataRef.current = detectedData;
+  }, [detectedData]);
+
+  useEffect(() => {
     scanDetailsRef.current = scanDetails;
+  }, [scanDetails]);
+
+  useEffect(() => {
     cameraErrorRef.current = cameraError;
+  }, [cameraError]);
+
+  useEffect(() => {
     isScanningRef.current = isScanning;
+  }, [isScanning]);
+
+  useEffect(() => {
     handleMatchPlateRef.current = handleMatchPlate;
+  }, [handleMatchPlate]);
+
+  useEffect(() => {
     resetDetectionRef.current = resetDetection;
+  }, [resetDetection]);
+
+  useEffect(() => {
     resetMatchingRef.current = resetMatching;
+  }, [resetMatching]);
+
+  useEffect(() => {
     setErrorMessageRef.current = setErrorMessage;
-    isOpenRef.current = isOpen;
-    laneModeRef.current = laneMode;
-  }, [
-    detectedPlate,
-    pendingEntryInfo,
-    pendingExitInfo,
-    detectedData,
-    scanDetails,
-    cameraError,
-    isScanning,
-    handleMatchPlate,
-    resetDetection,
-    resetMatching,
-    setErrorMessage,
-    isOpen,
-    laneMode,
-  ]);
+  }, [setErrorMessage]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -703,6 +705,14 @@ export default function GateCameraControlModal({
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  useEffect(() => {
+    laneModeRef.current = laneMode;
+  }, [laneMode]);
 
   // Nạp danh sách ô đỗ khả dụng khi ở Làn Vào
   useEffect(() => {
@@ -776,7 +786,18 @@ export default function GateCameraControlModal({
 
   // Khởi tạo biển số ban đầu nếu được truyền từ Header Scanner modal
   useEffect(() => {
-    if (isOpen && initialPlate && lastInitialPlateRef.current !== initialPlate) {
+    if (!isOpen) {
+      return () => {
+        lastInitialPlateRef.current = "";
+      };
+    }
+    if (!initialPlate || lastInitialPlateRef.current === initialPlate) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+    queueMicrotask(() => {
+      if (isCancelled) return;
       lastInitialPlateRef.current = initialPlate;
       const clean = initialPlate.trim().toUpperCase();
       lastDetectedPlateRef.current = clean;
@@ -805,17 +826,32 @@ export default function GateCameraControlModal({
       } else {
         setScanDetails(null);
       }
-    } else if (!isOpen) {
-      lastInitialPlateRef.current = "";
-    }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen, initialPlate, initialScanResult, handleMatchPlate, setDetectedPlate, setScanDetails]);
 
   // Lắng nghe camera tự động nhận diện biển số
   useEffect(() => {
+    if (!isOpen) {
+      return () => {
+        lastDetectedPlateRef.current = "";
+        autoAppliedPlateRef.current = "";
+      };
+    }
+
     const plate = detectedData?.plate_final;
     const normPlate = String(plate || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
     const normLast = String(lastDetectedPlateRef.current || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-    if (normPlate && normPlate !== normLast) {
+    if (!normPlate || normPlate === normLast) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+    queueMicrotask(() => {
+      if (isCancelled) return;
       lastDetectedPlateRef.current = plate;
       autoAppliedPlateRef.current = "";
       workerInfoBannerActiveRef.current = false;
@@ -843,10 +879,11 @@ export default function GateCameraControlModal({
         source: "camera",
         imageUrl: detectedData?.image_url || detectedData?.plate_image_url || null,
       });
-    } else if (!isOpen) {
-      lastDetectedPlateRef.current = "";
-      autoAppliedPlateRef.current = "";
-    }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [detectedData, isOpen, handleMatchPlate, setDetectedPlate, setScanDetails]);
 
   const handleManualSearch = (e) => {
