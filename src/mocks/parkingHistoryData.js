@@ -11,8 +11,8 @@ export const mockParkingHistory = [
     entryTime: "26/10/2026 08:15",
     exitTime: "26/10/2026 11:45",
     duration: "3 giờ 30 phút",
-    fee: "35.000đ",
-    feeNumber: 35000,
+    fee: "40.000đ",
+    feeNumber: 40000,
     plateImageUrl:
       "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=400&q=80",
     vehicleType: "Ô tô",
@@ -73,8 +73,8 @@ export const mockParkingHistory = [
     entryTime: "26/10/2026 13:00",
     exitTime: "26/10/2026 15:30",
     duration: "2 giờ 30 phút",
-    fee: "25.000đ",
-    feeNumber: 25000,
+    fee: "30.000đ",
+    feeNumber: 30000,
     plateImageUrl:
       "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=400&q=80",
     vehicleType: "Ô tô",
@@ -112,7 +112,7 @@ export const mockParkingHistory = [
   {
     id: "PH0008",
     sessionCode: "SS-20261018-008",
-    licensePlate: "30F-345.67",
+    licensePlate: "30F-557.76",
     entryTime: "26/10/2026 11:20",
     exitTime: "",
     duration: "Đang tính",
@@ -144,8 +144,8 @@ export const mockParkingHistory = [
     entryTime: "17/10/2026 20:00",
     exitTime: "26/10/2026 06:30",
     duration: "10 giờ 30 phút",
-    fee: "70.000đ",
-    feeNumber: 70000,
+    fee: "110.000đ",
+    feeNumber: 110000,
     plateImageUrl:
       "https://images.unsplash.com/photo-1517672651691-24622a15b313?auto=format&fit=crop&w=400&q=80",
     vehicleType: "Ô tô",

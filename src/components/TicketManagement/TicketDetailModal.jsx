@@ -1,6 +1,6 @@
-import React from "react";
 import { BaseModal } from "../common/modal";
 import StatusBadge from "../common/badge/StatusBadge";
+import { formatDateVN } from "../../utils/formatDateTime";
 
 export default function TicketDetailModal({
   isOpen,
@@ -34,9 +34,11 @@ export default function TicketDetailModal({
   const ticketType =
     activeTicket.ticketType || activeTicket.type || activeTicket.ticket_type || "—";
   const startDate =
-    activeTicket.startDate || activeTicket.effective_from || activeTicket.start_date || "—";
+    activeTicket.startDate ||
+    formatDateVN(activeTicket.effective_from || activeTicket.start_date, "—");
   const endDate =
-    activeTicket.endDate || activeTicket.effective_to || activeTicket.end_date || "—";
+    activeTicket.endDate ||
+    formatDateVN(activeTicket.effective_to || activeTicket.end_date, "—");
   const price =
     activeTicket.price ||
     (activeTicket.total_amount ? `${Number(activeTicket.total_amount).toLocaleString("vi-VN")}đ` : "—");

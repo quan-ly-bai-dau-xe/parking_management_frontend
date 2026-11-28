@@ -34,9 +34,9 @@ export const DEFAULT_PARKING_TARIFF_CONFIG = {
   MINIMUM_BILLED_HOURS: 1,
 
   // Giới hạn cước tối đa trong 1 ngày (24 giờ liên tục) (VND)
-  // Ngăn tình trạng xe gửi qua đêm hoặc nhiều ngày bị cộng dồn giá quá lớn.
-  // Ví dụ: 24h x 10.000đ = 240.000đ -> Chỉ tính tối đa 100.000đ/ngày.
-  DAILY_MAX_CAP_VND: 100000,
+  // Mặc định = 0 để đồng bộ 100% với Backend (TL-60: không áp trần giá ngày mặc định).
+  // Caller có thể truyền `dailyMaxCapVnd > 0` qua `tariffConfig` nếu muốn bật trần tùy chọn.
+  DAILY_MAX_CAP_VND: 0,
 
   // Ngưỡng phát hiện & cảnh báo xe lưu bãi quá lâu (giờ)
   OVERSTAY_WARNING_HOURS: 24,   // > 24h: Cảnh báo qua đêm
@@ -90,12 +90,65 @@ function getOverstayLevel(hours, warningThreshold, criticalThreshold) {
   return "normal";
 }
 
+const ONE_HOUR_MS = 3_600_000;
+
+function ceilHoursFromMs(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return 0;
+  return Math.floor((ms + ONE_HOUR_MS - 1) / ONE_HOUR_MS);
+}
+
+/**
+ * Hợp khoảng thời gian (Interval Merging) được bảo đảm bởi các vé gói hợp lệ
+ * trên đơn vị millisecond nguyên để khớp 100% với thuật toán Backend (tariff.py).
+ */
+function mergeCoveredMs(entryMs, exitMs, tickets = []) {
+  if (!Number.isFinite(entryMs) || !Number.isFinite(exitMs) || exitMs <= entryMs) {
+    return 0;
+  }
+  const intervals = [];
+  for (const t of tickets) {
+    if (!t) continue;
+    const status = String(t.status || "ACTIVE").toUpperCase();
+    if (status === "CANCELLED" || status === "TERMINATED" || t.deleted_at) continue;
+    const rawFrom = t.effectiveFrom ?? t.effective_from;
+    const rawTo = t.effectiveTo ?? t.effective_to;
+    if (!rawTo) continue;
+    const fromMs = rawFrom ? new Date(rawFrom).getTime() : entryMs;
+    const toMs = new Date(rawTo).getTime();
+    if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) continue;
+    const start = Math.max(entryMs, fromMs);
+    const end = Math.min(exitMs, toMs);
+    if (start < end) {
+      intervals.push([start, end]);
+    }
+  }
+  if (intervals.length === 0) return 0;
+  intervals.sort((a, b) => a[0] - b[0]);
+  const merged = [intervals[0]];
+  for (let i = 1; i < intervals.length; i += 1) {
+    const [s, e] = intervals[i];
+    const last = merged[merged.length - 1];
+    if (s <= last[1]) {
+      if (e > last[1]) last[1] = e;
+    } else {
+      merged.push([s, e]);
+    }
+  }
+  return merged.reduce((sum, [s, e]) => sum + (e - s), 0);
+}
+
 // ----------------------------------------------------------------------------
 // 3. HÀM TÍNH TOÁN CƯỚC PHÍ CHÍNH (MAIN BILLING ENGINE)
 // ----------------------------------------------------------------------------
 export function calculateParkingFee({
   vehicleType = "CAR",
   durationMinutes = 0,
+  durationSeconds = null,
+  entryTime = null,
+  exitTime = null,
+  tickets = null,
+  ticketEffectiveFrom = null,
+  ticketEffectiveTo = null,
   hasActiveTicket = false,
   hasValidTicket = false,
   isExempt = false,
@@ -114,45 +167,181 @@ export function calculateParkingFee({
     overstayCriticalHours: tariffConfig.overstayCriticalHours ?? tariffConfig.OVERSTAY_CRITICAL_HOURS ?? DEFAULT_PARKING_TARIFF_CONFIG.OVERSTAY_CRITICAL_HOURS,
   };
 
-  // --- BƯỚC 1: XỬ LÝ MIỄN PHÍ (Vé tháng, Khách ưu tiên, Xe sự cố) ---
+  if (isExempt) {
+    return {
+      feeAmount: 0,
+      feeFormatted: "0đ (Miễn phí / Đặc cách)",
+      isCoveredByTicket: true,
+      hasPackageCoverage: false,
+      coveredMinutes: 0,
+      overageMinutes: 0,
+      overageHours: 0,
+      feeBreakdownMode: "TICKET_EXEMPT",
+      calculationBreakdown: "Được miễn cước (Đặc cách / Sự cố kỹ thuật)",
+      hoursBilled: 0,
+      isCapped: false,
+      overstayLevel: "normal",
+    };
+  }
+
+  const normalizedTickets = Array.isArray(tickets) ? [...tickets] : [];
+  if (ticketEffectiveTo) {
+    normalizedTickets.push({
+      effectiveFrom: ticketEffectiveFrom,
+      effectiveTo: ticketEffectiveTo,
+      status: "ACTIVE",
+    });
+  }
+
+  const entryMs = entryTime !== null && entryTime !== undefined ? new Date(entryTime).getTime() : NaN;
+  const exitMs = exitTime !== null && exitTime !== undefined ? new Date(exitTime).getTime() : Date.now();
+  const hasTimeWindow = Number.isFinite(entryMs) && Number.isFinite(exitMs);
+
+  // --- BƯỚC 1: KIỂM TRA HỢP KHOẢNG VÉ GÓI & TÍNH VƯỢT HẠN (WP4 D6 / R3d) ---
+  if (hasTimeWindow && normalizedTickets.length > 0) {
+    const totalMs = Math.max(0, exitMs - entryMs);
+    const coveredMs = mergeCoveredMs(entryMs, exitMs, normalizedTickets);
+    const overageMs = Math.max(0, totalMs - coveredMs);
+    const coveredMinutes = Math.floor(coveredMs / 60_000);
+    const overageMinutes = overageMs > 0 ? Math.ceil(overageMs / 60_000) : 0;
+
+    if (coveredMs > 0 && overageMs === 0) {
+      return {
+        feeAmount: 0,
+        feeFormatted: "0đ (Miễn phí / Vé tháng)",
+        isCoveredByTicket: true,
+        hasPackageCoverage: true,
+        coveredMinutes,
+        overageMinutes: 0,
+        overageHours: 0,
+        feeBreakdownMode: "TICKET_EXEMPT",
+        calculationBreakdown: "Phương tiện được vé gói còn hiệu lực bảo đảm toàn bộ thời gian đỗ",
+        hoursBilled: 0,
+        isCapped: false,
+        overstayLevel: "normal",
+      };
+    }
+
+    if (coveredMs > 0 && overageMs > 0) {
+      const graceMs = Math.max(0, config.gracePeriodMinutes) * 60_000;
+      const overageHours = graceMs > 0 && overageMs < graceMs ? 0 : ceilHoursFromMs(overageMs);
+      const uncappedFee = overageHours * config.hourlyRateVnd;
+      const cappedFee = calculateCappedFee(overageHours, config.hourlyRateVnd, config.dailyMaxCapVnd);
+      const totalFee = Math.min(uncappedFee, cappedFee);
+      const isCapped = totalFee < uncappedFee;
+      const overstayLevel = getOverstayLevel(
+        overageHours,
+        config.overstayWarningHours,
+        config.overstayCriticalHours
+      );
+
+      return {
+        feeAmount: totalFee,
+        feeFormatted: `${totalFee.toLocaleString("vi-VN")}đ`,
+        isCoveredByTicket: false,
+        hasPackageCoverage: true,
+        coveredMinutes,
+        overageMinutes,
+        overageHours,
+        feeBreakdownMode: "PACKAGE_OVERAGE",
+        calculationBreakdown:
+          overageHours === 0
+            ? `Vượt hạn ${overageMinutes} phút trong thời gian ân hạn (< ${config.gracePeriodMinutes} phút)`
+            : `Miễn 0đ phần trong hạn vé • Vượt hạn ${overageHours}h × ${config.hourlyRateVnd.toLocaleString("vi-VN")}đ/h`,
+        hoursBilled: overageHours,
+        isCapped,
+        overstayLevel,
+      };
+    }
+  }
+
+  // Fallback boolean ticket coverage khi caller không truyền timestamp vé
   const isTicketValid = Boolean(hasActiveTicket || hasValidTicket);
-  if (isTicketValid || isExempt) {
+  if (isTicketValid && normalizedTickets.length === 0) {
     return {
       feeAmount: 0,
       feeFormatted: "0đ (Miễn phí / Vé tháng)",
       isCoveredByTicket: true,
-      calculationBreakdown: isExempt
-        ? "Được miễn cước (Đặc cách / Sự cố kỹ thuật)"
-        : "Phương tiện đã đăng ký vé tháng còn hiệu lực",
+      hasPackageCoverage: true,
+      coveredMinutes: 0,
+      overageMinutes: 0,
+      overageHours: 0,
+      feeBreakdownMode: "TICKET_EXEMPT",
+      calculationBreakdown: "Phương tiện đã đăng ký vé tháng còn hiệu lực",
       hoursBilled: 0,
       isCapped: false,
       overstayLevel: "normal",
     };
   }
 
-  // --- BƯỚC 2: XỬ LÝ ÂN HẠN (GRACE PERIOD) ---
-  if (config.gracePeriodMinutes > 0 && durationMinutes < config.gracePeriodMinutes) {
-    return {
-      feeAmount: 0,
-      feeFormatted: `0đ (Miễn phí dưới ${config.gracePeriodMinutes} phút)`,
-      isCoveredByTicket: false,
-      calculationBreakdown: `Thời gian đỗ ${durationMinutes} phút thuộc diện ân hạn (< ${config.gracePeriodMinutes} phút)`,
-      hoursBilled: 0,
-      isCapped: false,
-      overstayLevel: "normal",
-    };
+  // --- BƯỚC 2: TÍNH CƯỚC VÃNG LAI (KHÔNG CÓ BAO PHỦ VÉ) ---
+  let hours;
+  let effectiveMinutes;
+  if (hasTimeWindow) {
+    const totalMs = Math.max(0, exitMs - entryMs);
+    effectiveMinutes = Math.floor(totalMs / 60_000);
+    if (config.gracePeriodMinutes > 0 && totalMs < config.gracePeriodMinutes * 60_000) {
+      return {
+        feeAmount: 0,
+        feeFormatted: `0đ (Miễn phí dưới ${config.gracePeriodMinutes} phút)`,
+        isCoveredByTicket: false,
+        hasPackageCoverage: false,
+        coveredMinutes: 0,
+        overageMinutes: 0,
+        overageHours: 0,
+        feeBreakdownMode: "HOURLY",
+        calculationBreakdown: `Thời gian đỗ ${effectiveMinutes} phút thuộc diện ân hạn (< ${config.gracePeriodMinutes} phút)`,
+        hoursBilled: 0,
+        isCapped: false,
+        overstayLevel: "normal",
+      };
+    }
+    hours = Math.max(config.minimumBilledHours, ceilHoursFromMs(totalMs));
+  } else if (durationSeconds !== null && durationSeconds !== undefined) {
+    const safeSec = Math.max(0, Number(durationSeconds) || 0);
+    effectiveMinutes = Math.floor(safeSec / 60);
+    if (config.gracePeriodMinutes > 0 && safeSec < config.gracePeriodMinutes * 60) {
+      return {
+        feeAmount: 0,
+        feeFormatted: `0đ (Miễn phí dưới ${config.gracePeriodMinutes} phút)`,
+        isCoveredByTicket: false,
+        hasPackageCoverage: false,
+        coveredMinutes: 0,
+        overageMinutes: 0,
+        overageHours: 0,
+        feeBreakdownMode: "HOURLY",
+        calculationBreakdown: `Thời gian đỗ ${effectiveMinutes} phút thuộc diện ân hạn (< ${config.gracePeriodMinutes} phút)`,
+        hoursBilled: 0,
+        isCapped: false,
+        overstayLevel: "normal",
+      };
+    }
+    hours = Math.max(config.minimumBilledHours, ceilHoursFromMs(safeSec * 1000));
+  } else {
+    if (config.gracePeriodMinutes > 0 && durationMinutes < config.gracePeriodMinutes) {
+      return {
+        feeAmount: 0,
+        feeFormatted: `0đ (Miễn phí dưới ${config.gracePeriodMinutes} phút)`,
+        isCoveredByTicket: false,
+        hasPackageCoverage: false,
+        coveredMinutes: 0,
+        overageMinutes: 0,
+        overageHours: 0,
+        feeBreakdownMode: "HOURLY",
+        calculationBreakdown: `Thời gian đỗ ${durationMinutes} phút thuộc diện ân hạn (< ${config.gracePeriodMinutes} phút)`,
+        hoursBilled: 0,
+        isCapped: false,
+        overstayLevel: "normal",
+      };
+    }
+    hours = calculateBilledHours(durationMinutes, config.minimumBilledHours);
   }
 
-  // --- BƯỚC 3: TÍNH TOÁN SỐ GIỜ TÍNH CƯỚC ---
-  const hours = calculateBilledHours(durationMinutes, config.minimumBilledHours);
   const uncappedFee = hours * config.hourlyRateVnd;
-
-  // --- BƯỚC 4: ÁP DỤNG TRẦN BẢO VỆ THEO NGÀY (DAILY CAP) ---
   const cappedFee = calculateCappedFee(hours, config.hourlyRateVnd, config.dailyMaxCapVnd);
   const totalFee = Math.min(uncappedFee, cappedFee);
   const isCapped = totalFee < uncappedFee;
 
-  // Soạn diễn giải chi tiết cho người dùng và nhân viên bãi
   let breakdown;
   if (isCapped) {
     breakdown = `${hours}h đỗ -> Áp dụng trần tối đa theo ngày (${config.dailyMaxCapVnd.toLocaleString("vi-VN")}đ/24h)`;
@@ -160,13 +349,17 @@ export function calculateParkingFee({
     breakdown = `${hours}h x ${config.hourlyRateVnd.toLocaleString("vi-VN")}đ/h (Đơn giá chuẩn OQ-85, tối thiểu 1h đầu)`;
   }
 
-  // --- BƯỚC 5: ĐÁNH GIÁ MỨC ĐỘ XE TỒN BÃI ---
   const overstayLevel = getOverstayLevel(hours, config.overstayWarningHours, config.overstayCriticalHours);
 
   return {
     feeAmount: totalFee,
     feeFormatted: `${totalFee.toLocaleString("vi-VN")}đ`,
     isCoveredByTicket: false,
+    hasPackageCoverage: false,
+    coveredMinutes: 0,
+    overageMinutes: 0,
+    overageHours: 0,
+    feeBreakdownMode: "HOURLY",
     calculationBreakdown: breakdown,
     hoursBilled: hours,
     isCapped,

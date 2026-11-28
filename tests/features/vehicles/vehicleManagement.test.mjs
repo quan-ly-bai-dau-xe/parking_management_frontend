@@ -17,7 +17,7 @@ import {
   makeMockVehicleFormData,
 } from "#tests/factories/vehicleFactory.mjs";
 
-test("VEHICLE-01: VehicleFormSchema validates valid Vietnamese license plates", () => {
+test("[TEST-FE-001][SC-VEH-001] VEHICLE-01: VehicleFormSchema validates valid Vietnamese license plates", () => {
   const validPlates = [
     "30A-123.45",
     "51K-992.14",
@@ -33,7 +33,7 @@ test("VEHICLE-01: VehicleFormSchema validates valid Vietnamese license plates", 
   }
 });
 
-test("VEHICLE-02: VehicleFormSchema rejects invalid or malformed license plates", () => {
+test("[TEST-FE-002][SC-VEH-002] VEHICLE-02: VehicleFormSchema rejects invalid or malformed license plates", () => {
   const invalidPlates = [
     "",
     "   ",

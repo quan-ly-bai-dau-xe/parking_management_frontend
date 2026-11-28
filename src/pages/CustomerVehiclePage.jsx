@@ -1,158 +1,164 @@
-import React, { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import AppTopHeader from "../components/layout/AppTopHeader";
-import VehicleFormModal from "../components/CustomerManagement/CustomerVehicleModal";
-import { mockCustomers } from "../mocks/customerData";
-import { useCurrentUser } from "../hooks/useCurrentUser";
-import { apiClient } from "../services/apiClient";
+import CustomerVehicleModal from "../components/CustomerManagement/CustomerVehicleModal";
+import { ROUTES } from "../config/navigation";
+import { formatDateVN } from "../utils/formatDateTime";
+import { useToast } from "../context/ToastContext";
+import {
+  walletService,
+  extractApiErrorInfo,
+} from "../services/walletService";
+import useModalA11y from "../hooks/useModalA11y";
 
-export default function CustomerVehiclesPage() {
+function isVehicleParked(vehicle) {
+  const rawStatus = String(vehicle?.status || "").toUpperCase();
+  return (
+    Boolean(vehicle?.is_parked) ||
+    rawStatus === "PARKED" ||
+    rawStatus === "IN_LOT" ||
+    Boolean(vehicle?.active_session && !vehicle.active_session.exit_time)
+  );
+}
+
+function getSafeHttpImageUrl(rawUrl) {
+  const trimmed = String(rawUrl || "").trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return "";
+}
+
+export default function CustomerVehiclePage() {
   const navigate = useNavigate();
-  const { user } = useCurrentUser();
+  const toast = useToast();
 
-  const initialVehicles = useMemo(() => {
-    if (!user) return mockCustomers[0].vehicles;
-    const found = mockCustomers.find(
-      (c) =>
-        c.customer.email === user.email ||
-        c.customer.phone === user.phone ||
-        c.customer.identity_card_number === user.identity_card_number
-    );
-    return found ? found.vehicles : mockCustomers[0].vehicles;
-  }, [user]);
+  const [vehicles, setVehicles] = useState([]);
+  const [vehicleTypes, setVehicleTypes] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
 
-  const [vehicles, setVehicles] = useState(initialVehicles);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL"); // 'ALL' | 'PARKED' | 'OUTSIDE'
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
   const [deletingVehicle, setDeletingVehicle] = useState(null);
-  const [toastMessage, setToastMessage] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
-  const showToast = (msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(""), 3000);
+  useEffect(() => {
+    let isSubscribed = true;
+    Promise.all([walletService.getMyVehicles(), walletService.getMyVehicleTypes()])
+      .then(([vehiclesRes, typesRes]) => {
+        if (!isSubscribed) return;
+        setVehicles(vehiclesRes);
+        setVehicleTypes(typesRes);
+        setLoadError("");
+      })
+      .catch((err) => {
+        if (!isSubscribed) return;
+        const info = extractApiErrorInfo(err, "Không thể tải danh sách phương tiện.");
+        setLoadError(info.message);
+      })
+      .finally(() => {
+        if (isSubscribed) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [refreshNonce]);
+
+  const {
+    titleId: deleteTitleId,
+    descriptionId: deleteDescId,
+    dialogProps: deleteDialogProps,
+  } = useModalA11y({
+    isOpen: Boolean(deletingVehicle),
+    onClose: () => setDeletingVehicle(null),
+    isBusy: isDeleting,
+    role: "alertdialog",
+    hasDescription: true,
+  });
+
+  const handleRefresh = () => {
+    setIsLoading(true);
+    setRefreshNonce((n) => n + 1);
   };
 
-  const handleOpenAddModal = () => {
-    setEditingVehicle(null);
-    setIsFormModalOpen(true);
-  };
+  const parkedCount = useMemo(() => vehicles.filter(isVehicleParked).length, [vehicles]);
+  const outsideCount = vehicles.length - parkedCount;
 
-  const handleOpenEditModal = (vehicle) => {
-    setEditingVehicle(vehicle);
-    setIsFormModalOpen(true);
-  };
+  const filteredVehicles = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return vehicles.filter((v) => {
+      const parked = isVehicleParked(v);
+      if (statusFilter === "PARKED" && !parked) return false;
+      if (statusFilter === "OUTSIDE" && parked) return false;
 
-  const handleSaveVehicle = async (vehiclePayload) => {
-    if (editingVehicle) {
-      try {
-        await apiClient(`/api/v1/vehicles/${editingVehicle.code}/`, {
-          method: "PATCH",
-          data: vehiclePayload,
-        });
-      } catch {
-        // Fallback cập nhật state cục bộ
+      if (q) {
+        const plate = String(v.license_plate || "").toLowerCase();
+        const model = String(v.model_name || "").toLowerCase();
+        const brand = String(v.brand || "").toLowerCase();
+        const code = String(v.code || "").toLowerCase();
+        return (
+          plate.includes(q) ||
+          model.includes(q) ||
+          brand.includes(q) ||
+          code.includes(q)
+        );
       }
+      return true;
+    });
+  }, [vehicles, searchQuery, statusFilter]);
 
-      setVehicles((prev) =>
-        prev.map((v) => (v.code === editingVehicle.code ? { ...v, ...vehiclePayload } : v))
-      );
-      showToast(`Đã cập nhật thông tin xe ${vehiclePayload.license_plate}`);
+  const handleSubmitVehicle = async (payload, targetVehicle) => {
+    setActionError("");
+    if (targetVehicle) {
+      const lookup = targetVehicle.code || targetVehicle.id;
+      await walletService.updateMyVehicle(lookup, payload);
+      toast.success("Cập nhật thông tin phương tiện thành công.");
     } else {
-      const isDuplicate = vehicles.some(
-        (v) => v.license_plate_norm === vehiclePayload.license_plate_norm
-      );
-      if (isDuplicate) {
-        throw new Error(`Biển số ${vehiclePayload.license_plate} đã tồn tại trong danh sách của bạn.`);
-      }
-
-      const newCode = `XE${String(vehicles.length + 1).padStart(4, "0")}`;
-      const createdVehicle = {
-        ...vehiclePayload,
-        code: newCode,
-        vehicle_type: "CAR",
-        vehicle_type_name: "Ô tô",
-        is_parked: false,
-        current_location: "Chưa ghi nhận lượt vào bãi",
-        ticket: {
-          ticket_type: "NONE",
-          ticket_type_name: "Không có vé",
-          ticket_code: null,
-          price: "0.00",
-          status: "INACTIVE",
-        },
-      };
-
-      try {
-        await apiClient("/api/v1/vehicles/", {
-          method: "POST",
-          data: createdVehicle,
-        });
-      } catch {
-        // Fallback cập nhật state cục bộ
-      }
-
-      setVehicles((prev) => [createdVehicle, ...prev]);
-      showToast(`Đã thêm xe ô tô ${createdVehicle.license_plate}`);
+      await walletService.createMyVehicle(payload);
+      toast.success("Đăng ký phương tiện mới thành công.");
     }
+    setRefreshNonce((n) => n + 1);
   };
 
   const handleConfirmDelete = async () => {
     if (!deletingVehicle) return;
-
+    setIsDeleting(true);
+    setActionError("");
     try {
-      await apiClient(`/api/v1/vehicles/${deletingVehicle.code}/`, {
-        method: "DELETE",
-      });
-    } catch {
-      // Fallback xóa cục bộ
+      const lookup = deletingVehicle.code || deletingVehicle.id;
+      await walletService.deleteMyVehicle(lookup);
+      toast.success(`Đã xóa phương tiện ${deletingVehicle.license_plate}.`);
+      setDeletingVehicle(null);
+      setRefreshNonce((n) => n + 1);
+    } catch (err) {
+      const info = extractApiErrorInfo(
+        err,
+        "Không thể xóa phương tiện do còn ràng buộc vé hoặc phiên đỗ.",
+      );
+      setActionError(info.message);
+      toast.error(info.message);
+      setDeletingVehicle(null);
+    } finally {
+      setIsDeleting(false);
     }
-
-    setVehicles((prev) => prev.filter((v) => v.code !== deletingVehicle.code));
-    showToast(`Đã xóa xe ${deletingVehicle.license_plate} khỏi hồ sơ`);
-    setDeletingVehicle(null);
-  };
-
-  const filteredVehicles = vehicles.filter((v) => {
-    const matchesStatus =
-      statusFilter === "ALL" ||
-      (statusFilter === "PARKED" && v.is_parked) ||
-      (statusFilter === "OUTSIDE" && !v.is_parked);
-
-    const q = searchQuery.trim().toLowerCase();
-    const matchesQuery =
-      !q ||
-      v.licensePlate.toLowerCase().includes(q) ||
-      v.brand.toLowerCase().includes(q) ||
-      v.model_name.toLowerCase().includes(q) ||
-      v.code.toLowerCase().includes(q);
-
-    return matchesStatus && matchesQuery;
-  });
-
-  const formatDate = (isoString) => {
-    if (!isoString) return "";
-    const d = new Date(isoString);
-    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
   };
 
   return (
     <div className="min-h-screen bg-[#FAF8FF] flex flex-col justify-between font-sans text-slate-800 antialiased selection:bg-blue-600 selection:text-white">
       <AppTopHeader
         variant="customer"
-        activePath="/customerVehicle"
+        activePath={ROUTES.CUSTOMER_VEHICLE}
         showHelp={true}
         showCamera={false}
       />
-
-      {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
 
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* Tiêu đề & Nút Thêm xe */}
@@ -162,13 +168,16 @@ export default function CustomerVehiclesPage() {
               Xe của tôi
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Quản lý danh sách xe ô tô đã đăng ký, trạng thái đỗ và gói vé đi kèm.
+              Quản lý danh sách xe đã đăng ký, trạng thái đỗ và gói vé đi kèm.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={handleOpenAddModal}
+            onClick={() => {
+              setEditingVehicle(null);
+              setIsFormModalOpen(true);
+            }}
             className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-xs sm:text-sm shadow-sm hover:shadow-md hover:shadow-blue-600/20 transition-all inline-flex items-center justify-center gap-2 self-start sm:self-auto cursor-pointer"
           >
             <span className="text-base leading-none font-bold">+</span>
@@ -176,13 +185,26 @@ export default function CustomerVehiclesPage() {
           </button>
         </div>
 
+        {actionError && (
+          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center justify-between gap-3">
+            <span>{actionError}</span>
+            <button
+              type="button"
+              onClick={() => setActionError("")}
+              className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-amber-700 font-semibold hover:underline cursor-pointer"
+            >
+              Đóng
+            </button>
+          </div>
+        )}
+
         {/* Thanh tìm kiếm & Bộ lọc trạng thái đỗ */}
         <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="inline-flex p-1 bg-slate-100/80 rounded-xl gap-1 overflow-x-auto">
             {[
               { key: "ALL", label: `Tất cả (${vehicles.length})` },
-              { key: "PARKED", label: `Đang đỗ (${vehicles.filter((v) => v.is_parked).length})` },
-              { key: "OUTSIDE", label: `Ngoài bãi (${vehicles.filter((v) => !v.is_parked).length})` },
+              { key: "PARKED", label: `Đang đỗ (${parkedCount})` },
+              { key: "OUTSIDE", label: `Ngoài bãi (${outsideCount})` },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -223,36 +245,63 @@ export default function CustomerVehiclesPage() {
           </div>
         </div>
 
-        {/* Lưới danh sách xe ô tô */}
-        {filteredVehicles.length === 0 ? (
+        {/* Lưới danh sách xe */}
+        {isLoading ? (
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-10 text-center text-xs text-slate-500 shadow-2xs">
+            Đang tải danh sách phương tiện...
+          </div>
+        ) : loadError ? (
+          <div className="bg-white rounded-3xl border border-rose-200 p-6 text-center space-y-3 shadow-2xs">
+            <p className="text-xs text-rose-600">{loadError}</p>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className="min-h-[44px] px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : filteredVehicles.length === 0 ? (
           <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center space-y-3">
             <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14V8a2 2 0 00-2-2H7a2 2 0 00-2 2v6m14 0a2 2 0 01-2 2H7a2 2 0 01-2-2m14 0h2m-18 0H3m4 4h.01M17 18h.01" />
               </svg>
             </div>
-            <h3 className="text-sm font-bold text-slate-800">Không tìm thấy xe ô tô phù hợp</h3>
+            <h3 className="text-sm font-bold text-slate-800">Không tìm thấy phương tiện phù hợp</h3>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              Thử thay đổi từ khóa tìm kiếm hoặc bấm "Thêm xe ô tô" để đăng ký phương tiện mới vào tài khoản.
+              Thử thay đổi từ khóa tìm kiếm hoặc bấm &quot;Thêm xe ô tô&quot; để đăng ký phương tiện mới vào tài khoản.
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredVehicles.map((v) => {
-              const hasTicket = v.ticket && v.ticket.ticket_type !== "NONE";
-              const isExpiring =
-                hasTicket && (v.ticket.status === "EXPIRING_SOON" || v.ticket.remaining_days <= 7);
+              const parked = isVehicleParked(v);
+              const safeImageUrl = getSafeHttpImageUrl(v.image_url);
+              const vTypeName =
+                v.vehicle_type?.name || v.vehicle_type_name || v.vehicle_type_code || "Ô tô";
+              const slotText =
+                v.current_slot ||
+                v.parking_slot_code ||
+                v.active_session?.slot_code ||
+                v.current_ticket?.slot_code ||
+                "";
+              const ticket = v.current_ticket || null;
+              const hasTicket =
+                Boolean(ticket) &&
+                String(ticket.status || "").toUpperCase() !== "CANCELLED" &&
+                String(ticket.status || "").toUpperCase() !== "EXPIRED";
 
               return (
                 <div
-                  key={v.code}
+                  key={v.id || v.code}
                   className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-2xs hover:shadow-sm transition-all flex flex-col justify-between"
                 >
                   <div>
-                    {v.image_url ? (
+                    {safeImageUrl ? (
                       <div className="relative h-40 w-full bg-slate-100 overflow-hidden border-b border-slate-100">
                         <img
-                          src={v.image_url}
+                          src={safeImageUrl}
                           alt={v.license_plate}
                           className="w-full h-full object-cover"
                         />
@@ -266,7 +315,7 @@ export default function CustomerVehiclesPage() {
                           {v.code}
                         </span>
                         <span className="text-[11px] font-medium text-slate-400">
-                          Xe ô tô
+                          {vTypeName}
                         </span>
                       </div>
                     )}
@@ -284,7 +333,7 @@ export default function CustomerVehiclesPage() {
                               {v.license_plate}
                             </h3>
                             <p className="text-xs text-slate-500 mt-0.5">
-                              {v.brand} {v.model_name}
+                              {[v.brand, v.model_name].filter(Boolean).join(" ") || "—"}
                               {v.color ? ` · ${v.color}` : ""}
                             </p>
                           </div>
@@ -293,7 +342,7 @@ export default function CustomerVehiclesPage() {
 
                       <div className="space-y-1.5 pt-1">
                         <div>
-                          {v.is_parked ? (
+                          {parked ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold border border-emerald-200/60">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                               Đang đỗ trong bãi
@@ -305,30 +354,41 @@ export default function CustomerVehiclesPage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-400 truncate">
-                          {v.current_location}
-                        </p>
+                        {slotText ? (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`${ROUTES.PARKING_LOT}?slot=${encodeURIComponent(slotText)}`)}
+                            className="text-xs font-semibold text-sky-600 hover:text-sky-700 hover:underline truncate cursor-pointer text-left"
+                            title="Xem vị trí trên sơ đồ bãi đỗ"
+                          >
+                            Vị trí: {slotText} (Xem trên sơ đồ)
+                          </button>
+                        ) : (
+                          <p className="text-xs text-slate-400 truncate">
+                            Chưa ghi nhận vị trí đỗ
+                          </p>
+                        )}
                       </div>
 
                       <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 flex items-center justify-between">
                         <div>
                           <span className="text-xs font-bold text-slate-800 block">
-                            {hasTicket ? v.ticket.ticket_type_name : "Chưa đăng ký vé"}
+                            {hasTicket ? ticket.ticket_type_name || "Vé định kỳ" : "Chưa đăng ký vé"}
                           </span>
-                          <span
-                            className={`text-[11px] block mt-0.5 ${
-                              isExpiring ? "text-amber-600 font-semibold" : "text-slate-400"
-                            }`}
-                          >
-                            {hasTicket
-                              ? `Hết hạn ${formatDate(v.ticket.effective_to)}`
+                          <span className="text-[11px] text-slate-400 block mt-0.5">
+                            {hasTicket && ticket.effective_to
+                              ? `Hết hạn ${formatDateVN(ticket.effective_to, "—")}`
                               : "Thanh toán theo lượt gửi"}
                           </span>
                         </div>
 
                         <button
                           type="button"
-                          onClick={() => navigate("/customer/tickets")}
+                          onClick={() =>
+                            navigate(ROUTES.CUSTOMER_TICKET, {
+                              state: { preselectedVehicleCode: v.code },
+                            })
+                          }
                           className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
                         >
                           {hasTicket ? "Xem vé" : "Mua vé"}
@@ -337,11 +397,26 @@ export default function CustomerVehiclesPage() {
                     </div>
                   </div>
 
-                  {/* Thanh thao tác Sửa / Xóa */}
+                  {/* Thanh thao tác Mua vé / Chỉnh sửa / Xóa */}
                   <div className="px-5 py-3 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between gap-2">
                     <button
                       type="button"
-                      onClick={() => handleOpenEditModal(v)}
+                      onClick={() =>
+                        navigate(ROUTES.CUSTOMER_TICKET, {
+                          state: { preselectedVehicleCode: v.code },
+                        })
+                      }
+                      className="min-h-[44px] py-2 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+                    >
+                      Mua vé
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingVehicle(v);
+                        setIsFormModalOpen(true);
+                      }}
                       className="flex-1 py-2 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -352,10 +427,10 @@ export default function CustomerVehiclesPage() {
 
                     <button
                       type="button"
-                      disabled={v.is_parked}
+                      disabled={parked}
                       onClick={() => setDeletingVehicle(v)}
                       title={
-                        v.is_parked
+                        parked
                           ? "Không thể xóa xe khi đang đỗ trong bãi"
                           : "Xóa xe này"
                       }
@@ -374,17 +449,20 @@ export default function CustomerVehiclesPage() {
         )}
       </main>
 
-      <VehicleFormModal
+      <CustomerVehicleModal
         isOpen={isFormModalOpen}
-        onClose={() => setIsFormModalOpen(false)}
+        onClose={() => {
+          setIsFormModalOpen(false);
+          setEditingVehicle(null);
+        }}
+        onSubmitVehicle={handleSubmitVehicle}
         initialVehicle={editingVehicle}
-        onSubmitVehicle={handleSaveVehicle}
+        vehicleTypes={vehicleTypes}
       />
 
       {deletingVehicle && (
         <div
-          role="dialog"
-          aria-modal="true"
+          {...deleteDialogProps}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
         >
           <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 space-y-4">
@@ -394,31 +472,33 @@ export default function CustomerVehiclesPage() {
               </svg>
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 id={deleteTitleId} className="text-base font-bold text-slate-900">
                 Xác nhận xóa xe ô tô?
               </h3>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              <p id={deleteDescId} className="text-xs text-slate-500 mt-1 leading-relaxed">
                 Bạn có chắc muốn xóa xe{" "}
                 <strong className="font-mono text-slate-800">
                   {deletingVehicle.license_plate}
                 </strong>{" "}
-                ({deletingVehicle.brand} {deletingVehicle.model_name}) khỏi hồ sơ không? Hành động này không thể hoàn tác.
+                ({[deletingVehicle.brand, deletingVehicle.model_name].filter(Boolean).join(" ") || deletingVehicle.code}) khỏi hồ sơ không? Hành động này không thể hoàn tác.
               </p>
             </div>
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={() => setDeletingVehicle(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer disabled:opacity-50"
               >
                 Hủy
               </button>
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={handleConfirmDelete}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
               >
-                Xóa xe
+                {isDeleting ? "Đang xóa..." : "Xóa xe"}
               </button>
             </div>
           </div>

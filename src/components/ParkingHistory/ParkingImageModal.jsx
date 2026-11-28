@@ -60,6 +60,7 @@ export default function ParkingImageModal({ previewSession, onClose }) {
     <ConfirmModal
       isOpen={Boolean(previewSession)}
       onClose={onClose}
+      role="dialog"
       title={`Hình ảnh đối soát camera${previewSession?.licensePlate ? ` — ${previewSession.licensePlate}` : ""}`}
       size="lg"
       showFooter={false}

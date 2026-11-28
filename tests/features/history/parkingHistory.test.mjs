@@ -17,7 +17,7 @@ import {
   makeMockParkingSession,
 } from "#tests/factories/sessionFactory.mjs";
 
-test("HISTORY-01: ParkingSessionSchema validates complete backend session response", () => {
+test("[TEST-HIST-001][SC-HIST-001] HISTORY-01: ParkingSessionSchema validates complete backend session response", () => {
   const rawSession = makeMockRawBackendSession();
   const result = ParkingSessionSchema.safeParse(rawSession);
   assert.equal(result.success, true);
@@ -36,7 +36,7 @@ test("HISTORY-02: ParkingSessionSchema validates in-progress session (null exit 
   assert.equal(result.success, true);
 });
 
-test("HISTORY-03: getParkingSessionStatus classifies session status correctly", () => {
+test("[TEST-HIST-002][SC-HIST-001] HISTORY-03: getParkingSessionStatus classifies session status correctly", () => {
   // Case A: Đang trong bãi (in_progress, không có exitTime)
   const inProgress = { status: "in_progress", exitTime: null };
   assert.equal(getParkingSessionStatus(inProgress), SESSION_STATUS_CONFIG.IN_PROGRESS);

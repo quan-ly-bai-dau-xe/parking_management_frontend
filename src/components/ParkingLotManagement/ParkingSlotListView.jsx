@@ -8,9 +8,11 @@ import {
   Pencil,
   Trash2,
   AlertTriangle,
+  Zap,
 } from "lucide-react";
 import DataTable from "../common/table/DataTable";
 import Button from "../common/button/Button";
+import { formatReservedTimeDisplay } from "../../utils/formatDateTime";
 
 function renderStatusBadge(status, statusText, isOverstay = false) {
   if (status === "OCCUPIED" && isOverstay) {
@@ -44,6 +46,13 @@ function renderStatusBadge(status, statusText, isOverstay = false) {
           {statusText || "Đã đặt trước"}
         </span>
       );
+    case "CHARGING":
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+          <Zap className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+          {statusText || "Đang sạc"}
+        </span>
+      );
     case "MAINTENANCE":
     default:
       return (
@@ -63,6 +72,7 @@ export default function ParkingSlotListView({
   onDeleteSlot,
   selectedFloor = "B1",
   selectedZone = "A",
+  isManager = true,
 }) {
   const columns = useMemo(
     () => [
@@ -90,7 +100,11 @@ export default function ParkingSlotListView({
         minWidth: 140,
         accessor: (slot) => (
           <span className="inline-flex items-center px-2 py-0.5 rounded text-2xs font-medium bg-slate-100 text-slate-700">
-            {slot.type === "PRIORITY" ? "Xe ưu tiên" : "Ô tô tiêu chuẩn"}
+            {slot.type === "PRIORITY"
+              ? "Xe ưu tiên"
+              : slot.type === "EV_CHARGING" || slot.slot_kind === "EV_CHARGING"
+              ? "Trạm sạc xe điện (EV)"
+              : "Ô tô tiêu chuẩn"}
           </span>
         ),
       },
@@ -121,7 +135,7 @@ export default function ParkingSlotListView({
             }`}
           >
             {slot.isOverstay && <AlertTriangle className="w-3 h-3 text-amber-500" />}
-            {slot.duration || slot.reservedTime || slot.note || "—"}
+            {slot.duration || formatReservedTimeDisplay(slot.reservedTime, "") || slot.note || "—"}
           </span>
         ),
       },
@@ -143,29 +157,33 @@ export default function ParkingSlotListView({
             >
               <Eye className="w-3.5 h-3.5" />
             </Button>
-            <Button
-              variant="ghost"
-              size="xs"
-              title="Chỉnh sửa ô đỗ"
-              onClick={() => onEditSlot?.(slot)}
-              className="cursor-pointer !h-7 !px-2 text-slate-600 hover:text-amber-600"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="xs"
-              title="Xóa ô đỗ"
-              onClick={() => onDeleteSlot?.(slot)}
-              className="cursor-pointer !h-7 !px-2 text-slate-600 hover:text-rose-600"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
+            {isManager && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  title="Chỉnh sửa ô đỗ"
+                  onClick={() => onEditSlot?.(slot)}
+                  className="cursor-pointer !h-7 !px-2 text-slate-600 hover:text-amber-600"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  title="Xóa ô đỗ"
+                  onClick={() => onDeleteSlot?.(slot)}
+                  className="cursor-pointer !h-7 !px-2 text-slate-600 hover:text-rose-600"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </>
+            )}
           </div>
         ),
       },
     ],
-    [selectedFloor, selectedZone, onSelectSlot, onEditSlot, onDeleteSlot]
+    [selectedFloor, selectedZone, onSelectSlot, onEditSlot, onDeleteSlot, isManager]
   );
 
   const selectedSlotId = selectedSlot?.id || selectedSlot?.label || selectedSlot?.code;

@@ -2,6 +2,7 @@ import { apiClient } from "./apiClient.js";
 import { fullParkingLotData } from "../mocks/parkingLotData.js";
 import { getMockParkingSlots } from "../mocks/parkingSlotFallback.js";
 import { isMockEnabled } from "../config/appConfig.js";
+import { formatReservedTimeDisplay } from "../utils/formatDateTime.js";
 
 /**
  * Trả về văn bản mô tả trạng thái ô đỗ bằng tiếng Việt
@@ -64,6 +65,22 @@ export function normalizeSlot(rawSlot = {}) {
         ? "WARNING"
         : null);
 
+  const activeRes = rawSlot.active_reservation ?? rawSlot.activeReservation ?? null;
+  const reservedByName =
+    rawSlot.reservedBy ||
+    rawSlot.reserved_by ||
+    rawSlot.reserved_name ||
+    activeRes?.reserved_name ||
+    activeRes?.customer_name ||
+    activeRes?.user_name ||
+    activeRes?.full_name ||
+    null;
+  const reservedPhone =
+    rawSlot.reserved_phone ||
+    activeRes?.reserved_phone ||
+    activeRes?.phone ||
+    null;
+
   return {
     ...rawSlot,
     id: rawSlot.id !== undefined && rawSlot.id !== null ? rawSlot.id : code,
@@ -75,13 +92,14 @@ export function normalizeSlot(rawSlot = {}) {
     statusText: rawSlot.statusText || getStatusText(status),
     type: slotKind,
     slot_kind: slotKind,
-    plate,
-    licensePlate: plate,
+    plate: plate || activeRes?.license_plate || activeRes?.plate_number || null,
+    licensePlate: plate || activeRes?.license_plate || activeRes?.plate_number || null,
     duration: rawSlot.duration || null,
     isOverstay,
     overstaySeverity,
-    reservedTime: rawSlot.reservedTime || rawSlot.reserved_time || null,
-    reservedBy: rawSlot.reservedBy || rawSlot.reserved_by || null,
+    reservedTime: formatReservedTimeDisplay(rawSlot.reservedTime || rawSlot.reserved_time, null),
+    reservedBy: reservedByName,
+    reservedPhone,
     parkingLot:
       rawSlot.parkingLot ||
       rawSlot.parking_lot_name ||
@@ -90,6 +108,20 @@ export function normalizeSlot(rawSlot = {}) {
     zone: rawSlot.zone || rawSlot.zone_code || "A",
     note: rawSlot.note || rawSlot.notes || "",
     notes: rawSlot.notes || rawSlot.note || "",
+    row_version: rawSlot.row_version ?? rawSlot.rowVersion ?? 1,
+    zone_id: rawSlot.zone_id ?? rawSlot.zoneId ?? null,
+    floor_id: rawSlot.floor_id ?? rawSlot.floorId ?? null,
+    lot_id: rawSlot.lot_id ?? rawSlot.lotId ?? null,
+    allowed_vehicle_types: rawSlot.allowed_vehicle_types ?? rawSlot.allowedVehicleTypes ?? [],
+    vehicle_types: rawSlot.vehicle_types ?? rawSlot.vehicleTypes ?? [],
+    open_session: rawSlot.open_session ?? rawSlot.openSession ?? null,
+    active_reservation: rawSlot.active_reservation ?? rawSlot.activeReservation ?? null,
+    active_ticket: rawSlot.active_ticket ?? rawSlot.activeTicket ?? null,
+    width: rawSlot.width ?? null,
+    length: rawSlot.length ?? null,
+    height: rawSlot.height ?? null,
+    map_row: rawSlot.map_row ?? rawSlot.mapRow ?? null,
+    map_col: rawSlot.map_col ?? rawSlot.mapCol ?? null,
   };
 }
 
@@ -138,6 +170,38 @@ export async function getSlots(params = {}) {
   const response = await apiClient("/api/v1/parking/slots/", {
     method: "GET",
     params: Object.keys(queryParams).length > 0 ? queryParams : undefined,
+  });
+
+  const rawList = Array.isArray(response)
+    ? response
+    : Array.isArray(response?.results)
+      ? response.results
+      : [];
+
+  return rawList.map(normalizeSlot);
+}
+
+/**
+ * Lấy danh sách ô đỗ ẩn PII khách khác dành cho CUSTOMER (/api/v1/me/parking-slots/)
+ */
+export async function getCustomerParkingSlots(params = {}) {
+  const queryParams = {
+    page_size: params.page_size ?? params.pageSize ?? 100,
+  };
+  if (params.floor) queryParams.floor = params.floor;
+  if (params.zone) queryParams.zone = params.zone;
+  if (params.status) queryParams.status = params.status;
+  if (params.vehicle_type || params.vehicleType) {
+    queryParams.vehicle_type = params.vehicle_type || params.vehicleType;
+  }
+  if (params.slot_kind || params.slotKind) {
+    queryParams.slot_kind = params.slot_kind || params.slotKind;
+  }
+  if (params.search) queryParams.search = params.search;
+
+  const response = await apiClient("/api/v1/me/parking-slots/", {
+    method: "GET",
+    params: queryParams,
   });
 
   const rawList = Array.isArray(response)
@@ -273,11 +337,129 @@ export async function getActiveSessions(params = {}) {
  */
 export const fetchActiveSessions = getActiveSessions;
 
+/**
+ * Lấy thông tin chi tiết một ô đỗ xe (SRS 4.8.4)
+ * Endpoint: GET /api/v1/parking/slots/${slotId}/
+ *
+ * @param {string|number} slotId - ID ô đỗ
+ * @returns {Promise<Object>} Ô đỗ chi tiết đã chuẩn hóa
+ */
+export async function getSlotDetail(slotId) {
+  if (!slotId) {
+    throw new Error("slotId là bắt buộc để lấy thông tin chi tiết ô đỗ.");
+  }
+  const response = await apiClient(`/api/v1/parking/slots/${slotId}/`, {
+    method: "GET",
+  });
+  return normalizeSlot(response);
+}
+
+/**
+ * Thêm mới ô đỗ xe (SRS 4.8.2 - Chỉ Manager)
+ * Endpoint: POST /api/v1/parking/slots/
+ *
+ * @param {Object} payload - Dữ liệu ô đỗ mới (zone_id, code, slot_kind, status, ...)
+ * @returns {Promise<Object>} Ô đỗ vừa tạo đã chuẩn hóa
+ */
+export async function createSlot(payload) {
+  if (!payload) {
+    throw new Error("Dữ liệu tạo ô đỗ là bắt buộc.");
+  }
+  const response = await apiClient("/api/v1/parking/slots/", {
+    method: "POST",
+    data: payload,
+  });
+  return normalizeSlot(response);
+}
+
+/**
+ * Cập nhật thông tin ô đỗ xe có kiểm soát đồng thời OCC row_version (SRS 4.8.3 - Chỉ Manager)
+ * Endpoint: PATCH /api/v1/parking/slots/${slotId}/
+ *
+ * @param {string|number} slotId - ID ô đỗ
+ * @param {Object} payload - Dữ liệu cập nhật (bắt buộc kèm row_version)
+ * @returns {Promise<Object>} Ô đỗ sau khi cập nhật đã chuẩn hóa
+ */
+export async function updateSlot(slotId, payload) {
+  if (!slotId) {
+    throw new Error("slotId là bắt buộc để cập nhật thông tin ô đỗ.");
+  }
+  const response = await apiClient(`/api/v1/parking/slots/${slotId}/`, {
+    method: "PATCH",
+    data: payload,
+  });
+  return normalizeSlot(response);
+}
+
+/**
+ * Xóa mềm ô đỗ xe (SRS 4.8.5 - Chỉ Manager)
+ * Endpoint: DELETE /api/v1/parking/slots/${slotId}/
+ *
+ * @param {string|number} slotId - ID ô đỗ
+ * @returns {Promise<Object>} Phản hồi xóa thành công
+ */
+export async function deleteSlot(slotId) {
+  if (!slotId) {
+    throw new Error("slotId là bắt buộc để xóa ô đỗ.");
+  }
+  return await apiClient(`/api/v1/parking/slots/${slotId}/`, {
+    method: "DELETE",
+  });
+}
+
+
+export async function getCustomerParkingStructure() {
+  return await apiClient("/api/v1/me/parking-structure/", {
+    method: "GET",
+  });
+}
+
+export async function reserveSlot(slotId, payload) {
+  if (!slotId) {
+    throw new Error("slotId là bắt buộc để đăng ký đặt chỗ.");
+  }
+  return await apiClient(`/api/v1/parking/slots/${slotId}/reserve/`, {
+    method: "POST",
+    data: payload,
+  });
+}
+
+export async function getReservations(params = {}) {
+  const response = await apiClient("/api/v1/parking/reservations/", {
+    method: "GET",
+    params: Object.keys(params).length > 0 ? params : undefined,
+  });
+  return Array.isArray(response)
+    ? response
+    : Array.isArray(response?.results)
+      ? response.results
+      : [];
+}
+
+export async function cancelReservation(reservationId) {
+  if (!reservationId) {
+    throw new Error("reservationId là bắt buộc để hủy đặt chỗ.");
+  }
+  return await apiClient(`/api/v1/parking/reservations/${reservationId}/cancel/`, {
+    method: "POST",
+    data: {},
+  });
+}
+
 export const parkingLotService = {
   getSlots,
+  getCustomerParkingSlots,
   fetchParkingSlots,
-  updateSlotStatus,
+  getSlotDetail,
+  createSlot,
+  updateSlot,
+  deleteSlot,
   getParkingStructure,
+  getCustomerParkingStructure,
+  reserveSlot,
+  getReservations,
+  cancelReservation,
+  updateSlotStatus,
   fetchParkingStructure,
   getParkingLotConfig,
   fetchParkingLotConfig,

@@ -11,7 +11,7 @@ import {
 } from "#src/services/parkingLotService.js";
 import { makeMockSlot, makeMockFullInventory } from "#tests/factories/slotFactory.mjs";
 
-test("SLOT-01: getAllParkingSlotsInventory returns exactly 96 slots conforming to PostgreSQL schema", () => {
+test("[TEST-LOT-001][SC-LOT-001] SLOT-01: getAllParkingSlotsInventory returns exactly 96 slots conforming to PostgreSQL schema", () => {
   const slots = getAllParkingSlotsInventory();
   assert.equal(slots.length, 96, "Tổng số slot toàn bãi phải là 96");
 
@@ -44,21 +44,28 @@ test("SLOT-01: getAllParkingSlotsInventory returns exactly 96 slots conforming t
   assert.equal(zoneD[23].code, "D-24");
 });
 
-test("SLOT-02: getAvailableSlotsForCheckIn excludes slots occupied by open sessions", async () => {
+test("[TEST-LOT-002][SC-LOT-001] SLOT-02: getAvailableSlotsForCheckIn excludes slots occupied by open sessions", async () => {
   const originalRequest = axiosInstance.request;
 
   try {
     // Giả lập slot 1, 2, 3 (A-01, A-02, A-03) đang có session mở
-    axiosInstance.request = async () => ({
-      data: {
-        count: 3,
-        results: [
-          { id: 101, slot_id: 1, status: "open" },
-          { id: 102, slot_id: 2, status: "open" },
-          { id: 103, slot_id: 3, status: "open" },
-        ],
-      },
-    });
+    axiosInstance.request = async (config) => {
+      if (config.url.includes("/api/v1/parking/slots/")) {
+        const err = new Error("Not Found");
+        err.status = 404;
+        throw err;
+      }
+      return {
+        data: {
+          count: 3,
+          results: [
+            { id: 101, slot_id: 1, status: "open" },
+            { id: 102, slot_id: 2, status: "open" },
+            { id: 103, slot_id: 3, status: "open" },
+          ],
+        },
+      };
+    };
 
     const availableSlots = await getAvailableSlotsForCheckIn();
     assert.equal(availableSlots.length, 96 - 3, "Phải còn lại 93 slots");

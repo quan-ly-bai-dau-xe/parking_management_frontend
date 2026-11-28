@@ -50,7 +50,7 @@ export default function ScanPlateCameraFeed({
       });
     };
 
-    updateMetrics();
+    const rafId = requestAnimationFrame(updateMetrics);
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateMetrics) : null;
     if (ro && containerRef.current) {
       ro.observe(containerRef.current);
@@ -58,6 +58,7 @@ export default function ScanPlateCameraFeed({
     window.addEventListener("resize", updateMetrics);
 
     return () => {
+      cancelAnimationFrame(rafId);
       if (ro) ro.disconnect();
       window.removeEventListener("resize", updateMetrics);
     };

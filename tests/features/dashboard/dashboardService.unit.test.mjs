@@ -120,61 +120,71 @@ test("DASHBOARD-05: mapActivityToHistoryRow maps vehicle entry/exit log", () => 
 });
 
 test("DASHBOARD-06: dashboardService throws error without silent fallback when mock is disabled and backend unreachable", async () => {
-  // Khi mockConfig dashboard: undefined / false, không được nuốt lỗi mà phải ném lỗi ra ngoài
-  await assert.rejects(
-    async () => {
-      await dashboardService.getOverviewMetrics();
+  // Đảm bảo mock bị tắt (khi mockConfig dashboard: undefined / false)
+  globalThis.window = {
+    localStorage: {
+      getItem: (key) => (key === "MOCK_DASHBOARD" ? "false" : null),
     },
-    (err) => {
-      assert.ok(err);
-      return true;
-    },
-    "getOverviewMetrics must reject when backend is unreachable without silent fallback"
-  );
+  };
 
-  await assert.rejects(
-    async () => {
-      await dashboardService.getAnomalyAlerts();
-    },
-    (err) => {
-      assert.ok(err);
-      return true;
-    },
-    "getAnomalyAlerts must reject when backend is unreachable without silent fallback"
-  );
+  try {
+    await assert.rejects(
+      async () => {
+        await dashboardService.getOverviewMetrics();
+      },
+      (err) => {
+        assert.ok(err);
+        return true;
+      },
+      "getOverviewMetrics must reject when backend is unreachable without silent fallback"
+    );
 
-  await assert.rejects(
-    async () => {
-      await dashboardService.getAllHistory();
-    },
-    (err) => {
-      assert.ok(err);
-      return true;
-    },
-    "getAllHistory must reject when backend is unreachable without silent fallback"
-  );
+    await assert.rejects(
+      async () => {
+        await dashboardService.getAnomalyAlerts();
+      },
+      (err) => {
+        assert.ok(err);
+        return true;
+      },
+      "getAnomalyAlerts must reject when backend is unreachable without silent fallback"
+    );
 
-  await assert.rejects(
-    async () => {
-      await dashboardService.getFloorDetails("B1");
-    },
-    (err) => {
-      assert.ok(err);
-      return true;
-    },
-    "getFloorDetails must reject when backend is unreachable without silent fallback"
-  );
+    await assert.rejects(
+      async () => {
+        await dashboardService.getAllHistory();
+      },
+      (err) => {
+        assert.ok(err);
+        return true;
+      },
+      "getAllHistory must reject when backend is unreachable without silent fallback"
+    );
 
-  await assert.rejects(
-    async () => {
-      await dashboardService.loadInitialDashboard("B1");
-    },
-    (err) => {
-      assert.ok(err);
-      return true;
-    },
-    "loadInitialDashboard must reject when backend is unreachable without silent fallback"
-  );
+    await assert.rejects(
+      async () => {
+        await dashboardService.getFloorDetails("B1");
+      },
+      (err) => {
+        assert.ok(err);
+        return true;
+      },
+      "getFloorDetails must reject when backend is unreachable without silent fallback"
+    );
+
+    await assert.rejects(
+      async () => {
+        await dashboardService.loadInitialDashboard("B1");
+      },
+      (err) => {
+        assert.ok(err);
+        return true;
+      },
+      "loadInitialDashboard must reject when backend is unreachable without silent fallback"
+    );
+  } finally {
+    delete globalThis.window;
+  }
 });
 
 test("DASHBOARD-07: dashboardService returns mock data when mock is explicitly enabled", async () => {

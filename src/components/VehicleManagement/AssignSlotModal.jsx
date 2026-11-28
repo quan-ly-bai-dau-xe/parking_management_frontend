@@ -21,14 +21,22 @@ export default function AssignSlotModal({ isOpen, onClose, vehicle, onAssignSlot
     return typeStr.includes("EV") || typeStr.includes("ĐIỆN") ? "EV" : "CAR";
   }, [vehicle]);
 
+  const loadKey = isOpen ? `${vehicleTypeCode}|${vehicle?.licensePlate || ""}` : null;
+  const [prevLoadKey, setPrevLoadKey] = useState(null);
+  if (loadKey !== prevLoadKey) {
+    setPrevLoadKey(loadKey);
+    if (loadKey) {
+      setIsLoadingSlots(true);
+      setErrorMessage("");
+      setSelectedSlotId(null);
+    }
+  }
+
   // Async slot loading when modal is open
   useEffect(() => {
     if (!isOpen) return undefined;
 
     let isMounted = true;
-    setIsLoadingSlots(true);
-    setErrorMessage("");
-    setSelectedSlotId(null);
 
     getAvailableSlotsForCheckIn({
       vehicleTypeCode,
@@ -58,7 +66,14 @@ export default function AssignSlotModal({ isOpen, onClose, vehicle, onAssignSlot
   }, [isOpen, vehicleTypeCode, vehicle?.licensePlate]);
 
   const selectedSlot = useMemo(
-    () => availableSlots.find((s) => s.id === selectedSlotId) || null,
+    () =>
+      availableSlots.find(
+        (s) =>
+          selectedSlotId !== null &&
+          selectedSlotId !== undefined &&
+          (String(s.id) === String(selectedSlotId) ||
+            String(s.code || "").toUpperCase() === String(selectedSlotId).toUpperCase())
+      ) || null,
     [availableSlots, selectedSlotId]
   );
 
@@ -84,6 +99,7 @@ export default function AssignSlotModal({ isOpen, onClose, vehicle, onAssignSlot
     <BaseModal
       isOpen={isOpen}
       onClose={onClose}
+      isBusy={isSubmitting}
       title="Chỉ định vị trí ô đỗ"
       description="Xếp xe đang có mặt trong bãi vào ô đỗ thực tế khả dụng"
       size="lg"

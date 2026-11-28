@@ -1,42 +1,87 @@
 /**
  * paymentConstants.js
- * Tập trung hóa toàn bộ hằng số về tài chính, số dư ví, các gói nạp và phương thức thanh toán.
- * 
- * ⚠️ QUAN TRỌNG VỀ AN TOÀN TÀI CHÍNH (FINANCIAL SAFETY GUARDRAIL):
- * - Toàn bộ dữ liệu số dư ví (Wallet Balance), tiền nạp (Deposit) ở Frontend HIỆN TẠI LÀ DỮ LIỆU MÔ PHỎNG (MOCK/SIMULATION).
- * - Backend chưa triển khai bảng ví điện tử và API thanh toán thật (PostgreSQL chỉ hỗ trợ CASH và VIETQR tĩnh).
- * - Mọi giao dịch trừ ví ở Frontend chỉ có giá trị mô phỏng UI/UX, KHÔNG ĐƯỢC coi là giao dịch tiền tệ thật.
- * - Khi kết nối Backend thật, BẮT BUỘC phải lấy số dư và trừ tiền thông qua API Backend có chữ ký số / idempotency token,
- *   tuyệt đối không tin cậy state cục bộ của client.
+ * Payment methods, VietQR simulation banner copy, wallet UI presets, and VND formatting.
  */
 
-// Cờ đánh dấu chế độ mô phỏng tài chính cho môi trường hiện tại
-export const IS_PAYMENT_SIMULATION = true;
-export const SIMULATION_DISCLAIMER_TEXT = "Dữ liệu ví mô phỏng (Chưa kết nối cổng thanh toán thật)";
+export const SIMULATED_TOPUP_DISCLAIMER =
+  "Giao dịch nạp tiền qua VietQR đang ở chế độ mô phỏng thanh toán trực tuyến.";
 
-// Phương thức thanh toán được hỗ trợ trên hệ thống
-export const PAYMENT_METHODS = {
-  WALLET: "WALLET", // Mô phỏng ví Smart Parking
-  VNPAY: "VNPAY",   // Quẹt POS / VNPAY-QR
-  VIETQR: "VIETQR", // VietQR Napas 247
-  CASH: "CASH",     // Tiền mặt tại barrier
+export const VNPAY_SANDBOX_DISCLAIMER =
+  "Môi trường kiểm thử VNPAY SANDBOX. Vui lòng chỉ sử dụng thẻ test NCB / thông tin thử nghiệm của VNPAY, không dùng thẻ ngân hàng thật.";
+
+export const VNPAY_DISABLED_MESSAGE =
+  "Cổng thanh toán VNPAY hiện chưa được cấu hình hoặc tạm ngừng hoạt động.";
+
+export const VNPAY_TOPUP_LIMITS = {
+  MIN_VND: 10000,
+  MAX_VND: 50000000,
 };
 
-// Cấu hình ví điện tử mô phỏng Smart Parking
+export function parseTopupAmountParam(raw) {
+  if (raw === null || raw === undefined || raw === "") return null;
+  if (typeof raw === "number") {
+    return Number.isInteger(raw) && raw > 0 ? raw : null;
+  }
+  const str = String(raw).trim();
+  if (!/^\d+$/.test(str)) return null;
+  const parsed = Number(str);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+export const PAYMENT_METHODS = {
+  WALLET: "WALLET",
+  VNPAY: "VNPAY",
+  VIETQR: "VIETQR",
+  CASH: "CASH",
+};
+
 export const WALLET_CONFIG = {
-  // Số dư mặc định hiển thị cho người dùng đã liên kết app (Mô phỏng - KHÔNG PHẢI TIỀN THẬT)
-  DEFAULT_INITIAL_BALANCE_VND: 250000,
-  // Số dư tối thiểu để cảnh báo người dùng cần nạp tiền
   LOW_BALANCE_THRESHOLD_VND: 20000,
-  // Các mệnh giá nạp tiền nhanh đề xuất qua cổng VNPAY mô phỏng
   DEPOSIT_PRESET_AMOUNTS_VND: [50000, 100000, 200000, 500000, 1000000, 2000000],
-  // Mệnh giá nạp mặc định khi mở modal
   DEFAULT_DEPOSIT_AMOUNT_VND: 100000,
 };
 
-// Định dạng tiền tệ VND chuẩn thống nhất toàn ứng dụng
 export function formatCurrencyVND(amount) {
-  const num = Number(amount) || 0;
+  const num = Math.round(Number(amount) || 0);
   return `${new Intl.NumberFormat("vi-VN").format(num)}đ`;
 }
+
+// Bảng giá cơ sở vé tháng theo loại phương tiện (VND / tháng cơ sở)
+export const BASE_MONTHLY_RATES = Object.freeze({
+  CAR: 1200000,  // Ô tô: 1.200.000đ/tháng
+  EV: 1100000,   // Xe điện: 1.100.000đ/tháng (ưu đãi xe xanh)
+  BIKE: 150000,  // Xe máy: 150.000đ/tháng
+});
+
+// Các gói thời hạn vé đỗ xe cho khách hàng đăng ký
+export const TICKET_PLANS = Object.freeze([
+  {
+    id: "MONTHLY",
+    name: "Vé tháng",
+    durationDays: 30,
+    months: 1,
+    discount: 0,
+    badge: null,
+    desc: "Linh hoạt theo tháng, phù hợp nhu cầu ngắn hạn.",
+  },
+  {
+    id: "QUARTERLY",
+    name: "Vé quý (3 tháng)",
+    durationDays: 90,
+    months: 3,
+    discount: 0.08, // Giảm 8%
+    badge: "Tiết kiệm 8%",
+    desc: "Ổn định 90 ngày, ưu tiên giữ cố định vị trí đỗ.",
+  },
+  {
+    id: "YEARLY",
+    name: "Vé năm (12 tháng)",
+    durationDays: 365,
+    months: 12,
+    discount: 0.16, // Giảm 16%
+    badge: "Tiết kiệm 16%",
+    desc: "Trọn gói 1 năm với mức chiết khấu cao nhất.",
+  },
+]);
+
 

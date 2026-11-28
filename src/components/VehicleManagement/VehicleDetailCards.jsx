@@ -1,4 +1,3 @@
-import React from "react";
 import Button from "../common/button/Button";
 import { DEFAULT_UNASSIGNED_SLOT_LABEL } from "../../constants/vehicleConstants";
 

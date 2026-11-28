@@ -36,6 +36,11 @@ function EmployeeModalContent({ onClose, employee, onSave }) {
     city: employee?.city ?? "",
     status: employee?.status ?? (isEditing ? "" : "active"),
     tone: employee?.tone ?? "blue",
+    ...(isEditing
+      ? {
+          rowVersion: employee?.rowVersion ?? employee?.row_version ?? 1,
+        }
+      : {}),
   }));
 
   const [errors, setErrors] = useState({});

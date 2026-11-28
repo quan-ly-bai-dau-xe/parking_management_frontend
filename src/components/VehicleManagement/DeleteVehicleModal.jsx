@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import ConfirmModal from "../common/modal/ConfirmModal";
 import { VEHICLE_DELETE_MESSAGES } from "../../constants/vehicleConstants";
 import { useCurrentUser } from "../../hooks/useCurrentUser";

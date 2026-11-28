@@ -7,3 +7,4 @@ export { default as ParkingLotStructureAndActivity } from "./ParkingLotStructure
 export { default as EditSlotModal } from "./EditSlotModal";
 export { default as AddSlotModal } from "./AddSlotModal";
 export { default as StructureModal } from "./StructureModal";
+export { default as ReserveSlotModal } from "./ReserveSlotModal";

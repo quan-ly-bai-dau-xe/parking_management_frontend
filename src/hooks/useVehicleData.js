@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   fetchVehicles,
   fetchVehicleSummary,
@@ -32,7 +32,15 @@ export default function useVehicleData() {
   }, []);
 
   useEffect(() => {
-    refreshStats();
+    let isCancelled = false;
+    queueMicrotask(() => {
+      if (!isCancelled) {
+        refreshStats();
+      }
+    });
+    return () => {
+      isCancelled = true;
+    };
   }, [refreshStats]);
 
   // Load and hydrate vehicles with customer phones and active parking slot
@@ -162,7 +170,15 @@ export default function useVehicleData() {
   }, []);
 
   useEffect(() => {
-    loadVehicles();
+    let isCancelled = false;
+    queueMicrotask(() => {
+      if (!isCancelled) {
+        loadVehicles();
+      }
+    });
+    return () => {
+      isCancelled = true;
+    };
   }, [loadVehicles]);
 
   return {

@@ -1,3 +1,4 @@
+import { useId } from "react";
 import LoadingSpinner from "../LoadingSpinner";
 import BaseModal from "./BaseModal";
 
@@ -39,8 +40,14 @@ export default function ConfirmModal({
   showFooter = true,
   showCloseButton = true,
   size = "md",
+  role = null,
   className = "",
 }) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const bodyId = useId();
+  const resolvedRole =
+    role || (onConfirm || variant === "error" || variant === "warning" ? "alertdialog" : "dialog");
   const variantStyles = {
     info: {
       iconBg: "bg-blue-50 text-blue-600",
@@ -91,11 +98,11 @@ export default function ConfirmModal({
           {icon || currentVariant.iconSvg}
         </div>
         <div>
-          <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+          <h3 id={titleId} className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
             {title}
           </h3>
           {description && (
-            <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+            <p id={descriptionId} className="text-xs text-slate-500 mt-0.5">{description}</p>
           )}
         </div>
       </div>
@@ -103,7 +110,9 @@ export default function ConfirmModal({
       {showCloseButton && (
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => {
+            if (!loading) onClose?.();
+          }}
           className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
           aria-label="Đóng"
         >
@@ -144,6 +153,11 @@ export default function ConfirmModal({
       isOpen={isOpen}
       onClose={onClose}
       size={size}
+      role={resolvedRole}
+      isBusy={loading}
+      ariaLabelledBy={titleId}
+      ariaDescribedBy={description ? descriptionId : children ? bodyId : null}
+      bodyId={!description && children ? bodyId : null}
       showCloseButton={false}
       header={customHeader}
       footer={customFooter}

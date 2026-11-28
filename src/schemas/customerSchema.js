@@ -1,9 +1,28 @@
 import { z } from "zod";
+import { isValidDateFormat } from "../utils/dateUtils.js";
 
 /**
  * Pure Zod Validation Schemas cho Customer Domain.
  * Kiểm tra tính hợp lệ của contract từ Backend / Mock Data.
  */
+
+export const CustomerBirthdaySchema = z
+  .string()
+  .trim()
+  .refine((val) => !val || isValidDateFormat(val), {
+    message: "Ngày sinh không đúng định dạng dd/mm/yyyy hoặc ngày không hợp lệ trên lịch.",
+  });
+
+export const CustomerFormSchema = z.object({
+  name: z.string().trim().min(1, "Vui lòng nhập họ và tên khách hàng"),
+  phone: z.string().trim().min(1, "Vui lòng nhập số điện thoại"),
+  idNumber: z.string().trim().min(1, "Vui lòng nhập số CCCD/CMND"),
+  birthday: CustomerBirthdaySchema.optional(),
+  email: z.string().trim().email("Email không hợp lệ").or(z.literal("")).optional(),
+  gender: z.string().optional(),
+  status: z.string().optional(),
+  packageType: z.string().optional(),
+});
 
 export const CustomerVehicleSchema = z.object({
   id: z.union([z.number(), z.string()]),
@@ -41,6 +60,10 @@ export const CustomerListItemSchema = z.object({
   isAnonymized: z.boolean().optional(),
   is_test_sample: z.boolean().optional(),
   isTestSample: z.boolean().optional(),
+  wallet_balance: z.union([z.number(), z.string()]).nullable().optional(),
+  walletBalance: z.union([z.number(), z.string()]).nullable().optional(),
+  wallet_status: z.string().nullable().optional(),
+  walletStatus: z.string().nullable().optional(),
 });
 
 export const CustomerDetailSchema = z.object({
@@ -66,5 +89,9 @@ export const CustomerDetailSchema = z.object({
   status_reason: z.string().nullable().optional(),
   is_anonymized: z.boolean().optional(),
   row_version: z.number().optional(),
+  wallet_balance: z.union([z.number(), z.string()]).nullable().optional(),
+  walletBalance: z.union([z.number(), z.string()]).nullable().optional(),
+  wallet_status: z.string().nullable().optional(),
+  walletStatus: z.string().nullable().optional(),
   vehicles: z.array(z.any()).optional().default([]),
 });

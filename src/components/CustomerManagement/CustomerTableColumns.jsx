@@ -1,7 +1,7 @@
-import React from "react";
 import { TableActions } from "../common";
+import { formatCurrencyVND } from "../../constants/paymentConstants";
 
-export const getCustomerColumns = ({ onEdit, onDeleteClick }) => [
+export const getCustomerColumns = ({ onViewDetail, onEdit, onDeleteClick }) => [
   {
     header: "Mã khách hàng",
     accessor: "customerCode",
@@ -83,11 +83,12 @@ export const getCustomerColumns = ({ onEdit, onDeleteClick }) => [
     },
   },
   {
-    header: "Gói vé đăng ký",
-    accessor: "packageType",
+    header: "Số dư ví",
+    accessor: "walletBalance",
+    align: "right",
     renderCell: (row) => (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-        {row.packageType || "Vé tháng"}
+      <span className="font-semibold text-blue-700 whitespace-nowrap">
+        {formatCurrencyVND(row.walletBalance ?? 0)}
       </span>
     ),
   },
@@ -145,6 +146,13 @@ export const getCustomerColumns = ({ onEdit, onDeleteClick }) => [
       return (
         <TableActions
           actions={[
+            {
+              label: "Ví & Chi tiết",
+              icon: "view",
+              title: "Xem chi tiết & Nạp tiền mặt vào ví",
+              className: "min-w-[44px] min-h-[44px] px-2 whitespace-nowrap text-blue-600 hover:text-blue-800 cursor-pointer",
+              onClick: () => onViewDetail && onViewDetail(row),
+            },
             {
               label: "Sửa",
               icon: "edit",

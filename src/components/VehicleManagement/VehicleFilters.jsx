@@ -1,4 +1,3 @@
-import React from "react";
 import PageToolbar from "../common/PageToolbar";
 import FilterSelect from "../common/FilterSelect";
 import { FormInput } from "../common/form";

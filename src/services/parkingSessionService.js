@@ -111,6 +111,7 @@ export async function getAvailableSlotsForCheckIn({
   vehicleType = "CAR",
   licensePlate = "",
   filterReserved = false,
+  useMock = undefined,
 } = {}) {
   const resolvedVehicleType = vehicleTypeCode || vehicleType || "CAR";
   const normPlate = String(licensePlate || "")
@@ -120,31 +121,39 @@ export async function getAvailableSlotsForCheckIn({
     String(resolvedVehicleType || "").toUpperCase() === "EV" ||
     String(resolvedVehicleType || "").includes("ĐIỆN");
 
-  let candidateSlots = [];
+  const shouldUseMock =
+    typeof useMock === "boolean" ? useMock : USE_MOCK;
 
-  // Nếu không bật cờ mock, thử gọi REST API thực tế từ Backend
-  if (!USE_MOCK) {
-    try {
-      const rawSlots = await getSlots({ status: "AVAILABLE" });
-      if (Array.isArray(rawSlots) && rawSlots.length > 0) {
-        candidateSlots = rawSlots.map((s) => ({
-          ...s,
-          id: Number(s.id),
-          code: s.code || `Slot #${s.id}`,
-          slotCode: s.code || `Slot #${s.id}`,
-          zone: s.zone || "Khu A",
-          floor: s.floor || "Tầng B1",
-          display: s.display || `${s.zone || "Khu A"} · ${s.floor || "Tầng B1"} · Slot ${s.code || s.id}`,
-          kind: s.slot_kind || s.type || "STANDARD",
-          type: s.type || (s.slot_kind === "EV_CHARGING" ? "ev" : "car"),
-        }));
+  // When mock mode is off, query the live backend slots endpoint directly without silent mock fallback
+  if (!shouldUseMock) {
+    const rawSlots = await getSlots({ status: "AVAILABLE" });
+    const realAvailable = (Array.isArray(rawSlots) ? rawSlots : []).map((s) => ({
+      ...s,
+      id: Number(s.id),
+      code: s.code || `Slot #${s.id}`,
+      slotCode: s.code || `Slot #${s.id}`,
+      zone: s.zone || "Khu A",
+      floor: s.floor || "Tầng B1",
+      display: s.display || `${s.zone || "Khu A"} · ${s.floor || "Tầng B1"} · Slot ${s.code || s.id}`,
+      kind: s.slot_kind || s.type || "STANDARD",
+      type: s.type || (s.slot_kind === "EV_CHARGING" ? "ev" : "car"),
+    }));
+
+    return realAvailable.sort((a, b) => {
+      if (isEv) {
+        if (a.kind === "EV_CHARGING" && b.kind !== "EV_CHARGING") return -1;
+        if (a.kind !== "EV_CHARGING" && b.kind === "EV_CHARGING") return 1;
+      } else {
+        if (a.kind === "STANDARD" && b.kind !== "STANDARD") return -1;
+        if (a.kind !== "STANDARD" && b.kind === "STANDARD") return 1;
       }
-    } catch (err) {
-      console.warn("Backend /slots/ API chưa hỗ trợ hoặc trả về lỗi, fallback sang slot inventory:", err?.message);
-    }
+      return a.id - b.id;
+    });
   }
 
-  // Nếu candidateSlots vẫn rỗng (do USE_MOCK=true hoặc backend chưa có endpoint /api/v1/parking/slots/ [404])
+  let candidateSlots = [];
+
+  // Mock path (used only when shouldUseMock === true in unit tests / explicit mock mode)
   if (candidateSlots.length === 0) {
     const allSlots = getAllParkingSlotsInventory();
     const occupiedSlotIds = new Set();
@@ -333,7 +342,21 @@ export async function forceCloseSessionAndReleaseSlot({
   sessionCode,
   notes = "Cưỡng chế đóng phiên đỗ khẩn cấp bởi Quản lý",
   exitGateId,
+  paymentMethod = "CASH",
+  waiveFee = false,
+  waiverReason = "",
+  waive_fee = false,
+  waiver_reason = "",
 }) {
+  const isWaive = Boolean(waiveFee || waive_fee || paymentMethod === "EXEMPT");
+  const finalWaiverReason = (waiverReason || waiver_reason || notes || "Hủy phiên do quét nhầm/sai").trim();
+  let backendPaymentMethod = "CASH";
+  if (paymentMethod === "WALLET") {
+    backendPaymentMethod = "WALLET";
+  } else if (paymentMethod === "VNPAY" || paymentMethod === "VIETQR") {
+    backendPaymentMethod = "VIETQR";
+  }
+
   if (USE_MOCK) {
     const idx = mockParkingHistory.findIndex(
       (s) =>
@@ -342,13 +365,11 @@ export async function forceCloseSessionAndReleaseSlot({
     );
     let updatedSession = null;
     if (idx !== -1) {
-      const targetPlate = licensePlate || mockParkingHistory[idx].licensePlate;
-      const targetVeh = mockVehicles.find((v) => v.licensePlate === targetPlate);
-      const hasActiveTicket = targetVeh?.ticket?.status === "active";
       const feeData = calculateParkingFee({
         vehicleType: mockParkingHistory[idx].vehicleType || "CAR",
         durationMinutes: 120,
         hasActiveTicket: false, // Phân định rõ xe trừ ví theo giờ, không miễn 0đ tự động
+        isExempt: isWaive,
       });
 
       mockParkingHistory[idx].exitTime = new Date().toLocaleString("vi-VN", {
@@ -357,8 +378,9 @@ export async function forceCloseSessionAndReleaseSlot({
       });
       mockParkingHistory[idx].status = "completed";
       mockParkingHistory[idx].notes = notes;
-      mockParkingHistory[idx].fee = feeData.feeFormatted;
-      mockParkingHistory[idx].feeNumber = feeData.feeAmount;
+      mockParkingHistory[idx].fee = isWaive ? "0đ (Miễn cước đặc cách)" : feeData.feeFormatted;
+      mockParkingHistory[idx].feeNumber = isWaive ? 0 : feeData.feeAmount;
+      mockParkingHistory[idx].paymentMethod = isWaive ? "WAIVED" : backendPaymentMethod;
       mockParkingHistory[idx].duration = "2 giờ 0 phút";
       updatedSession = mockParkingHistory[idx];
     }
@@ -380,9 +402,14 @@ export async function forceCloseSessionAndReleaseSlot({
   // Backend yêu cầu cung cấp chính xác 1 trong 2 tiêu chí (PROP-4.5.1-P11): session_code HOẶC license_plate
   const payload = {
     exit_gate_id: targetGateId,
-    payment_method: "CASH",
     notes,
   };
+  if (isWaive) {
+    payload.waive_fee = true;
+    payload.waiver_reason = finalWaiverReason;
+  } else {
+    payload.payment_method = backendPaymentMethod;
+  }
   if (sessionCode && typeof sessionCode === "string" && sessionCode.trim()) {
     payload.session_code = sessionCode.trim();
   } else if (licensePlate && typeof licensePlate === "string" && licensePlate.trim()) {
@@ -494,10 +521,9 @@ export function calculateLocalFeePreview({
 /**
  * Tra cứu thông tin dự tính cước phí xe ra bãi (Fee Preview).
  * Single Source of Truth cho luồng tính cước trước khi thanh toán / check-out.
- * Cơ chế linh hoạt:
- * - Ưu tiên gọi API Backend nếu có (`/api/v1/parking/sessions/fee-preview/`).
- * - Khi Backend trả về 404 hoặc mạng lỗi, tự động fallback an toàn qua `calculateLocalFeePreview`
- *   để giao diện không bao giờ bị treo ở trạng thái "Đang tính...".
+ * - Khi `USE_MOCK === true`: dùng dữ liệu mock nội bộ qua `calculateLocalFeePreview`.
+ * - Khi `USE_MOCK === false`: gọi thẳng `/api/v1/parking/sessions/fee-preview/` và ném lỗi HTTP thật
+ *   (ví dụ 404 PROP-4.5.1-P06 khi Ghost Exit) để caller xử lý trung thực, tuyệt đối không bịa cước phí cục bộ.
  *
  * @param {Object} params
  * @param {string} [params.licensePlate]
@@ -560,7 +586,7 @@ export async function previewParkingFee({
     };
   }
 
-  // Luồng kết nối API Backend thực tế
+  // Luồng kết nối API Backend thực tế (không fallback cục bộ khi 404/lỗi API)
   const queryParams = new URLSearchParams();
   if (cleanPlate) {
     queryParams.set("license_plate", cleanPlate);
@@ -568,20 +594,7 @@ export async function previewParkingFee({
     queryParams.set("session_code", cleanCode);
   }
 
-  try {
-    return await apiClient(`/api/v1/parking/sessions/fee-preview/?${queryParams.toString()}`);
-  } catch (apiErr) {
-    // Graceful Fallback: Nếu Backend chưa kịp triển khai endpoint fee-preview hoặc gặp lỗi tạm thời,
-    // sử dụng chuẩn tính toán cước phí tập trung để người dùng tại bốt không bị gián đoạn.
-    console.warn("Backend fee-preview endpoint unavailable, falling back to local fee preview:", apiErr?.message);
-    return calculateLocalFeePreview({
-      licensePlate: cleanPlate,
-      sessionCode: cleanCode,
-      entryTime,
-      vehicleType,
-      hasActiveTicket,
-    });
-  }
+  return await apiClient(`/api/v1/parking/sessions/fee-preview/?${queryParams.toString()}`);
 }
 
 /**
@@ -593,7 +606,6 @@ export async function checkOutVehicle({
   licensePlate,
   entryTimeRaw,
   vehicleType = "CAR",
-  hasActiveTicket = false,
   isExempt = false,
   waiveFee = false,
   waiverReason = "",
@@ -601,6 +613,7 @@ export async function checkOutVehicle({
   waiver_reason = "",
   paymentMethod = "CASH",
   exitGate = "Cổng B1",
+  exitGateId = null,
   exitImageUrl = null,
   notes = null,
 }) {
@@ -615,15 +628,12 @@ export async function checkOutVehicle({
   const isWaive = Boolean(waiveFee || waive_fee);
   const finalWaiverReason = (waiverReason || waiver_reason || "").trim();
 
-  // Chuẩn hóa phương thức thanh toán an toàn cho Backend (Backend chỉ hỗ trợ CASH / VIETQR)
-  let backendPaymentMethod = "CASH";
-  let checkoutNotes = notes;
+  // Normalize payment method sent to Backend ('CASH' | 'VIETQR' | 'WALLET')
+  let backendPaymentMethod;
+  const checkoutNotes = notes;
 
   if (paymentMethod === "WALLET") {
-    backendPaymentMethod = "VIETQR";
-    checkoutNotes = notes
-      ? `${notes} (Thanh toán qua Ví Smart Parking)`
-      : "Thanh toán tự động qua Ví Smart Parking (App User)";
+    backendPaymentMethod = "WALLET";
   } else if (paymentMethod === "VNPAY" || paymentMethod === "VIETQR") {
     backendPaymentMethod = "VIETQR";
   } else {
@@ -632,6 +642,8 @@ export async function checkOutVehicle({
 
   const feeData = calculateParkingFee({
     vehicleType,
+    entryTime: entryDate,
+    exitTime: exitDate,
     durationMinutes,
     hasActiveTicket: false, // Xe liên kết ví / vãng lai không miễn vé tháng 0đ
     isExempt,
@@ -686,7 +698,7 @@ export async function checkOutVehicle({
   }
 
   // Tìm target exit gate ID
-  let targetExitGateId = typeof exitGate === "number" ? exitGate : null;
+  let targetExitGateId = exitGateId || (typeof exitGate === "number" ? exitGate : null);
   if (!targetExitGateId) {
     const exitGates = await getActiveExitGates();
     targetExitGateId = exitGates[0]?.id || 3;
@@ -704,7 +716,7 @@ export async function checkOutVehicle({
     }
   } else {
     payload.payment_method =
-      hasActiveTicket || isExempt
+      isExempt
         ? "CASH"
         : backendPaymentMethod;
     if (checkoutNotes) {
@@ -896,7 +908,7 @@ export const parkingSessionService = {
    * @param {string} [data.license_plate]
    * @param {string} [data.session_code]
    * @param {number} [data.exit_gate_id]
-   * @param {string} [data.payment_method="CASH"] - 'CASH' | 'VIETQR'
+   * @param {string} [data.payment_method="CASH"] - 'CASH' | 'VIETQR' | 'WALLET'
    * @param {string} [data.exit_image_url]
    */
   async checkOut(data) {

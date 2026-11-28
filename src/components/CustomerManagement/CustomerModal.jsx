@@ -1,10 +1,10 @@
 import { Button } from "../common";
 import { BaseModal } from "../common/modal";
 import {
-  TICKET_PACKAGE_OPTIONS,
   CUSTOMER_STATUS_OPTIONS,
   GENDER_OPTIONS,
 } from "../../constants/customerConstants";
+import { maskDateInput, isValidDateFormat } from "../../utils/dateUtils";
 
 export default function CustomerModal({
   isOpen,
@@ -15,14 +15,25 @@ export default function CustomerModal({
   onSubmit,
   isSubmitting = false,
 }) {
+  const birthdayVal = customerData.birthday || "";
+  const isBirthdayEmpty = !birthdayVal.trim();
+  const isBirthdayValid = isBirthdayEmpty || isValidDateFormat(birthdayVal);
+
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    if (!isBirthdayValid) return;
+    onSubmit(e);
+  };
+
   return (
     <BaseModal
       isOpen={isOpen}
       onClose={onClose}
+      isBusy={isSubmitting}
       title={editingCustomerId ? "Sửa thông tin khách hàng" : "Thêm khách hàng mới"}
       size="lg"
     >
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={handleFormSubmit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {editingCustomerId && (
             <div className="flex flex-col gap-1 sm:col-span-2">
@@ -81,11 +92,25 @@ export default function CustomerModal({
               Ngày sinh
             </label>
             <input
-              value={customerData.birthday}
-              onChange={(e) => onChange("birthday", e.target.value)}
-              placeholder="dd/mm/yyyy (hoặc yyyy-mm-dd)"
-              className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500"
+              value={birthdayVal}
+              onChange={(e) => onChange("birthday", maskDateInput(e.target.value))}
+              placeholder="dd/mm/yyyy (ví dụ: 15/08/1995)"
+              maxLength={10}
+              className={`h-9 w-full rounded-lg border px-3 text-xs outline-none transition-colors ${
+                !isBirthdayValid
+                  ? "border-red-400 bg-red-50/20 text-red-900 focus:border-red-500"
+                  : "border-slate-300 bg-white text-slate-700 focus:border-blue-500"
+              }`}
             />
+            {!isBirthdayValid ? (
+              <span className="text-[11px] text-red-500 font-medium">
+                Ngày sinh không hợp lệ. Vui lòng nhập chuẩn dd/mm/yyyy (ví dụ: 15/08/1995).
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-400">
+                Định dạng chuẩn: dd/mm/yyyy
+              </span>
+            )}
           </div>
 
           <div className="flex flex-col gap-1">
@@ -120,23 +145,6 @@ export default function CustomerModal({
 
           <div className="flex flex-col gap-1">
             <label className="text-2xs font-semibold text-slate-600">
-              Gói vé đăng ký
-            </label>
-            <select
-              value={customerData.packageType || "Vé tháng"}
-              onChange={(e) => onChange("packageType", e.target.value)}
-              className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500"
-            >
-              {TICKET_PACKAGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1 sm:col-span-2">
-            <label className="text-2xs font-semibold text-slate-600">
               Trạng thái tài khoản
             </label>
             <select
@@ -167,7 +175,7 @@ export default function CustomerModal({
             type="submit"
             variant="primary"
             size="sm"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !isBirthdayValid}
           >
             {isSubmitting ? "Đang xử lý..." : editingCustomerId ? "Cập nhật" : "Lưu khách hàng"}
           </Button>

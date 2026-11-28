@@ -6,6 +6,8 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import pluginPromise from 'eslint-plugin-promise'
+import reactYouMightNotNeedAnEffect from 'eslint-plugin-react-you-might-not-need-an-effect'
+import reactPlugin from 'eslint-plugin-react'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
@@ -15,6 +17,7 @@ export default defineConfig([
     extends: [
       js.configs.recommended,
       reactHooks.configs.flat.recommended,
+      reactYouMightNotNeedAnEffect.configs.recommended,
       reactRefresh.configs.vite,
       pluginPromise.configs['flat/recommended'],
     ],
@@ -25,6 +28,12 @@ export default defineConfig([
       },
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    plugins: {
+      react: reactPlugin,
+    },
+    settings: {
+      react: { version: '19.2' },
+    },
     rules: {
       // P0: Empty catch & empty block guardrail
       'no-empty': ['error', { allowEmptyCatch: false }],
@@ -32,6 +41,39 @@ export default defineConfig([
       'promise/catch-or-return': ['error', { allowFinally: true }],
       'promise/always-return': 'off', // Không ép buộc return trong .then() vì nhiều tác vụ chỉ thực hiện side-effects
       'promise/no-nesting': 'warn',
+      'no-alert': 'error',
+      // Guardrail: cảnh báo comment TODO/FIXME/HACK né sửa lỗi gốc rễ
+      'no-warning-comments': ['warn', { terms: ['todo', 'fixme', 'hack'], location: 'start' }],
+      // React Hooks strict guardrails
+      'react-hooks/exhaustive-deps': 'error',
+      'react-hooks/set-state-in-effect': 'error',
+      'react-hooks/set-state-in-render': 'error',
+      'react/no-unstable-nested-components': ['error', { allowAsProps: true }],
+    },
+  },
+  {
+    files: ['src/**/*.{js,jsx}'],
+    rules: {
+      // Guardrail: cảnh báo file quá lớn
+      // 'max-lines': [
+      //   'warn',
+      //   {
+      //     max: 200,
+      //     skipBlankLines: true,
+      //     skipComments: true,
+      //   },
+      // ],
+
+      // // Guardrail: hạn chế useEffect không cần thiết
+      // 'no-restricted-syntax': [
+      //   'warn',
+      //   {
+      //     selector:
+      //       "CallExpression[callee.name='useEffect'], CallExpression[callee.object.name='React'][callee.property.name='useEffect']",
+      //     message:
+      //       'Hãy cân nhắc liệu useEffect có thực sự cần thiết. Ưu tiên derived state, event handlers hoặc custom hooks khi phù hợp. Chỉ dùng useEffect để đồng bộ với hệ thống bên ngoài.',
+      //   },
+      // ],
     },
   },
   ...storybook.configs["flat/recommended"]

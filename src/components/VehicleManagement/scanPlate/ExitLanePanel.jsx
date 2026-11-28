@@ -1,14 +1,53 @@
 import VehicleMatchedInfoCard from "./VehicleMatchedInfoCard";
 import {
   PAYMENT_METHODS,
-  WALLET_CONFIG,
   formatCurrencyVND,
 } from "../../../constants/paymentConstants.js";
 import { checkIsManager } from "../../../constants/roleConstants.js";
 import { useCurrentUser } from "../../../hooks/useCurrentUser.js";
-import { getCustomerWalletBalance } from "../../../services/walletService.js";
+import { formatTimeVN } from "../../../utils/formatDateTime.js";
 
 const UNKNOWN_ENTRY_TIME_LABEL = "Chưa rõ giờ vào";
+const MIN_WAIVER_REASON_LENGTH = 10;
+const TRIVIAL_WAIVER_REASONS = new Set([
+  "ok",
+  "test",
+  "free",
+  "none",
+  "null",
+  "khong",
+  "không",
+  "khac",
+  "khác",
+  "mien cuoc",
+  "miễn cước",
+  "ly do",
+  "lý do",
+]);
+
+function validateWaiverReason(reason) {
+  const trimmed = String(reason || "").trim();
+  if (!trimmed) {
+    return { isValid: false, error: "Vui lòng nhập lý do miễn cước đặc cách." };
+  }
+  if (trimmed.length < MIN_WAIVER_REASON_LENGTH) {
+    return {
+      isValid: false,
+      error: `Lý do miễn cước phải có ít nhất ${MIN_WAIVER_REASON_LENGTH} ký tự có nghĩa.`,
+    };
+  }
+  if (
+    !/[a-zA-ZÀ-ỹ]/.test(trimmed) ||
+    /(.)\1{4,}/.test(trimmed) ||
+    TRIVIAL_WAIVER_REASONS.has(trimmed.toLowerCase())
+  ) {
+    return {
+      isValid: false,
+      error: "Lý do miễn cước không hợp lệ hoặc quá chung chung (WF2-STEP-03).",
+    };
+  }
+  return { isValid: true, error: "" };
+}
 
 /**
  * ExitLanePanel
@@ -27,6 +66,7 @@ export default function ExitLanePanel({
   calculatedDurationMinutes,
   backendFeePreview = null,
   isLoadingFeePreview = false,
+  isScanning = false,
   exitFeeCalc = null,
   isFeeExempt = false,
   setIsFeeExempt,
@@ -43,11 +83,22 @@ export default function ExitLanePanel({
   const effectiveRole = currentUserRole ?? authUserRole;
   const isManager = checkIsManager(effectiveRole);
 
-  const isTicketActive = Boolean(
-    backendFeePreview?.has_active_ticket ||
-    backendFeePreview?.is_exempt ||
-    hasValidTicket
-  );
+  const hasBackendPreview =
+    backendFeePreview !== null &&
+    backendFeePreview !== undefined &&
+    backendFeePreview.fee_amount !== undefined &&
+    backendFeePreview.fee_amount !== null;
+
+  const isTicketActive = hasBackendPreview
+    ? Boolean(
+        backendFeePreview.has_active_ticket ||
+        backendFeePreview.is_exempt ||
+        Number(backendFeePreview.fee_amount) === 0
+      )
+    : Boolean(hasValidTicket);
+
+  const isPackageOverage =
+    hasBackendPreview && backendFeePreview.fee_breakdown_mode === "PACKAGE_OVERAGE";
 
   // Cước phí và nhãn hiển thị: Ưu tiên Backend Fee Preview (Single Source of Truth), tự động fallback sang exitFeeCalc
   let displayFeeText = "—";
@@ -62,7 +113,7 @@ export default function ExitLanePanel({
     displayFeeText = "0đ (Vé tháng có hiệu lực)";
     displayFeeAmount = 0;
     isZeroFee = true;
-  } else if (backendFeePreview?.fee_amount !== undefined && backendFeePreview?.fee_amount !== null) {
+  } else if (hasBackendPreview) {
     displayFeeAmount = Number(backendFeePreview.fee_amount);
     displayFeeText = formatCurrencyVND(displayFeeAmount);
     isZeroFee = displayFeeAmount === 0;
@@ -99,6 +150,8 @@ export default function ExitLanePanel({
     ? "Được đài thọ bởi vé tháng hiệu lực"
     : !hasValidEntryTime
     ? "Chưa xác định được thời gian vào bãi"
+    : isPackageOverage
+    ? `Miễn 0đ phần trong hạn vé (${backendFeePreview.covered_minutes || 0} phút) • Vượt hạn ${backendFeePreview.overage_hours || 1}h × ${backendFeePreview.hourly_rate ? formatCurrencyVND(backendFeePreview.hourly_rate) : "10.000đ"}/giờ`
     : backendFeePreview
     ? `Thời lượng: ${displayDuration} • Đơn giá: ${backendFeePreview.hourly_rate ? formatCurrencyVND(backendFeePreview.hourly_rate) : "—"}/giờ`
     : exitFeeCalc?.calculationBreakdown
@@ -109,12 +162,17 @@ export default function ExitLanePanel({
 
   // Cảnh báo Ghost Exit khi có biển số nhưng không tìm thấy phiên đỗ đang mở
   const isGhostExit = Boolean(
-    detectedPlate && !rawLookup?.open_session && !backendFeePreview?.entry_time && !isLoadingFeePreview
+    detectedPlate &&
+      !isScanning &&
+      !rawLookup?.open_session &&
+      !backendFeePreview?.entry_time &&
+      !isLoadingFeePreview
   );
 
-  // Điều kiện vô hiệu hóa xác nhận xuất bãi (Bảo vệ an toàn chống Ghost Exit theo ST-CORE-07)
-  const isWaiverInvalid = isFeeExempt && (!isManager || !waiverReason.trim());
-  const isGhostExitBlocked = isGhostExit && (!isManager || !isFeeExempt || !waiverReason.trim());
+  // Điều kiện vô hiệu hóa xác nhận xuất bãi (WF2-STEP-03 Anti-Fraud UI Gate & ST-CORE-07)
+  const waiverValidation = validateWaiverReason(waiverReason);
+  const isWaiverInvalid = isFeeExempt && (!isManager || !waiverValidation.isValid);
+  const isGhostExitBlocked = isGhostExit && (!isManager || !isFeeExempt || !waiverValidation.isValid);
   const isConfirmDisabled =
     isActionPending ||
     !detectedPlate ||
@@ -168,22 +226,16 @@ export default function ExitLanePanel({
             <span className="text-slate-400 block text-3xs">Giờ vào</span>
             <span className="font-mono font-bold text-slate-800">
               {backendFeePreview?.entry_time
-                ? new Date(backendFeePreview.entry_time).toLocaleTimeString("vi-VN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
+                ? formatTimeVN(backendFeePreview.entry_time, UNKNOWN_ENTRY_TIME_LABEL)
                 : rawLookup?.open_session?.entry_time
-                ? new Date(rawLookup.open_session.entry_time).toLocaleTimeString("vi-VN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
+                ? formatTimeVN(rawLookup.open_session.entry_time, UNKNOWN_ENTRY_TIME_LABEL)
                 : UNKNOWN_ENTRY_TIME_LABEL}
             </span>
           </div>
           <div>
             <span className="text-slate-400 block text-3xs">Giờ ra</span>
             <span className="font-mono font-bold text-slate-800">
-              {new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+              {formatTimeVN(new Date(), "—")}
             </span>
           </div>
           <div>
@@ -289,6 +341,13 @@ export default function ExitLanePanel({
                   className="w-full text-2xs bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
                 />
 
+                {isManager && waiverReason.trim().length > 0 && !waiverValidation.isValid && (
+                  <div className="text-3xs text-amber-800 bg-amber-100/80 p-2 rounded-lg border border-amber-300 flex items-center gap-1.5">
+                    <span>⚠️</span>
+                    <span>{waiverValidation.error}</span>
+                  </div>
+                )}
+
                 {!isManager && (
                   <div className="text-3xs text-rose-700 bg-rose-50 p-2 rounded-lg border border-rose-200 flex items-center gap-1.5">
                     <span>⛔</span>
@@ -305,15 +364,16 @@ export default function ExitLanePanel({
           <div className="space-y-2 pt-1 border-t border-slate-100">
             {/* Phân loại khách hàng: Đã đăng ký App hay Chưa đăng ký App */}
             {(() => {
-              const hasAppAccount = Boolean(
-                matchedVehicle?.customer?.id ||
-                matchedVehicle?.customerId ||
-                (matchedVehicle?.customer?.name && matchedVehicle?.customer?.name !== "Khách vãng lai")
-              );
-              const userWalletBalance = getCustomerWalletBalance({
-                customerId: matchedVehicle?.customer?.id || matchedVehicle?.customerId,
-                licensePlate: detectedPlate || matchedVehicle?.licensePlate,
-              });
+              const customerName = matchedVehicle?.customer?.name?.trim() || "";
+              const isGuestCustomer = customerName.toLowerCase().includes("khách vãng lai");
+              const hasAppAccount =
+                !isGuestCustomer &&
+                Boolean(
+                  matchedVehicle?.customer?.id ||
+                  matchedVehicle?.customerId ||
+                  customerName
+                );
+              const userWalletBalance = matchedVehicle?.customer?.walletBalance ?? 0;
               const isWalletSufficient = userWalletBalance >= displayFeeAmount;
 
               return (
@@ -334,7 +394,7 @@ export default function ExitLanePanel({
                         </span>
                         <span className="text-3xs text-slate-500">
                           {hasAppAccount
-                            ? `Ví Smart Parking (Mô phỏng): ${formatCurrencyVND(userWalletBalance)}`
+                            ? `Số dư ví Smart Parking: ${formatCurrencyVND(userWalletBalance)}`
                             : "Không có ví trong App • Thanh toán tại quầy"}
                         </span>
                       </div>
@@ -372,7 +432,7 @@ export default function ExitLanePanel({
                         onClick={() => setPaymentMethod(PAYMENT_METHODS.VNPAY)}
                         className={`px-2.5 py-1 font-semibold rounded-md transition-all flex items-center gap-1 ${
                           paymentMethod === PAYMENT_METHODS.VNPAY || paymentMethod === PAYMENT_METHODS.VIETQR
-                            ? "bg-indigo-600 text-white shadow-2xs"
+                            ? "bg-blue-600 text-white shadow-2xs"
                             : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
@@ -395,7 +455,7 @@ export default function ExitLanePanel({
                   {/* Chi tiết cho từng phương thức */}
                   {paymentMethod === PAYMENT_METHODS.WALLET && hasAppAccount && (
                     <div className="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-3xs space-y-1.5">
-                      <div className="flex items-center justify-between font-semibold text-emerald-950">
+                      <div className="flex items-center justify-between font-semibold text-emerald-900">
                         <span>Số dư ví hiện tại:</span>
                         <span className="font-mono">{formatCurrencyVND(userWalletBalance)}</span>
                       </div>
@@ -409,17 +469,16 @@ export default function ExitLanePanel({
                           {formatCurrencyVND(Math.max(0, userWalletBalance - displayFeeAmount))}
                         </span>
                       </div>
-                      <div className="text-[10px] text-emerald-700/80 italic">
-                        * Lưu ý: Giao dịch trừ ví đang chạy ở chế độ mô phỏng giao diện (Chưa trừ tiền tài khoản ngân hàng thật).
-                      </div>
                       {!isWalletSufficient && (
                         <div className="text-amber-900 bg-amber-100 p-2 rounded-lg text-3xs font-medium space-y-1">
                           <div className="flex items-center justify-between font-bold">
-                            <span>⚠️ Số dư ví không đủ trừ toàn bộ:</span>
-                            <span>Thiếu {formatCurrencyVND(displayFeeAmount - userWalletBalance)}</span>
+                            <span>⚠️ Số dư ví không đủ thanh toán:</span>
+                            <span>Còn thiếu {formatCurrencyVND(Math.max(0, displayFeeAmount - userWalletBalance))}</span>
                           </div>
                           <div>
-                            Hệ thống sẽ trừ hết số dư ví ({formatCurrencyVND(userWalletBalance)}). Phần còn lại ({formatCurrencyVND(displayFeeAmount - userWalletBalance)}) vui lòng thu qua Tiền mặt hoặc VietQR.
+                            Hệ thống không trừ một phần số dư ví. Vui lòng yêu cầu khách nạp thêm tối thiểu{" "}
+                            <strong>{formatCurrencyVND(Math.max(0, displayFeeAmount - userWalletBalance))}</strong>{" "}
+                            hoặc chuyển sang phương thức Tiền mặt / VNPAY-QR.
                           </div>
                         </div>
                       )}
@@ -427,21 +486,21 @@ export default function ExitLanePanel({
                   )}
 
                   {(paymentMethod === PAYMENT_METHODS.VNPAY || paymentMethod === PAYMENT_METHODS.VIETQR) && (
-                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-center gap-3">
+                    <div className="p-2.5 bg-blue-50/70 border border-blue-100 rounded-xl flex items-center gap-3">
                       <img
                         src={`https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=${displayFeeAmount}&addInfo=${encodeURIComponent(`PK ${detectedPlate || matchedVehicle?.licensePlate || "OTO"}`)}&accountName=${encodeURIComponent("BAI XE SMART MOBILITY")}`}
                         alt="Mã VNPAY/QR"
-                        className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-md bg-white border border-indigo-200 shrink-0"
+                        className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-md bg-white border border-blue-200 shrink-0"
                         loading="lazy"
                       />
                       <div className="text-3xs text-slate-600 space-y-0.5">
-                        <div className="font-bold text-indigo-900 text-2xs flex items-center gap-1.5">
+                        <div className="font-bold text-blue-900 text-2xs flex items-center gap-1.5">
                           <span>💳 VNPAY POS / VNPAY-QR</span>
-                          <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.2 rounded text-3xs">Chạm thẻ / Quét mã</span>
+                          <span className="bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded text-3xs">Chạm thẻ / Quét mã</span>
                         </div>
                         <div>
                           Số tiền:{" "}
-                          <span className="font-bold font-mono text-indigo-700">{displayFeeText}</span>
+                          <span className="font-bold font-mono text-blue-700">{displayFeeText}</span>
                         </div>
                         <div className="text-slate-500">Khách chạm thẻ ngân hàng vào máy POS VNPAY hoặc quét mã QR để thanh toán.</div>
                       </div>
@@ -463,9 +522,9 @@ export default function ExitLanePanel({
               : "Ghost Exit: Cần Quản lý phê duyệt giải quyết sự cố (ST-CORE-07)"
             : isFeeExempt
             ? isManager
-              ? waiverReason.trim()
+              ? waiverValidation.isValid
                 ? "Đủ điều kiện miễn cước"
-                : "Vui lòng nhập lý do miễn cước"
+                : waiverValidation.error
               : "Yêu cầu quyền Quản lý"
             : isZeroFee
             ? "Đủ điều kiện mở barrier"
@@ -483,7 +542,7 @@ export default function ExitLanePanel({
             isGhostExitBlocked
               ? "bg-rose-500 cursor-not-allowed opacity-60"
               : isFeeExempt
-              ? isManager && waiverReason.trim()
+              ? isManager && waiverValidation.isValid
                 ? "bg-emerald-600 hover:bg-emerald-700"
                 : "bg-slate-400 cursor-not-allowed"
               : isZeroFee
@@ -491,7 +550,7 @@ export default function ExitLanePanel({
               : paymentMethod === PAYMENT_METHODS.WALLET
               ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
               : paymentMethod === PAYMENT_METHODS.VNPAY || paymentMethod === PAYMENT_METHODS.VIETQR
-                ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20"
+                ? "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20"
                 : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20"
           } disabled:opacity-50`}
         >

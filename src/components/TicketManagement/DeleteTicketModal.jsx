@@ -1,4 +1,3 @@
-import React from "react";
 import ConfirmModal from "../common/modal/ConfirmModal";
 import { TICKET_DELETE_MESSAGES } from "../../constants/ticketConstants";
 

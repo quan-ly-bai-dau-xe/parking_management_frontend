@@ -4,7 +4,6 @@ import {
   checkOutVehicle,
   forceCloseSessionAndReleaseSlot,
 } from "../../../../services/parkingSessionService";
-import { deductFromCustomerWallet } from "../../../../services/walletService";
 
 export const DEFAULT_ENTRY_GATE_ID = 1;
 export const DEFAULT_EXIT_GATE_ID = 3;
@@ -66,7 +65,6 @@ export function useLaneActions({
   availableSlots,
   selectedSlotId,
   hasOpenSession,
-  hasValidTicket,
   exitFeeCalc,
   paymentMethod,
   isFeeExempt,
@@ -112,19 +110,13 @@ export function useLaneActions({
 
     try {
       const isGlitch = options.actionType === "cancel_glitch";
+      const chosenMethod = options.paymentMethod || "CASH";
+      const waiveFee = isGlitch || chosenMethod === "EXEMPT";
       let notes = options.reason;
 
-      if (!isGlitch && options.paymentMethod === "WALLET" && options.feeAmount > 0) {
-        const deductResult = deductFromCustomerWallet({
-          licensePlate,
-          amount: options.feeAmount,
-          sessionCode: options.sessionCode,
-        });
-        if (!deductResult.success) {
-          setErrorMessage(deductResult.message);
-          return;
-        }
-        notes = `${notes ? notes + " - " : ""}Thanh toán tự động trừ Ví App (${options.feeAmount.toLocaleString("vi-VN")}đ)`;
+      if (!isGlitch && chosenMethod === "WALLET" && options.feeAmount > 0) {
+        // Wallet deduction is executed atomically on the backend check-out endpoint
+        notes = `${notes ? notes + " - " : ""}Thanh toán qua Ví App (${options.feeAmount.toLocaleString("vi-VN")}đ)`;
       } else if (isGlitch) {
         notes = `Hủy phiên do quét nhầm/sai: ${options.reason || "Ngoại lệ"}`;
       } else {
@@ -134,14 +126,17 @@ export function useLaneActions({
       await forceCloseSessionAndReleaseSlot({
         licensePlate,
         sessionCode: options.sessionCode,
+        paymentMethod: waiveFee ? "CASH" : chosenMethod,
+        waiveFee,
+        waiverReason: waiveFee ? options.reason || notes : "",
         notes,
       });
       setRawLookup((prev) => (prev ? { ...prev, open_session: null } : null));
       setActionSuccessMessage(
         isGlitch
           ? "✓ Đã hủy phiên cũ do quét nhầm thành công (0đ)."
-          : options.paymentMethod === "WALLET"
-          ? `✓ Đã trừ ${options.feeAmount.toLocaleString("vi-VN")}đ vào Ví App và đóng phiên thành công!`
+          : chosenMethod === "WALLET"
+          ? `✓ Đã trừ ${(options.feeAmount || 0).toLocaleString("vi-VN")}đ vào Ví App và đóng phiên thành công!`
           : "✓ Đã thu tiền & đóng phiên cũ thành công. Sẵn sàng đón lượt mới!"
       );
     } catch (err) {
@@ -165,7 +160,18 @@ export function useLaneActions({
     setActionSuccessMessage("");
 
     try {
-      const chosenSlot = availableSlots.find((s) => s.id === selectedSlotId);
+      const assignedSlotId = matchedVehicle?.parkingSlot?.slotId;
+      const chosenSlot =
+        availableSlots.find(
+          (s) =>
+            selectedSlotId !== null &&
+            selectedSlotId !== undefined &&
+            (String(s.id) === String(selectedSlotId) ||
+              String(s.code || "").toUpperCase() === String(selectedSlotId).toUpperCase())
+        ) ||
+        (assignedSlotId ? availableSlots.find((s) => String(s.id) === String(assignedSlotId)) : null) ||
+        availableSlots[0] ||
+        null;
       if (!chosenSlot) {
         setErrorMessage("⚠️ Vui lòng chọn một vị trí đỗ khả dụng trước khi xác nhận vào bãi.");
         return;
@@ -227,17 +233,6 @@ export function useLaneActions({
       const feeAmount = isExemptActive ? 0 : (exitFeeCalc?.feeAmount ?? 0);
       const chosenMethod = isExemptActive ? "TICKET_EXEMPT" : paymentMethod;
       const targetPlate = detectedPlate || matchedVehicle?.licensePlate;
-
-      if (!isExemptActive && chosenMethod === "WALLET" && feeAmount > 0) {
-        const deductResult = deductFromCustomerWallet({
-          licensePlate: targetPlate,
-          amount: feeAmount,
-        });
-        if (!deductResult.success) {
-          setErrorMessage(deductResult.message);
-          return;
-        }
-      }
 
       await checkOutVehicle({
         licensePlate: targetPlate,

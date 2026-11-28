@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import ConfirmModal from "../common/Modal/ConfirmModal";
+import ConfirmModal from "../common/modal/ConfirmModal";
 import LoadingSpinner from "../common/LoadingSpinner";
 import { previewParkingFee } from "../../services/parkingSessionService";
 import { formatLicensePlateForDisplay } from "../../utils/plateFormatter";
@@ -10,6 +10,9 @@ import {
   formatAuditNotes,
   validateAbnormalAction,
 } from "../../constants/abnormalSessionConstants";
+import {
+  resolveTicketTypeName,
+} from "../../utils/ticket/ticketTypeHelper";
 
 /**
  * CloseSessionModal
@@ -37,7 +40,11 @@ export default function CloseSessionModal({
   const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
-    if (isOpen && session) {
+    if (!isOpen || !session) return undefined;
+    let isCancelled = false;
+
+    queueMicrotask(() => {
+      if (isCancelled) return;
       setActionType("manual_checkout");
       setPaymentMethod("CASH");
       setReasonCode("");
@@ -45,28 +52,36 @@ export default function CloseSessionModal({
       setApproverName("");
       setFeePreview(null);
       setValidationError("");
+    });
 
-      // Tải dự tính cước phí nếu là xe ra bãi
-      const fetchFee = async () => {
-        setIsPreviewLoading(true);
-        try {
-          const entryTime = session.entryTime || session.entry_time || session.entryTimeRaw;
-          const res = await previewParkingFee({
-            licensePlate: session.licensePlate || session.license_plate,
-            sessionCode: session.sessionCode || session.session_code,
-            entryTime,
-            vehicleType: session.vehicleType || session.vehicle_type || "CAR",
-            hasActiveTicket: Boolean(session.hasActiveTicket),
-          });
+    // Tải dự tính cước phí nếu là xe ra bãi
+    const fetchFee = async () => {
+      setIsPreviewLoading(true);
+      try {
+        const entryTime = session.entryTime || session.entry_time || session.entryTimeRaw;
+        const res = await previewParkingFee({
+          licensePlate: session.licensePlate || session.license_plate,
+          sessionCode: session.sessionCode || session.session_code,
+          entryTime,
+          vehicleType: session.vehicleType || session.vehicle_type || "CAR",
+          hasActiveTicket: Boolean(session.hasActiveTicket),
+        });
+        if (!isCancelled) {
           setFeePreview(res);
-        } catch (err) {
-          console.warn("Could not preview fee:", err);
-        } finally {
+        }
+      } catch (err) {
+        console.warn("Could not preview fee:", err);
+      } finally {
+        if (!isCancelled) {
           setIsPreviewLoading(false);
         }
-      };
-      fetchFee();
-    }
+      }
+    };
+    fetchFee();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen, session]);
 
   if (!session) return null;
@@ -85,7 +100,6 @@ export default function CloseSessionModal({
     isManager,
     approverName,
   });
-  const isFormValid = validationResult.isValid;
 
   const handleConfirm = () => {
     if (!validationResult.isValid) {
@@ -237,7 +251,18 @@ export default function CloseSessionModal({
 
             <div className="text-[11px] text-slate-500 grid grid-cols-2 gap-2">
               <div>Thời gian đỗ: <strong className="text-slate-800">{feePreview?.duration_text || "—"}</strong></div>
-              <div>Loại vé: <strong className="text-slate-800">{feePreview?.has_active_ticket ? "Vé tháng (Miễn phí)" : "Vé lượt"}</strong></div>
+              <div>Loại vé: <strong className="text-slate-800">{(() => {
+                const isTicketActive = Boolean(feePreview?.has_active_ticket || session?.hasActiveTicket);
+                const resolvedType = resolveTicketTypeName({
+                  backendFeePreview: feePreview,
+                  session,
+                  hasValidTicket: isTicketActive,
+                });
+                if (isTicketActive) {
+                  return `${resolvedType || "Vé định kỳ"} (Miễn phí)`;
+                }
+                return resolvedType || "Vé lượt";
+              })()}</strong></div>
             </div>
 
             <div>

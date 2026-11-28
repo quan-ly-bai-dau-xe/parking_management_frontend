@@ -62,7 +62,14 @@ export default function ParkingSlotPicker({
   }, [availableSlots, selectedFloor, selectedZone, searchKeyword]);
 
   const selectedSlot = useMemo(
-    () => availableSlots.find((s) => s.id === selectedSlotId) || null,
+    () =>
+      availableSlots.find(
+        (s) =>
+          selectedSlotId !== null &&
+          selectedSlotId !== undefined &&
+          (String(s.id) === String(selectedSlotId) ||
+            String(s.code || "").toUpperCase() === String(selectedSlotId).toUpperCase())
+      ) || null,
     [availableSlots, selectedSlotId]
   );
 
@@ -160,10 +167,14 @@ export default function ParkingSlotPicker({
         ) : (
           <div className={`grid ${columns} gap-1.5`}>
             {filteredSlots.map((slot) => {
-              const isSelected = selectedSlotId === slot.id;
+              const isSelected =
+                selectedSlotId !== null &&
+                selectedSlotId !== undefined &&
+                (String(selectedSlotId) === String(slot.id) ||
+                  String(selectedSlotId).toUpperCase() === String(slot.code || "").toUpperCase());
               return (
                 <button
-                  key={slot.id}
+                  key={slot.id ?? slot.code}
                   type="button"
                   onClick={() => onSelectSlot(isSelected ? null : slot.id)}
                   title={`${slot.floor} - ${slot.zone} - ${slot.code}${isSelected ? " (Bấm để hủy chọn)" : ""}`}

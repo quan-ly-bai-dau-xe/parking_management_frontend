@@ -1,4 +1,3 @@
-import React from "react";
 import { StatCard } from "../common";
 
 export default function VehicleStatsCards({ stats }) {

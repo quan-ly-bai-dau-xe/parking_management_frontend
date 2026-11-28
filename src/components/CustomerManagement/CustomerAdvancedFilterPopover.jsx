@@ -1,5 +1,5 @@
-import React from "react";
 import { Icon } from "../common";
+import { maskDateInput } from "../../utils/dateUtils";
 
 export default function CustomerAdvancedFilterPopover({
   popoverRef,
@@ -64,8 +64,9 @@ export default function CustomerAdvancedFilterPopover({
             <input
               type="text"
               placeholder="dd/mm/yyyy..."
+              maxLength={10}
               value={draftFilters.birthday}
-              onChange={(e) => onDraftFilterChange("birthday", e.target.value)}
+              onChange={(e) => onDraftFilterChange("birthday", maskDateInput(e.target.value))}
               className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
             />
           </div>

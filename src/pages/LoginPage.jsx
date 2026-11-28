@@ -46,8 +46,10 @@ export default function Login() {
           setSubmittedStatus({
             account: res.user?.account || initialData.account,
           });
+          const userRole = res.user?.role || res.user?.role_name || "";
+          const targetRoute = userRole === "CUSTOMER" ? ROUTES.CUSTOMER_OVERVIEW : ROUTES.HOME;
           setTimeout(() => {
-            navigate(ROUTES.HOME);
+            navigate(targetRoute);
           }, 1000);
         })
         .catch((err) => {
@@ -79,8 +81,10 @@ export default function Login() {
           account: res.user?.account || formData.account,
         });
 
+        const userRole = res.user?.role || res.user?.role_name || "";
+        const targetRoute = userRole === "CUSTOMER" ? ROUTES.CUSTOMER_OVERVIEW : ROUTES.HOME;
         setTimeout(() => {
-          navigate(ROUTES.HOME);
+          navigate(targetRoute);
         }, 600);
       })
       .catch((err) => {

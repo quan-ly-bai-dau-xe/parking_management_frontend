@@ -14,7 +14,7 @@ import {
   getAvailableSlotsForCheckIn,
 } from "#src/services/parkingSessionService.js";
 
-test("ST-CORE-01: Check-in builds valid payload for backend API", async () => {
+test("[TEST-GATE-001][SC-GATE-001] ST-CORE-01: Check-in builds valid payload for backend API", async () => {
   const originalRequest = axiosInstance.request;
   let capturedBody = null;
 
@@ -55,7 +55,7 @@ test("ST-CORE-01: Check-in builds valid payload for backend API", async () => {
   }
 });
 
-test("ST-CORE-02: Capacity Control: Blocks new check-in when all parking slots are occupied", async () => {
+test("[TEST-GATE-002][SC-GATE-002] ST-CORE-02: Capacity Control: Blocks new check-in when all parking slots are occupied", async () => {
   const originalRequest = axiosInstance.request;
 
   try {
@@ -66,9 +66,16 @@ test("ST-CORE-02: Capacity Control: Blocks new check-in when all parking slots a
       status: "open",
     }));
 
-    axiosInstance.request = async () => ({
-      data: { count: 96, results: allOccupiedSessions },
-    });
+    axiosInstance.request = async (config) => {
+      if (config.url.includes("/api/v1/parking/slots/")) {
+        const err = new Error("Not Found");
+        err.status = 404;
+        throw err;
+      }
+      return {
+        data: { count: 96, results: allOccupiedSessions },
+      };
+    };
 
     const availableSlots = await getAvailableSlotsForCheckIn();
     assert.equal(availableSlots.length, 0, "Không còn slot nào khả dụng khi bãi đầy");
@@ -77,7 +84,7 @@ test("ST-CORE-02: Capacity Control: Blocks new check-in when all parking slots a
   }
 });
 
-test("ST-CORE-03: Anti-passback: Rejects entry for vehicle already inside the parking lot", () => {
+test("[TEST-GATE-003][SC-GATE-003] ST-CORE-03: Anti-passback: Rejects entry for vehicle already inside the parking lot", () => {
   // Case A: Tra cứu trả về open_session đang tồn tại
   const lookupWithOpenSession = {
     open_session: { id: 101, session_code: "SES-CURRENT" },
@@ -113,7 +120,7 @@ test("ST-CORE-04: Security Guard: Rejects entry for blacklisted / warning vehicl
   assert.equal(res2.reasonCode, "BLACKLISTED");
 });
 
-test("ST-CORE-05: Fee Calculator calculates exact rates across all business tiers", () => {
+test("[TEST-PRICE-001][SC-PRICE-001] ST-CORE-05: Fee Calculator calculates exact rates across all business tiers", () => {
   // Tier 1: Thời gian dưới 15 phút vẫn tính tròn 1 giờ đầu theo quy tắc OQ-85 -> 10.000đ (hoursBilled: 1)
   const grace10m = calculateParkingFee({ durationMinutes: 10 });
   assert.equal(grace10m.feeAmount, DEFAULT_HOURLY_RATE_VND);
@@ -138,17 +145,23 @@ test("ST-CORE-05: Fee Calculator calculates exact rates across all business tier
   assert.equal(fee195m.feeAmount, 40000);
   assert.equal(fee195m.hoursBilled, 4);
 
-  // Tier 5: Daily Cap (Đỗ 15 giờ = 150.000đ -> Áp trần tối đa 100.000đ/ngày)
+  // Tier 5: Không áp trần ngày mặc định (TL-60 / WP4 D6: DAILY_MAX_CAP_VND = 0 -> 15 giờ = 150.000đ)
+  assert.equal(DAILY_MAX_CAP_VND, 0);
   const fee15h = calculateParkingFee({ durationMinutes: 15 * 60 });
-  assert.equal(fee15h.feeAmount, DAILY_MAX_CAP_VND);
+  assert.equal(fee15h.feeAmount, 150000);
 
-  // Tier 6: Qua đêm 30 giờ (1 ngày cap 100k + 6 giờ x 10k = 160.000đ)
+  // Tier 6: Qua đêm 30 giờ = 300.000đ (không áp trần mặc định)
   const fee30h = calculateParkingFee({ durationMinutes: 30 * 60 });
-  assert.equal(fee30h.feeAmount, 160000);
+  assert.equal(fee30h.feeAmount, 300000);
 
-  // Tier 7: Đỗ nhiều ngày 50 giờ (2 ngày cap 200k + 2 giờ x 10k = 220.000đ)
+  // Tier 7: Đỗ nhiều ngày 50 giờ = 500.000đ (trần tùy chọn chỉ áp dụng khi truyền dailyMaxCapVnd > 0)
   const fee50h = calculateParkingFee({ durationMinutes: 50 * 60 });
-  assert.equal(fee50h.feeAmount, 220000);
+  assert.equal(fee50h.feeAmount, 500000);
+  const fee50hCapped = calculateParkingFee({
+    durationMinutes: 50 * 60,
+    tariffConfig: { dailyMaxCapVnd: 100000 },
+  });
+  assert.equal(fee50hCapped.feeAmount, 220000);
 
   // Tier 8: Vé tháng còn hiệu lực (hasActiveTicket = true) -> 0đ
   const monthlyTicket = calculateParkingFee({ durationMinutes: 120, hasActiveTicket: true });
@@ -159,9 +172,32 @@ test("ST-CORE-05: Fee Calculator calculates exact rates across all business tier
   const exempt = calculateParkingFee({ durationMinutes: 120, isExempt: true });
   assert.equal(exempt.feeAmount, 0);
   assert.equal(exempt.isCoveredByTicket, true);
+
+  // Tier 10: Vé gói hết hạn giữa phiên (Interval Merging Overage block 1h làm tròn lên)
+  const effFrom = "2026-11-10T00:00:00+07:00";
+  const effTo = "2026-11-11T00:00:00+07:00";
+  const entry = "2026-11-10T20:00:00+07:00";
+  const overage1h10m = calculateParkingFee({
+    entryTime: entry,
+    exitTime: "2026-11-11T01:10:00+07:00",
+    ticketEffectiveFrom: effFrom,
+    ticketEffectiveTo: effTo,
+  });
+  assert.equal(overage1h10m.feeAmount, 20000);
+  assert.equal(overage1h10m.overageHours, 2);
+  assert.equal(overage1h10m.feeBreakdownMode, "PACKAGE_OVERAGE");
+
+  const exactAtExpiry = calculateParkingFee({
+    entryTime: entry,
+    exitTime: effTo,
+    ticketEffectiveFrom: effFrom,
+    ticketEffectiveTo: effTo,
+  });
+  assert.equal(exactAtExpiry.feeAmount, 0);
+  assert.equal(exactAtExpiry.isCoveredByTicket, true);
 });
 
-test("ST-CORE-07: Ghost Exit Defense: Handles already closed or missing open session gracefully", async () => {
+test("[TEST-GATE-004][SC-GATE-004] ST-CORE-07: Ghost Exit Defense: Handles already closed or missing open session gracefully", async () => {
   const originalRequest = axiosInstance.request;
 
   try {

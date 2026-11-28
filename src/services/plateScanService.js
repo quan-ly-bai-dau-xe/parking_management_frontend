@@ -1,6 +1,4 @@
 import { apiClient } from "./apiClient.js";
-import { mockParkingHistory } from "../mocks/parkingHistoryData.js";
-import { mockVehicles } from "../mocks/vehicleData.js";
 import {
   mapParkingSession,
   validateAndMapSessions,
@@ -11,9 +9,6 @@ import {
   parseEntryTimeToDate,
   normalizePlate,
 } from "../utils/parking/plateScanMapper.js";
-import { isMockEnabled } from "../config/appConfig.js";
-
-const USE_MOCK = isMockEnabled("plateScans");
 
 export {
   mapParkingSession,
@@ -76,92 +71,6 @@ export async function lookupVehicleByPlate(licensePlate) {
  * Lấy danh sách các phiên đỗ xe (Parking Sessions)
  */
 export async function getParkingSessions(filters = {}) {
-  if (USE_MOCK) {
-    let list = [...mockParkingHistory];
-    if (filters.search) {
-      const q = String(filters.search).toLowerCase().trim();
-      list = list.filter(
-        (s) =>
-          s.sessionCode?.toLowerCase().includes(q) ||
-          s.licensePlate?.toLowerCase().includes(q)
-      );
-    }
-    if (filters.session_code) {
-      const q = String(filters.session_code).toLowerCase().trim();
-      list = list.filter((s) => s.sessionCode?.toLowerCase().includes(q));
-    }
-    if (filters.license_plate) {
-      const q = String(filters.license_plate).toLowerCase().trim();
-      list = list.filter((s) => s.licensePlate?.toLowerCase().includes(q));
-    }
-    if (filters.status) {
-      const st = String(filters.status).toLowerCase().trim();
-      if (st === "open" || st === "in_progress") {
-        list = list.filter((s) => s.status === "in_progress" || !s.exitTime || s.exitTime === "—");
-      } else if (st === "closed" || st === "completed") {
-        list = list.filter((s) => s.status === "completed" || (s.exitTime && s.exitTime !== "—"));
-      }
-    }
-    if (filters.ticket_type && filters.ticket_type !== "all") {
-      const targetType = String(filters.ticket_type).toUpperCase();
-      list = list.filter((s) => {
-        const itemType = String(s.ticketType || (s.hasActiveTicket ? "MONTHLY" : "DAILY")).toUpperCase();
-        if (targetType === "DAILY") {
-          return itemType.includes("DAILY") || itemType.includes("LƯỢT") || itemType.includes("NGÀY");
-        }
-        if (targetType === "MONTHLY") {
-          return itemType.includes("MONTHLY") || itemType.includes("THÁNG");
-        }
-        if (targetType === "QUARTERLY") {
-          return itemType.includes("QUARTERLY") || itemType.includes("QUÝ");
-        }
-        if (targetType === "YEARLY") {
-          return itemType.includes("YEARLY") || itemType.includes("NĂM");
-        }
-        return itemType.includes(targetType);
-      });
-    }
-    if (filters.min_fee !== undefined && filters.min_fee !== "") {
-      list = list.filter((s) => (s.feeNumber ?? 0) >= Number(filters.min_fee));
-    }
-    if (filters.max_fee !== undefined && filters.max_fee !== "") {
-      list = list.filter((s) => (s.feeNumber ?? 0) <= Number(filters.max_fee));
-    }
-    // Lọc theo xử lý bất thường & kiểm toán
-    if (filters.abnormal_type && filters.abnormal_type !== "all") {
-      const abType = String(filters.abnormal_type).toLowerCase().trim();
-      list = list.filter((s) => {
-        const noteStr = String(s.notes || s.feeBreakdown || "").toLowerCase();
-        const isWaived = Boolean(s.isWaived || s.waiveFee || s.isFeeExempt || noteStr.includes("miễn cước") || noteStr.includes("waived"));
-        const isGlitch = noteStr.includes("cancel_glitch") || noteStr.includes("hủy phiên") || noteStr.includes("nhận diện sai");
-        const isSlotRelease = noteStr.includes("release_slot") || noteStr.includes("giải phóng ô");
-        const isManual = noteStr.includes("manual_checkout") || noteStr.includes("mất điện") || noteStr.includes("thu tiền mặt");
-        const isAnyAbnormal = isWaived || isGlitch || isSlotRelease || isManual || noteStr.includes("[group:");
-
-        if (abType === "normal") return !isAnyAbnormal;
-        if (abType === "abnormal_all") return isAnyAbnormal;
-        if (abType === "ghost_exit") return isWaived;
-        if (abType === "cancel_glitch") return isGlitch;
-        if (abType === "release_slot") return isSlotRelease;
-        if (abType === "manual_checkout") return isManual;
-        return true;
-      });
-    }
-    const page = Number(filters.page) || 1;
-    const pageSize = Number(filters.page_size) || 10;
-    const total = list.length;
-    const start = (page - 1) * pageSize;
-    const paged = list.slice(start, start + pageSize);
-    const mapped = paged.map(mapParkingSession);
-    return {
-      items: mapped,
-      total,
-      page,
-      pageSize,
-      results: mapped,
-    };
-  }
-
   // Khi Backend DRF không hỗ trợ param 'search', ta phân giải sang session_code hoặc license_plate
   let sessionCodeFilter = filters.session_code;
   let licensePlateFilter = filters.license_plate;
@@ -210,12 +119,6 @@ export async function getParkingSessions(filters = {}) {
  * Lấy chi tiết 1 phiên đỗ xe
  */
 export async function getParkingSessionDetail(sessionId) {
-  if (USE_MOCK) {
-    const found = mockParkingHistory.find(
-      (item) => String(item.id) === String(sessionId) || item.sessionCode === sessionId
-    );
-    return found ? mapParkingSession(found) : null;
-  }
   const response = await apiClient(`/api/v1/parking/sessions/${sessionId}/`);
   return mapParkingSession(response);
 }
@@ -259,7 +162,7 @@ export async function resolveActiveParkingSession(plate) {
  */
 export async function matchPlateLookup(
   plateInput,
-  { vehicles = [], mockVehiclesFallback = true } = {}
+  { vehicles = [] } = {}
 ) {
   const rawInput = (plateInput || "").trim();
   const norm = normalizePlate(rawInput);
@@ -277,10 +180,7 @@ export async function matchPlateLookup(
   }
 
   const findInLocalList = () => {
-    let list = Array.isArray(vehicles) && vehicles.length > 0 ? vehicles : [];
-    if (list.length === 0 && mockVehiclesFallback) {
-      list = mockVehicles;
-    }
+    const list = Array.isArray(vehicles) && vehicles.length > 0 ? vehicles : [];
     return list.find((v) => normalizePlate(v.licensePlate) === norm) || null;
   };
 
@@ -349,7 +249,13 @@ export async function matchPlateLookup(
         err?.is_blacklisted
       );
 
-      const openSession = await resolveActiveParkingSession(rawInput);
+      let openSession = null;
+      try {
+        openSession = await resolveActiveParkingSession(rawInput);
+      } catch {
+        // fallback
+      }
+
       const rawLookup = {
         ...(openSession ? { open_session: openSession } : {}),
         is_blacklisted: isBlacklisted,

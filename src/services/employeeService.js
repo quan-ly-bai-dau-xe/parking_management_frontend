@@ -10,12 +10,6 @@
  */
 
 import { apiClient } from "./apiClient.js";
-import { isMockEnabled } from "../config/appConfig.js";
-import {
-  INITIAL_EMPLOYEES,
-  MOCK_POSITIONS,
-  MOCK_EMPLOYEE_SUMMARY,
-} from "../mocks/employeeData.js";
 import {
   createEmployeePayloadSchema,
   updateEmployeePayloadSchema,
@@ -118,53 +112,12 @@ export function mapEmployeeItem(item, index = 0) {
   };
 }
 
-/**
- * Trạng thái in-memory dành cho mock mode
- */
-let mockEmployees = INITIAL_EMPLOYEES.map((item, idx) => mapEmployeeItem(item, idx));
-
-/**
- * Reset dữ liệu mock về ban đầu (hữu ích cho unit test)
- */
-export function resetMockEmployees() {
-  mockEmployees = INITIAL_EMPLOYEES.map((item, idx) => mapEmployeeItem(item, idx));
-}
-
 export const employeeService = {
   /**
    * Lấy danh sách nhân viên
    * @param {Object} [params] - Tham số lọc (q, position, status, ordering, page, page_size)
    */
   async getEmployees(params = {}) {
-    if (isMockEnabled("employees")) {
-      let filtered = [...mockEmployees];
-
-      const query = (params.q || params.search || "").trim().toLowerCase();
-      if (query) {
-        filtered = filtered.filter((emp) =>
-          `${emp.name} ${emp.code} ${emp.email} ${emp.phone}`
-            .toLowerCase()
-            .includes(query)
-        );
-      }
-
-      if (params.position && params.position !== "all") {
-        filtered = filtered.filter(
-          (emp) =>
-            emp.role === params.position ||
-            emp.positionCode === params.position ||
-            String(emp.positionId) === String(params.position)
-        );
-      }
-
-      if (params.status && params.status !== "all") {
-        const normStatus = params.status.toLowerCase();
-        filtered = filtered.filter((emp) => emp.status === normStatus);
-      }
-
-      return filtered;
-    }
-
     // GỌI API THẬT - TUYỆT ĐỐI KHÔNG FALLBACK NGẦM
     const queryParams = new URLSearchParams();
     if (params.q) queryParams.set("q", params.q);
@@ -198,19 +151,6 @@ export const employeeService = {
    * Lấy 4 chỉ số thống kê KPI nhân viên (Single Source of Truth)
    */
   async getEmployeeSummary() {
-    if (isMockEnabled("employees")) {
-      return {
-        ...MOCK_EMPLOYEE_SUMMARY,
-        total_employees: mockEmployees.length,
-        active_employees: mockEmployees.filter((item) => item.status === "active")
-          .length,
-        inactive_employees: mockEmployees.filter(
-          (item) => item.status === "inactive"
-        ).length,
-        total_positions: new Set(mockEmployees.map((item) => item.role)).size,
-      };
-    }
-
     // GỌI API THẬT - TUYỆT ĐỐI KHÔNG FALLBACK NGẦM
     return await apiClient("/api/v1/employees/summary/");
   },
@@ -219,10 +159,6 @@ export const employeeService = {
    * Lấy danh mục chức vụ công việc
    */
   async getPositions() {
-    if (isMockEnabled("employees")) {
-      return [...MOCK_POSITIONS];
-    }
-
     // GỌI API THẬT - TUYỆT ĐỐI KHÔNG FALLBACK NGẦM
     return await apiClient("/api/v1/positions/");
   },
@@ -231,16 +167,6 @@ export const employeeService = {
    * Lấy chi tiết hồ sơ một nhân viên theo ID
    */
   async getEmployeeById(id) {
-    if (isMockEnabled("employees")) {
-      const found = mockEmployees.find(
-        (emp) => String(emp.id) === String(id) || emp.code === String(id)
-      );
-      if (!found) {
-        throw new Error(`Không tìm thấy nhân viên với ID ${id}`);
-      }
-      return { ...found };
-    }
-
     // GỌI API THẬT - TUYỆT ĐỐI KHÔNG FALLBACK NGẦM
     const response = await apiClient(`/api/v1/employees/${id}/`);
     return mapEmployeeItem(response);
@@ -251,26 +177,6 @@ export const employeeService = {
    */
   async createEmployee(employeeData) {
     const payload = createEmployeePayloadSchema.parse(employeeData);
-
-    if (isMockEnabled("employees")) {
-      const maxIdNum = mockEmployees.reduce((max, emp) => {
-        const num = parseInt(String(emp.code || emp.id).replace(/\D/g, ""), 10);
-        return !isNaN(num) && num > max ? num : max;
-      }, 0);
-      const newCode = `NV${String(maxIdNum + 1).padStart(3, "0")}`;
-
-      const newEmp = mapEmployeeItem({
-        ...employeeData,
-        ...payload,
-        id: newCode,
-        code: newCode,
-        status: employeeData.status || "active",
-        rowVersion: 1,
-      });
-
-      mockEmployees.unshift(newEmp);
-      return newEmp;
-    }
 
     // GỌI API THẬT - TUYỆT ĐỐI KHÔNG FALLBACK NGẦM
     const response = await apiClient("/api/v1/employees/", {
@@ -287,27 +193,6 @@ export const employeeService = {
   async updateEmployee(id, employeeData) {
     const payload = updateEmployeePayloadSchema.parse(employeeData);
 
-    if (isMockEnabled("employees")) {
-      const index = mockEmployees.findIndex(
-        (emp) => String(emp.id) === String(id) || emp.code === String(id)
-      );
-      if (index === -1) {
-        throw new Error(`Không tìm thấy nhân viên với ID ${id}`);
-      }
-
-      const current = mockEmployees[index];
-      const updated = mapEmployeeItem({
-        ...current,
-        ...employeeData,
-        id: current.id,
-        code: current.code,
-        rowVersion: (current.rowVersion || 1) + 1,
-      });
-
-      mockEmployees[index] = updated;
-      return updated;
-    }
-
     // GỌI API THẬT - TUYỆT ĐỐI KHÔNG FALLBACK NGẦM
     const response = await apiClient(`/api/v1/employees/${id}/`, {
       method: "PATCH",
@@ -321,17 +206,6 @@ export const employeeService = {
    * Xóa mềm nhân viên và tài khoản liên kết (DEL-01)
    */
   async deleteEmployee(id) {
-    if (isMockEnabled("employees")) {
-      const beforeCount = mockEmployees.length;
-      mockEmployees = mockEmployees.filter(
-        (emp) => String(emp.id) !== String(id) && emp.code !== String(id)
-      );
-      if (mockEmployees.length === beforeCount) {
-        throw new Error(`Không tìm thấy nhân viên với ID ${id} để xóa`);
-      }
-      return { detail: "Xóa thành công", id };
-    }
-
     // GỌI API THẬT - TUYỆT ĐỐI KHÔNG FALLBACK NGẦM
     return await apiClient(`/api/v1/employees/${id}/`, {
       method: "DELETE",

@@ -141,10 +141,17 @@ const icons = {
   ),
 };
 
-export default function TableActions({ actions = [] }) {
+export default function TableActions({ actions = [], align = "left" }) {
+  const alignClass =
+    align === "center"
+      ? "justify-center"
+      : align === "right"
+      ? "justify-end"
+      : "justify-start";
+
   return (
     <div
-      className="flex items-center justify-center gap-2"
+      className={`flex items-center ${alignClass} gap-2`}
       onClick={(e) => e.stopPropagation()}
     >
       {actions.map((action, index) => {

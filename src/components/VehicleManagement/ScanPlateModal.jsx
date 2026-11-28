@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { scanPlateImage } from "../../services/plateScanService";
 import {
   validateVehicleEntry,
   calculateParkingFee,
@@ -8,8 +7,12 @@ import {
   checkOutVehicle,
   forceCloseSessionAndReleaseSlot,
   getAvailableSlotsForCheckIn,
+  previewParkingFee,
 } from "../../services/parkingSessionService";
 import { usePlateAutoDetect } from "../../hooks/usePlateAutoDetect";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
+import { useToast } from "../../context/ToastContext";
+import useModalA11y from "../../hooks/useModalA11y";
 import { usePlateMatching } from "./scanPlate/hooks/usePlateMatching";
 import { parseEntryTimeToDate, normalizePlate } from "../../utils/parking/plateScanMapper";
 import { getEntryErrorMessage } from "../../utils/parking/gateErrorMapper";
@@ -56,18 +59,56 @@ export default function ScanPlateModal({
   const videoRef = useRef(null);
   const actionPendingRef = useRef(false);
   const barrierTimerRef = useRef(null);
+  const { role: currentUserRole } = useCurrentUser();
+  const toast = useToast();
 
   const [scanSourceMode, setScanSourceMode] = useState("camera"); // 'camera' | 'image'
+  const [backendFeePreview, setBackendFeePreview] = useState(null);
+  const [isLoadingFeePreview, setIsLoadingFeePreview] = useState(false);
+
+  const fetchFeePreview = useCallback(async (plate, sessionCode) => {
+    const cleanPlate = (plate || "").trim();
+    const cleanCode = (sessionCode || "").trim();
+    if (!cleanPlate && !cleanCode) {
+      setBackendFeePreview(null);
+      return;
+    }
+    setIsLoadingFeePreview(true);
+    try {
+      const preview = await previewParkingFee({
+        licensePlate: cleanPlate || undefined,
+        sessionCode: cleanCode || undefined,
+      });
+      setBackendFeePreview(preview || null);
+    } catch (err) {
+      const status = err?.status || err?.response?.status;
+      if (status === 404 || err?.data?.code === "PROP-4.5.1-P06") {
+        setBackendFeePreview(null);
+      }
+      console.warn("Could not preview parking fee from backend:", err?.message || err);
+    } finally {
+      setIsLoadingFeePreview(false);
+    }
+  }, []);
+
+  const handleMatchSuccess = useCallback((result, rawInput) => {
+    if (!result?.openSession && !result?.rawLookup?.open_session) {
+      setBackendFeePreview(null);
+      return;
+    }
+    fetchFeePreview(
+      rawInput,
+      result.openSession?.session_code || result.rawLookup?.open_session?.session_code
+    );
+  }, [fetchFeePreview]);
 
   const {
     detectedPlate,
     setDetectedPlate,
     matchedVehicle,
-    setMatchedVehicle,
     scanDetails,
     setScanDetails,
     isScanning,
-    searchStatus,
     errorMessage,
     setErrorMessage,
     rawLookup,
@@ -81,6 +122,7 @@ export default function ScanPlateModal({
       setActionSuccessMessage("");
       setBarrierState("closed");
     },
+    onMatchSuccess: handleMatchSuccess,
   });
 
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -97,12 +139,20 @@ export default function ScanPlateModal({
 
   const [paymentMethod, setPaymentMethod] = useState("VNPAY");
   const [isFeeExempt, setIsFeeExempt] = useState(false);
+  const [waiverReason, setWaiverReason] = useState("");
+  const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTimestamp(Date.now());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   const activeGateId = laneMode === "entry" ? DEFAULT_ENTRY_GATE_ID : DEFAULT_EXIT_GATE_ID;
 
   // Tích hợp usePlateAutoDetect để lấy stream camera thực tế
   const {
-    scanState,
     cameraError,
     videoDevices,
     selectedDeviceId,
@@ -164,7 +214,10 @@ export default function ScanPlateModal({
   // Lắng nghe camera tự động nhận diện biển số
   useEffect(() => {
     const plate = detectedData?.plate_final;
-    if (plate && plate !== detectedPlate && scanSourceMode === "camera") {
+    if (!plate || plate === detectedPlate) return undefined;
+    let isCancelled = false;
+    queueMicrotask(() => {
+      if (isCancelled || scanSourceMode !== "camera") return;
       setDetectedPlate(plate);
       handleMatchPlate(plate);
       const conf =
@@ -177,7 +230,10 @@ export default function ScanPlateModal({
         source: "camera",
         imageUrl: detectedData?.image_url || detectedData?.plate_image_url || null,
       });
-    }
+    });
+    return () => {
+      isCancelled = true;
+    };
   }, [detectedData, detectedPlate, handleMatchPlate, scanSourceMode, setDetectedPlate, setScanDetails]);
 
   // Tự động tìm kiếm biển số khi người dùng nhập tay (Debounce Search)
@@ -185,15 +241,16 @@ export default function ScanPlateModal({
 
   useEffect(() => {
     if (!isOpen) {
-      lastAutoSearchedPlateRef.current = "";
-      return;
+      return () => {
+        lastAutoSearchedPlateRef.current = "";
+      };
     }
 
     const cleanInput = (detectedPlate || "").trim();
     const normalizedInput = normalizePlate(cleanInput);
 
     if (normalizedInput.length >= MIN_SEARCH_PLATE_LENGTH) {
-      if (normalizedInput === lastAutoSearchedPlateRef.current) return;
+      if (normalizedInput === lastAutoSearchedPlateRef.current) return undefined;
 
       const timer = setTimeout(() => {
         lastAutoSearchedPlateRef.current = normalizedInput;
@@ -202,6 +259,7 @@ export default function ScanPlateModal({
 
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [isOpen, detectedPlate, handleMatchPlate]);
 
   const handleManualSearch = (e) => {
@@ -217,6 +275,9 @@ export default function ScanPlateModal({
   const handleReset = () => {
     lastAutoSearchedPlateRef.current = "";
     resetMatching();
+    setBackendFeePreview(null);
+    setIsFeeExempt(false);
+    setWaiverReason("");
     setActionSuccessMessage("");
     setBarrierState("closed");
     resetDetection();
@@ -249,17 +310,22 @@ export default function ScanPlateModal({
   );
 
   const rawEntryTime = rawLookup?.open_session?.entry_time;
+  const entryDateObj = rawEntryTime ? parseEntryTimeToDate(rawEntryTime) : null;
   const calculatedDurationMinutes = (() => {
-    if (!rawEntryTime) return 0;
-    const entryDate = parseEntryTimeToDate(rawEntryTime);
-    if (!entryDate) return 0;
-    const diffMs = Date.now() - entryDate.getTime();
+    if (!entryDateObj) return 0;
+    const diffMs = currentTimestamp - entryDateObj.getTime();
     return Math.max(1, Math.floor(diffMs / 60000));
   })();
 
+  const activeTicketCandidate = rawLookup?.active_ticket
+    ? [rawLookup.active_ticket]
+    : null;
   const exitFeeCalc = calculateParkingFee({
     vehicleType: matchedVehicle?.vehicleType || "CAR",
+    entryTime: entryDateObj,
+    exitTime: currentTimestamp,
     durationMinutes: calculatedDurationMinutes,
+    tickets: activeTicketCandidate,
     hasActiveTicket: hasValidTicket,
     hasValidTicket,
     isExempt: isFeeExempt,
@@ -279,13 +345,20 @@ export default function ScanPlateModal({
 
     try {
       const isGlitch = options.actionType === "cancel_glitch";
+      const chosenMethod = options.paymentMethod || "CASH";
+      const waiveFee = isGlitch || chosenMethod === "EXEMPT";
       const notes = isGlitch
         ? `Hủy phiên do quét sai/nhầm: ${options.reason || "Ngoại lệ"}`
+        : !isGlitch && chosenMethod === "WALLET" && options.feeAmount > 0
+        ? `${options.reason ? options.reason + " - " : ""}Thanh toán qua Ví App (${options.feeAmount.toLocaleString("vi-VN")}đ)`
         : options.reason || "Đóng phiên cũ có thu tiền tại làn kiểm soát";
 
       await forceCloseSessionAndReleaseSlot({
         licensePlate,
         sessionCode: options.sessionCode,
+        paymentMethod: waiveFee ? "CASH" : chosenMethod,
+        waiveFee,
+        waiverReason: waiveFee ? options.reason || notes : "",
         notes,
       });
       setRawLookup((prev) => (prev ? { ...prev, open_session: null } : null));
@@ -293,6 +366,8 @@ export default function ScanPlateModal({
       setActionSuccessMessage(
         isGlitch
           ? "✓ Đã hủy phiên cũ do quét nhầm thành công (0đ)."
+          : chosenMethod === "WALLET"
+          ? `✓ Đã trừ ${(options.feeAmount || 0).toLocaleString("vi-VN")}đ vào Ví App và đóng phiên thành công!`
           : "✓ Đã thu tiền & đóng phiên cũ thành công. Sẵn sàng đón lượt mới!"
       );
     } catch (err) {
@@ -326,10 +401,22 @@ export default function ScanPlateModal({
         detectedData?.plate_image_url ||
         (videoRef?.current ? captureVideoSnapshot(videoRef.current) : null);
 
+      const recognitionSource =
+        scanSourceMode === "camera" || scanDetails?.source === "camera" ? "AI" : "MANUAL";
+      const rawConfidence = scanDetails?.confidence ?? detectedData?.confidence ?? null;
+      const numericConfidence =
+        typeof rawConfidence === "number"
+          ? rawConfidence
+          : typeof rawConfidence === "string" && !isNaN(Number(rawConfidence))
+          ? Number(rawConfidence)
+          : null;
+
       const checkInResult = await checkInVehicle({
         licensePlate: detectedPlate || matchedVehicle?.licensePlate,
         slotId: targetSlotId,
-        entryGateId: DEFAULT_ENTRY_GATE_ID,
+        entryGateId: activeGateId,
+        recognitionSource,
+        aiConfidence: numericConfidence,
         imageUrl: entryImageUrl,
       });
 
@@ -375,14 +462,33 @@ export default function ScanPlateModal({
     setActionSuccessMessage("");
 
     try {
-      const isExemptActive = hasValidTicket || isFeeExempt;
-      const chosenMethod = isExemptActive ? "TICKET_EXEMPT" : paymentMethod;
+      const hasBackendPreview =
+        backendFeePreview !== null &&
+        backendFeePreview !== undefined &&
+        backendFeePreview.fee_amount !== undefined &&
+        backendFeePreview.fee_amount !== null;
+      const effectiveFeeAmount = hasBackendPreview
+        ? Number(backendFeePreview.fee_amount)
+        : exitFeeCalc.feeAmount;
+      const isTicketActive = hasBackendPreview
+        ? effectiveFeeAmount === 0 &&
+          Boolean(
+            backendFeePreview.has_active_ticket ||
+            backendFeePreview.is_exempt ||
+            effectiveFeeAmount === 0
+          )
+        : Boolean(hasValidTicket && exitFeeCalc.feeAmount === 0);
+      const isExemptActive = isFeeExempt || (effectiveFeeAmount === 0 && isTicketActive);
+      const chosenMethod = isExemptActive ? "CASH" : paymentMethod;
 
-      await checkOutVehicle({
+      const checkOutResult = await checkOutVehicle({
         licensePlate: detectedPlate || matchedVehicle?.licensePlate,
-        exitGateId: DEFAULT_EXIT_GATE_ID,
+        sessionCode: rawLookup?.open_session?.session_code,
+        exitGateId: activeGateId,
+        exitGate: activeGateId,
         paymentMethod: chosenMethod,
-        feePaid: isExemptActive ? 0 : exitFeeCalc.feeAmount,
+        waiveFee: isFeeExempt,
+        waiverReason: waiverReason,
       });
 
       setBarrierState("opening");
@@ -391,9 +497,19 @@ export default function ScanPlateModal({
         setBarrierState("opened");
       }, BARRIER_OPEN_DELAY_MS);
 
-      setActionSuccessMessage(
-        `✓ Check-out hoàn tất (${exitFeeCalc.feeFormatted})! Mở barrier mời xe ra bãi.`
-      );
+      const feeFormatted = isFeeExempt
+        ? "0đ (Miễn cước đặc cách)"
+        : isTicketActive
+        ? "0đ (Vé tháng có hiệu lực)"
+        : hasBackendPreview
+        ? `${new Intl.NumberFormat("vi-VN").format(backendFeePreview.fee_amount)}đ`
+        : checkOutResult?.fee_amount !== undefined
+        ? `${new Intl.NumberFormat("vi-VN").format(checkOutResult.fee_amount)}đ`
+        : exitFeeCalc.feeFormatted;
+
+      const successMsg = `✓ Check-out hoàn tất (${feeFormatted})! Mở barrier mời xe ra bãi.`;
+      setActionSuccessMessage(successMsg);
+      toast.success(successMsg);
     } catch (err) {
       setErrorMessage(err?.data?.message || err?.message || "Không thể thực hiện Check-out xe.");
     } finally {
@@ -402,10 +518,19 @@ export default function ScanPlateModal({
     }
   };
 
+  const { titleId, dialogProps } = useModalA11y({
+    isOpen,
+    onClose,
+    isBusy: isActionPending,
+  });
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+    <div
+      {...dialogProps}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150"
+    >
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/80 w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header Modal */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-white shrink-0">
@@ -414,7 +539,7 @@ export default function ScanPlateModal({
               📷
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900">
+              <h3 id={titleId} className="text-sm sm:text-base font-bold text-slate-900">
                 Kiểm Soát Cổng Ra / Vào & Camera Biển Số
               </h3>
               <p className="text-3xs text-slate-500">
@@ -449,6 +574,13 @@ export default function ScanPlateModal({
                   setErrorMessage("");
                   setActionSuccessMessage("");
                   setBarrierState("closed");
+                  const targetPlate = detectedPlate || matchedVehicle?.licensePlate;
+                  const targetCode = rawLookup?.open_session?.session_code;
+                  if (rawLookup?.open_session && (targetPlate || targetCode)) {
+                    fetchFeePreview(targetPlate, targetCode);
+                  } else {
+                    setBackendFeePreview(null);
+                  }
                 }}
                 className={`px-3 py-1 rounded-lg text-2xs font-semibold transition-all ${
                   laneMode === "exit"
@@ -461,7 +593,11 @@ export default function ScanPlateModal({
             </div>
 
             <button
-              onClick={onClose}
+              type="button"
+              onClick={() => {
+                if (!isActionPending) onClose?.();
+              }}
+              aria-label="Đóng"
               className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
             >
               ✕
@@ -522,6 +658,13 @@ export default function ScanPlateModal({
                   onClick={() => {
                     setLaneMode("exit");
                     setErrorMessage("");
+                    const targetPlate = detectedPlate || matchedVehicle?.licensePlate;
+                    const targetCode = rawLookup?.open_session?.session_code;
+                    if (rawLookup?.open_session && (targetPlate || targetCode)) {
+                      fetchFeePreview(targetPlate, targetCode);
+                    } else {
+                      setBackendFeePreview(null);
+                    }
                   }}
                   className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-3xs font-semibold"
                 >
@@ -605,7 +748,6 @@ export default function ScanPlateModal({
                   isActionPending={isActionPending}
                   onConfirmEntry={handleConfirmEntry}
                   onForceCloseSession={handleOpenSafetyModal}
-                  onSwitchToExit={() => setLaneMode("exit")}
                 />
               ) : (
                 <ExitLanePanel
@@ -614,10 +756,14 @@ export default function ScanPlateModal({
                   rawLookup={rawLookup}
                   scanDetails={scanDetails}
                   hasValidTicket={hasValidTicket}
-                  exitFeeCalc={exitFeeCalc}
                   calculatedDurationMinutes={calculatedDurationMinutes}
+                  backendFeePreview={backendFeePreview}
+                  isLoadingFeePreview={isLoadingFeePreview}
                   isFeeExempt={isFeeExempt}
                   setIsFeeExempt={setIsFeeExempt}
+                  waiverReason={waiverReason}
+                  setWaiverReason={setWaiverReason}
+                  currentUserRole={currentUserRole}
                   paymentMethod={paymentMethod}
                   setPaymentMethod={setPaymentMethod}
                   isActionPending={isActionPending}
@@ -670,6 +816,7 @@ export default function ScanPlateModal({
         onClose={() => setIsSafetyModalOpen(false)}
         licensePlate={detectedPlate || matchedVehicle?.licensePlate}
         openSession={rawLookup?.open_session}
+        matchedVehicle={matchedVehicle}
         onConfirmClose={handleConfirmCloseSafety}
         isLoading={isActionPending}
       />

@@ -8,6 +8,8 @@ import { parseAuditNotes } from "../../constants/abnormalSessionConstants";
 import ParkingSessionThumbnail from "./ParkingSessionThumbnail";
 import VehicleTicketTypeBadge from "../VehicleManagement/VehicleTicketTypeBadge";
 import { formatLicensePlateForDisplay } from "../../utils/plateFormatter";
+import { formatCurrencyVND } from "../../constants/paymentConstants";
+import { formatDateTimeVN } from "../../utils/formatDateTime";
 
 function getDisplayTicketType(item) {
   const raw = item?.ticketType || item?.ticket_type_name || item?.ticket_type;
@@ -87,7 +89,10 @@ export default function ParkingHistoryTable({
                     <VehicleTicketTypeBadge ticketType={displayTicketType} />
                   </div>
                   <div className="col-span-2 text-slate-600">
-                    {item.entryTime || item.entry_time || PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT}
+                    {item.entryTime ||
+                      (item.entry_time
+                        ? formatDateTimeVN(item.entry_time, PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT)
+                        : PARKING_HISTORY_DEFAULTS.PLACEHOLDER_TEXT)}
                   </div>
                   <div className="col-span-2 text-slate-600">{formattedExitTime}</div>
                   <div className="col-span-1 text-slate-600">
@@ -127,23 +132,71 @@ export default function ParkingHistoryTable({
                     )}
                   </div>
                   <div className="col-span-1">
-                    {isOngoing && item.estimatedFee ? (
-                      <div className="flex flex-col">
-                        <span
-                          className="font-semibold text-amber-700"
-                          title={`Tạm tính dựa trên thời gian đỗ thực tế: ${item.estimatedFee.calculationBreakdown}`}
-                        >
-                          ~{item.estimatedFee.feeFormatted}
-                        </span>
-                        <span className="text-[10px] text-amber-600/80">
-                          {item.estimatedFee.isCapped ? "(Trần)" : "(Tạm tính)"}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className={`font-semibold ${item.isWaived || item.waiveFee || auditInfo.isAudited ? "text-amber-700" : "text-emerald-600"}`}>
-                        {item.fee || (item.fee_amount !== undefined && item.fee_amount !== null ? `${item.fee_amount}đ` : "0đ")}
-                      </span>
-                    )}
+                    <div className="flex flex-col">
+                      {isOngoing && item.estimatedFee ? (
+                        <>
+                          <span
+                            className="font-semibold text-amber-700"
+                            title={`Tạm tính dựa trên thời gian đỗ thực tế: ${item.estimatedFee.calculationBreakdown}`}
+                          >
+                            ~{item.estimatedFee.feeFormatted}
+                          </span>
+                          <span className="text-[10px] text-amber-600/80">
+                            {item.estimatedFee.hasPackageCoverage && item.estimatedFee.overageHours > 0
+                              ? "(Tạm tính vượt hạn)"
+                              : item.estimatedFee.isCapped
+                              ? "(Đã áp trần)"
+                              : "(Tạm tính)"}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-semibold text-emerald-600">
+                            {item.fee || (item.fee_amount !== undefined && item.fee_amount !== null ? formatCurrencyVND(item.fee_amount) : "0đ")}
+                          </span>
+                          {item.paymentMethod && (
+                            <span className="text-[10px] font-medium text-slate-500">
+                              {item.paymentMethod === "WALLET"
+                                ? "Ví khách hàng (WALLET)"
+                                : item.paymentMethod === "VIETQR"
+                                ? "Chuyển khoản (VIETQR)"
+                                : item.paymentMethod === "VNPAY"
+                                ? "VNPAY (VNPAY)"
+                                : item.paymentMethod === "CARD"
+                                ? "Quẹt thẻ (CARD)"
+                                : item.paymentMethod === "CASH"
+                                ? "Tiền mặt (CASH)"
+                                : item.paymentMethod}
+                            </span>
+                          )}
+                          {item.paymentMethod === "WALLET" ? (
+                            <span className="text-[10px] text-slate-400">
+                              Trừ ví tự động
+                            </span>
+                          ) : (item.paymentMethod === "CARD" ||
+                              item.paymentMethod === "VNPAY" ||
+                              item.paymentMethod === "VIETQR") ? (
+                            <span className="text-[10px] text-blue-500">
+                              Vào TK bãi xe
+                            </span>
+                          ) : null}
+                          {(item.exitHandledByName || item.exit_handled_by_name) && (
+                            <span className="text-[10px] text-slate-400">
+                              {item.paymentMethod === "CASH" || !item.paymentMethod
+                                ? "Thu bởi: "
+                                : "Xác nhận: "}
+                              {item.exitHandledByName || item.exit_handled_by_name}
+                              {(() => {
+                                const code = item.exitHandledByCode || item.exit_handled_by_code;
+                                const pos = item.exitHandledByPosition || item.exit_handled_by_position;
+                                const meta = [code, pos].filter(Boolean).join(" • ");
+                                return meta ? ` (${meta})` : "";
+                              })()}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div className="col-span-1 flex justify-center items-center">
                     <ParkingSessionThumbnail item={item} onPreview={onPreviewImage} />

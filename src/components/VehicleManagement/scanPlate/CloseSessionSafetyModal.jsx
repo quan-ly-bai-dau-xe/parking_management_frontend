@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import ConfirmModal from "../../common/Modal/ConfirmModal";
+import ConfirmModal from "../../common/modal/ConfirmModal";
 import LoadingSpinner from "../../common/LoadingSpinner";
 import {
   previewParkingFee,
@@ -7,11 +7,14 @@ import {
 } from "../../../services/parkingSessionService";
 import { formatLicensePlateForDisplay } from "../../../utils/plateFormatter";
 import { formatCurrencyVND, PAYMENT_METHODS } from "../../../constants/paymentConstants";
-import { getCustomerWalletBalance } from "../../../services/walletService";
+import { formatDateTimeVN } from "../../../utils/formatDateTime";
 import { calculateParkingDuration } from "../../../utils/parking/parkingFeeCalculator";
 import { useCurrentUser } from "../../../hooks/useCurrentUser";
 import AbnormalReasonSelector from "../../ParkingHistory/AbnormalReasonSelector";
-import { formatAuditNotes } from "../../../constants/abnormalSessionConstants";
+import {
+  formatAuditNotes,
+  validateAbnormalAction,
+} from "../../../constants/abnormalSessionConstants";
 
 const ACTION_TYPES = {
   MANUAL_CHECKOUT: "manual_checkout",
@@ -28,6 +31,7 @@ export default function CloseSessionSafetyModal({
   onClose,
   licensePlate,
   openSession,
+  matchedVehicle = null,
   onConfirmClose,
   isLoading = false,
 }) {
@@ -42,7 +46,11 @@ export default function CloseSessionSafetyModal({
   const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
-    if (isOpen && (licensePlate || openSession)) {
+    if (!isOpen || (!licensePlate && !openSession)) return undefined;
+    let isCancelled = false;
+
+    queueMicrotask(() => {
+      if (isCancelled) return;
       setActionType(ACTION_TYPES.MANUAL_CHECKOUT);
       setPaymentMethod("CASH");
       setReasonCode("");
@@ -50,37 +58,48 @@ export default function CloseSessionSafetyModal({
       setApproverName("");
       setFeePreview(null);
       setValidationError("");
+      setIsPreviewLoading(true);
+    });
 
-      const fetchFee = async () => {
-        setIsPreviewLoading(true);
-        try {
-          const res = await previewParkingFee({
-            licensePlate: licensePlate || openSession?.license_plate || openSession?.licensePlate,
-            sessionCode: openSession?.session_code || openSession?.sessionCode,
-          });
-          setFeePreview(res);
-        } catch (err) {
-          console.warn("Could not preview fee:", err);
-        } finally {
-          setIsPreviewLoading(false);
-        }
-      };
-      fetchFee();
-    }
+    const fetchFee = async () => {
+      try {
+        const res = await previewParkingFee({
+          licensePlate: licensePlate || openSession?.license_plate || openSession?.licensePlate,
+          sessionCode: openSession?.session_code || openSession?.sessionCode,
+        });
+        if (!isCancelled) setFeePreview(res);
+      } catch (err) {
+        console.warn("Could not preview fee:", err);
+      } finally {
+        if (!isCancelled) setIsPreviewLoading(false);
+      }
+    };
+    fetchFee();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen, licensePlate, openSession]);
 
   if (!isOpen) return null;
 
   const targetPlate = licensePlate || openSession?.license_plate || openSession?.licensePlate || "";
   const displayPlate = formatLicensePlateForDisplay(targetPlate);
-  const sessionCode = openSession?.session_code || openSession?.sessionCode || feePreview?.session_code || "N/A";
+  const rawSessionCode =
+    openSession?.session_code || openSession?.sessionCode || feePreview?.session_code || "";
+  const displaySessionCode = rawSessionCode || "N/A";
   const entryTime = openSession?.entry_time || openSession?.entryTime || feePreview?.entry_time;
   const entryImageUrl = openSession?.entry_image_url || openSession?.plateImageUrl || openSession?.imageUrl;
 
   // Sử dụng hàm tính toán thời lượng dùng chung, tránh trùng lặp logic
   const localDurationData = calculateParkingDuration(entryTime);
 
-  const walletBalance = getCustomerWalletBalance({ licensePlate: targetPlate });
+  const walletBalance = Number(
+    matchedVehicle?.customer?.walletBalance ??
+      openSession?.wallet_balance ??
+      feePreview?.wallet_balance ??
+      0
+  );
 
   // Tái sử dụng calculateParkingFee chính thống thay vì tự nhân thủ công
   const calculatedFeeAmount = (() => {
@@ -133,7 +152,7 @@ export default function CloseSessionSafetyModal({
       reasonDetail: reasonDetail.trim(),
       approverName: isManager ? (displayName || "Quản lý") : approverName.trim(),
       feeAmount: actionType === ACTION_TYPES.CANCEL_GLITCH ? 0 : calculatedFeeAmount,
-      sessionCode,
+      sessionCode: rawSessionCode || undefined,
       licensePlate: targetPlate,
     });
   };
@@ -143,7 +162,7 @@ export default function CloseSessionSafetyModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Xác nhận xử lý phiên gửi cũ còn tồn tại"
-      description={`Biển số: ${displayPlate} · Mã phiên: ${sessionCode}`}
+      description={`Biển số: ${displayPlate} · Mã phiên: ${displaySessionCode}`}
       variant={actionType === ACTION_TYPES.CANCEL_GLITCH ? "error" : "warning"}
       confirmText={
         actionType === ACTION_TYPES.CANCEL_GLITCH
@@ -172,7 +191,7 @@ export default function CloseSessionSafetyModal({
           <div className="flex items-center justify-between text-2xs">
             <span className="text-slate-500">Giờ vào phiên cũ:</span>
             <span className="font-medium text-slate-800">
-              {entryTime ? new Date(entryTime).toLocaleString("vi-VN") : "Chưa xác định"}
+              {entryTime ? formatDateTimeVN(entryTime, "Chưa xác định") : "Chưa xác định"}
             </span>
           </div>
           <div className="flex items-center justify-between text-2xs">

@@ -219,12 +219,16 @@ export function parseAuditNotes(notesString) {
   const detailMatch = notesString.match(/\[DETAIL:([^\]]+)\]/);
 
   const isAudited = Boolean(groupMatch || reasonMatch || labelMatch);
+  const reasonCode = reasonMatch ? reasonMatch[1] : null;
+  const matchedReason = reasonCode
+    ? ABNORMAL_REASONS.find((r) => r.code === reasonCode)
+    : null;
 
   return {
     isAudited,
     groupCode: groupMatch ? groupMatch[1].toLowerCase() : null,
-    reasonCode: reasonMatch ? reasonMatch[1] : null,
-    reasonLabel: labelMatch ? labelMatch[1] : null,
+    reasonCode,
+    reasonLabel: labelMatch ? labelMatch[1] : matchedReason?.label || null,
     actorName: actorMatch ? actorMatch[1] : null,
     approverName: approverMatch ? approverMatch[1] : null,
     detail: detailMatch ? detailMatch[1] : null,

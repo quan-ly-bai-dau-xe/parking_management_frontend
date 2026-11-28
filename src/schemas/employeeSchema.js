@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseDisplayToApiDate } from "../utils/dateUtils.js";
 
 /**
  * Pure Zod Validation Schemas cho Employee Domain.
@@ -93,6 +94,7 @@ export const createEmployeeInputSchema = z
     status: z.string().trim().optional(),
     code: z.string().trim().optional(),
     date_of_birth: z.string().trim().nullable().optional(),
+    birthday: z.string().trim().nullable().optional(),
     gender: z.string().trim().optional(),
     identity_card_number: z.string().trim().optional(),
     address: z.string().trim().optional(),
@@ -139,8 +141,10 @@ export const createEmployeePayloadSchema = createEmployeeInputSchema.transform((
   if (data.code && data.code.trim()) {
     payload.code = data.code.trim();
   }
-  if (data.date_of_birth && data.date_of_birth.trim()) {
-    payload.date_of_birth = data.date_of_birth.trim();
+  const rawDob = (data.date_of_birth || data.birthday || "").trim();
+  if (rawDob) {
+    const parsedDob = parseDisplayToApiDate(rawDob);
+    payload.date_of_birth = parsedDob || rawDob;
   }
   if (data.gender && data.gender.trim()) {
     payload.gender = data.gender.trim();
@@ -191,6 +195,7 @@ export const updateEmployeeInputSchema = z.object({
   password: z.string().optional(),
   status: z.string().trim().optional(),
   date_of_birth: z.string().trim().nullable().optional(),
+  birthday: z.string().trim().nullable().optional(),
   gender: z.string().trim().optional(),
   identity_card_number: z.string().trim().optional(),
   address: z.string().trim().optional(),
@@ -246,8 +251,10 @@ export const updateEmployeePayloadSchema = updateEmployeeInputSchema.transform((
     payload.address = address;
   }
 
-  if (data.date_of_birth && data.date_of_birth.trim()) {
-    payload.date_of_birth = data.date_of_birth.trim();
+  const rawDob = (data.date_of_birth || data.birthday || "").trim();
+  if (rawDob) {
+    const parsedDob = parseDisplayToApiDate(rawDob);
+    payload.date_of_birth = parsedDob || rawDob;
   }
   if (data.gender && data.gender.trim()) {
     payload.gender = data.gender.trim();

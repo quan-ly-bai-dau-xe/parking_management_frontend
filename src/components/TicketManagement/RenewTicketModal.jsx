@@ -1,21 +1,61 @@
 import { useState, useEffect, useMemo } from "react";
 import { BaseModal } from "../common/modal";
 import { FormInput, FormSelect, SearchableCombobox, Button } from "../common";
-import { mockParkingFloors } from "../../mocks/parkingLotData";
+import { parkingLotService } from "../../services/parkingLotService";
+import {
+  calculateAutoRenewPrice,
+  computeDefaultRenewalValues,
+  DEFAULT_TICKET_TYPE_NAME,
+  diffDaysIsoDate,
+  getRenewalBaseDateIso,
+  getTicketOldEndDateIso,
+  MIN_RENEW_PRICE_VND,
+  resolveTicketTypeMeta,
+  validateRenewTicketForm,
+} from "../../utils/ticket/renewTicketUtils";
 
-export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm }) {
-  const [ticketType, setTicketType] = useState(ticket?.ticketType || "Vé tháng");
+const TICKET_TYPE_OPTIONS = [
+  { value: "Vé ngày", label: "Vé ngày" },
+  { value: "Vé tháng", label: "Vé tháng" },
+  { value: "Vé quý", label: "Vé quý" },
+  { value: "Vé năm", label: "Vé năm" },
+];
+
+function RenewTicketModalContent({ onClose, ticket, onConfirm }) {
+  const initialType = ticket?.ticketType || DEFAULT_TICKET_TYPE_NAME;
+  const initialDefaults = computeDefaultRenewalValues(ticket, initialType);
+
+  const [ticketType, setTicketType] = useState(initialType);
   const [slot, setSlot] = useState(ticket?.slotLocation || "");
-  const [newEndDate, setNewEndDate] = useState("2026-12-07");
-  const [renewPrice, setRenewPrice] = useState("500000");
+  const [newEndDate, setNewEndDate] = useState(initialDefaults.newEndDate);
+  const [renewPrice, setRenewPrice] = useState(initialDefaults.renewPrice);
   const [note, setNote] = useState("");
+  const [errors, setErrors] = useState({});
+  const [parkingFloors, setParkingFloors] = useState([]);
 
   useEffect(() => {
-    if (ticket) {
-      setTicketType(ticket.ticketType || "Vé tháng");
-      setSlot(ticket.slotLocation || "");
-    }
-  }, [ticket]);
+    let isMounted = true;
+    parkingLotService.getParkingStructure()
+      .then((res) => {
+        if (!isMounted) return;
+        const floors = Array.isArray(res) ? res : res?.floors || [];
+        setParkingFloors(floors);
+      })
+      .catch((err) => {
+        console.warn("[RenewTicketModal] Không thể tải sơ đồ bãi xe:", err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const baseDateIso = useMemo(() => getRenewalBaseDateIso(ticket), [ticket]);
+  const minNewEndDate = useMemo(
+    () => computeDefaultRenewalValues(ticket, ticketType).minNewEndDate,
+    [ticket, ticketType],
+  );
+  const oldEndDateIso = useMemo(() => getTicketOldEndDateIso(ticket), [ticket]);
 
   // Danh sách vị trí đỗ xe dạng SearchableCombobox
   const parkingSlotOptions = useMemo(() => {
@@ -28,10 +68,11 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
       },
     ];
 
-    mockParkingFloors.forEach((floor) => {
+    parkingFloors.forEach((floor) => {
       (floor.zones || []).forEach((zone) => {
         (zone.slots || []).forEach((s) => {
-          const val = `${floor.floorName} - ${s.slotId}`;
+          const slotIdentifier = s.slotCode || s.slotId || s.id;
+          const val = `${floor.floorName || floor.name} - ${slotIdentifier}`;
           if (val !== ticket?.slotLocation) {
             const typeName =
               s.type === "EV_CHARGING"
@@ -41,9 +82,9 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
                 : "Tiêu chuẩn";
             options.push({
               value: val,
-              label: `${floor.floorName} - Ô ${s.slotId}`,
+              label: `${floor.floorName || floor.name} - Ô ${slotIdentifier}`,
               badge: typeName,
-              subLabel: `${zone.zoneName}`,
+              subLabel: `${zone.zoneName || zone.name}`,
             });
           }
         });
@@ -51,38 +92,93 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
     });
 
     return options;
-  }, [ticket]);
+  }, [ticket, parkingFloors]);
+
+  const handleTicketTypeChange = (e) => {
+    const nextType = e.target.value;
+    const defaults = computeDefaultRenewalValues(ticket, nextType);
+    setTicketType(nextType);
+    setNewEndDate(defaults.newEndDate);
+    setRenewPrice(defaults.renewPrice);
+    setErrors((prev) => ({
+      ...prev,
+      newEndDate: "",
+      renewPrice: "",
+      form: "",
+    }));
+  };
+
+  const handleEndDateChange = (e) => {
+    const nextDate = e.target.value;
+    setNewEndDate(nextDate);
+    const autoPrice = calculateAutoRenewPrice({
+      ticketTypeName: ticketType,
+      baseDateIso,
+      newEndDateIso: nextDate,
+    });
+    if (autoPrice) {
+      setRenewPrice(autoPrice);
+    }
+    setErrors((prev) => ({
+      ...prev,
+      newEndDate: "",
+      renewPrice: autoPrice ? "" : prev.renewPrice,
+      form: "",
+    }));
+  };
+
+  const handlePriceChange = (e) => {
+    setRenewPrice(e.target.value);
+    if (errors.renewPrice) {
+      setErrors((prev) => ({ ...prev, renewPrice: "" }));
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const validation = validateRenewTicketForm({
+      ticket,
+      newEndDate,
+      renewPrice,
+    });
+    if (!validation.valid) {
+      setErrors(validation.errors);
+      return;
+    }
+
+    const meta = resolveTicketTypeMeta(ticketType);
+    const extendDays = Math.max(1, diffDaysIsoDate(baseDateIso, newEndDate));
+
     if (onConfirm) {
       onConfirm({
-        ticketId: ticket?.ticketCode,
+        ticketId: ticket?.id ?? ticket?.ticketCode,
+        ticketCode: ticket?.ticketCode,
+        ticket_type_id: meta.id,
         newTicketType: ticketType,
         newSlot: slot,
         newEndDate,
-        renewPrice,
+        extend_days: extendDays,
+        renewPrice: String(Number(renewPrice)),
         note,
       });
     }
     onClose();
   };
 
-  const TICKET_TYPE_OPTIONS = [
-    { value: "Vé ngày", label: "Vé ngày" },
-    { value: "Vé tháng", label: "Vé tháng" },
-    { value: "Vé quý", label: "Vé quý" },
-    { value: "Vé năm", label: "Vé năm" },
-  ];
-
   return (
     <BaseModal
-      isOpen={isOpen}
+      isOpen={true}
       onClose={onClose}
       title="Gia hạn vé"
       size="lg"
     >
-      <form onSubmit={handleSubmit} className="space-y-3.5">
+      <form onSubmit={handleSubmit} className="space-y-3.5" noValidate>
+        {errors.form && (
+          <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+            {errors.form}
+          </div>
+        )}
+
         <FormInput
           label="Mã vé"
           readOnly
@@ -94,7 +190,7 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
         <FormSelect
           label="Loại vé mới"
           value={ticketType}
-          onChange={(e) => setTicketType(e.target.value)}
+          onChange={handleTicketTypeChange}
           options={TICKET_TYPE_OPTIONS}
           placeholder=""
           required
@@ -114,7 +210,14 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
             type="date"
             label="Ngày hết hạn mới"
             value={newEndDate}
-            onChange={(e) => setNewEndDate(e.target.value)}
+            min={minNewEndDate}
+            onChange={handleEndDateChange}
+            error={errors.newEndDate}
+            helperText={
+              oldEndDateIso
+                ? `Hết hạn cũ: ${ticket?.endDate || oldEndDateIso}`
+                : ""
+            }
             required
           />
 
@@ -122,7 +225,9 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
             type="number"
             label="Giá gia hạn (VNĐ)"
             value={renewPrice}
-            onChange={(e) => setRenewPrice(e.target.value)}
+            min={MIN_RENEW_PRICE_VND}
+            onChange={handlePriceChange}
+            error={errors.renewPrice}
             className="font-mono"
             required
           />
@@ -145,5 +250,18 @@ export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm })
         </div>
       </form>
     </BaseModal>
+  );
+}
+
+export default function RenewTicketModal({ isOpen, onClose, ticket, onConfirm }) {
+  if (!isOpen) return null;
+
+  return (
+    <RenewTicketModalContent
+      key={`${ticket?.id ?? ticket?.ticketCode ?? "none"}-${ticket?.endDate ?? ""}`}
+      onClose={onClose}
+      ticket={ticket}
+      onConfirm={onConfirm}
+    />
   );
 }
