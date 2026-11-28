@@ -68,7 +68,7 @@ export default function PlateScannerModal({
       });
     };
 
-    updateMetrics();
+    const rafId = requestAnimationFrame(updateMetrics);
 
     let resizeObserver = null;
     if (typeof ResizeObserver !== "undefined") {
@@ -78,6 +78,7 @@ export default function PlateScannerModal({
 
     window.addEventListener("resize", updateMetrics);
     return () => {
+      cancelAnimationFrame(rafId);
       window.removeEventListener("resize", updateMetrics);
       if (resizeObserver) resizeObserver.disconnect();
     };
