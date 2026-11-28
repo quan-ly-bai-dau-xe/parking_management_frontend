@@ -401,15 +401,27 @@ export default function GateCameraControlModal({
   }, []);
 
   useEffect(() => {
-    return () => {
+    if (!isOpen) {
       if (barrierTimerRef.current) {
         clearTimeout(barrierTimerRef.current);
+        barrierTimerRef.current = null;
       }
       if (barrierAutoCloseTimerRef.current) {
         clearTimeout(barrierAutoCloseTimerRef.current);
+        barrierAutoCloseTimerRef.current = null;
+      }
+    }
+    return () => {
+      if (barrierTimerRef.current) {
+        clearTimeout(barrierTimerRef.current);
+        barrierTimerRef.current = null;
+      }
+      if (barrierAutoCloseTimerRef.current) {
+        clearTimeout(barrierAutoCloseTimerRef.current);
+        barrierAutoCloseTimerRef.current = null;
       }
     };
-  }, []);
+  }, [isOpen, laneMode]);
 
   // Sync Worker Mode waiting banners & barrier/history transitions from lastAutoEvent (D2, D3, D8)
   useEffect(() => {
@@ -657,47 +669,33 @@ export default function GateCameraControlModal({
 
   useEffect(() => {
     detectedPlateRef.current = detectedPlate;
-  }, [detectedPlate]);
-
-  useEffect(() => {
     pendingEntryInfoRef.current = pendingEntryInfo;
-  }, [pendingEntryInfo]);
-
-  useEffect(() => {
     pendingExitInfoRef.current = pendingExitInfo;
-  }, [pendingExitInfo]);
-
-  useEffect(() => {
     detectedDataRef.current = detectedData;
-  }, [detectedData]);
-
-  useEffect(() => {
     scanDetailsRef.current = scanDetails;
-  }, [scanDetails]);
-
-  useEffect(() => {
     cameraErrorRef.current = cameraError;
-  }, [cameraError]);
-
-  useEffect(() => {
     isScanningRef.current = isScanning;
-  }, [isScanning]);
-
-  useEffect(() => {
     handleMatchPlateRef.current = handleMatchPlate;
-  }, [handleMatchPlate]);
-
-  useEffect(() => {
     resetDetectionRef.current = resetDetection;
-  }, [resetDetection]);
-
-  useEffect(() => {
     resetMatchingRef.current = resetMatching;
-  }, [resetMatching]);
-
-  useEffect(() => {
     setErrorMessageRef.current = setErrorMessage;
-  }, [setErrorMessage]);
+    isOpenRef.current = isOpen;
+    laneModeRef.current = laneMode;
+  }, [
+    detectedPlate,
+    pendingEntryInfo,
+    pendingExitInfo,
+    detectedData,
+    scanDetails,
+    cameraError,
+    isScanning,
+    handleMatchPlate,
+    resetDetection,
+    resetMatching,
+    setErrorMessage,
+    isOpen,
+    laneMode,
+  ]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -705,14 +703,6 @@ export default function GateCameraControlModal({
       isMountedRef.current = false;
     };
   }, []);
-
-  useEffect(() => {
-    isOpenRef.current = isOpen;
-  }, [isOpen]);
-
-  useEffect(() => {
-    laneModeRef.current = laneMode;
-  }, [laneMode]);
 
   // Nạp danh sách ô đỗ khả dụng khi ở Làn Vào
   useEffect(() => {
